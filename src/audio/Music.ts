@@ -157,7 +157,7 @@ export class MusicGen {
       : [[1, 0.06, 1.3], [2, 0.022, 0.6], [3, 0.008, 0.3]];
     for (const [ratio, amp, dec] of partials) {
       const o = ctx.createOscillator(); o.type = this.instrument === 'pluck' && ratio === 1 ? 'triangle' : 'sine';
-      o.frequency.value = F(f * ratio, 440);
+      o.frequency.value = Math.min(18000, F(f * ratio, 440));
       const og = ctx.createGain();
       og.gain.setValueAtTime(0.0001, at); og.gain.exponentialRampToValueAtTime(amp * vel, at + 0.006); og.gain.exponentialRampToValueAtTime(0.0001, at + dec);
       o.connect(og).connect(g); o.start(at); o.stop(at + dec + 0.05);
