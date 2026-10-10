@@ -17,10 +17,16 @@ export class Guide {
   private up = new THREE.Vector3(0, 1, 0);
 
   constructor() {
-    const g = new THREE.CircleGeometry(0.1, 10);
+    const g = new THREE.CircleGeometry(0.15, 12).toNonIndexed();
     g.rotateX(-Math.PI / 2);
     g.scale(0.75, 1, 1.35); // footprint-ish oval
-    const mat = new THREE.MeshBasicNodeMaterial({ color: '#ffe7a3', transparent: true, opacity: 0.85, depthWrite: false });
+    // two-tone: bright core, warm amber rim, readable on sand, grass and snow alike
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+    const core = new THREE.Color('#fff7d6'), rim = new THREE.Color('#ff9d2e');
+    for (let i = 0; i < pos.count; i++) { const c = Math.hypot(pos.getX(i), pos.getZ(i)) < 0.01 ? core : rim; col.set([c.r, c.g, c.b], i * 3); }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mat = new THREE.MeshBasicNodeMaterial({ vertexColors: true, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    mat.toneMapped = false;
     this.mesh = new THREE.InstancedMesh(g, mat, N);
     this.mesh.frustumCulled = false; this.mesh.castShadow = false; this.mesh.receiveShadow = false;
     this.mesh.renderOrder = 3;
@@ -46,13 +52,13 @@ export class Guide {
         const far = Math.min(1, (end - d) / 5);               // fade out before the X
         const tail = 1 - Math.min(1, (d - START) / (N * SPACING)); // softer far away
         const pulse = 0.85 + 0.15 * Math.sin(this.t * 3 - d * 1.3);
-        sc = near * far * (0.55 + 0.45 * tail) * pulse * this.vis;
+        sc = near * far * (0.7 + 0.3 * tail) * pulse * this.vis;
       }
       const side = (i % 2 ? 1 : -1) * 0.13; // alternate left/right like footsteps
       const x = from.x + ux * d + uz * side, z = from.z + uz * d - ux * side;
       const h = heightAt(x, z);
       if (h < 0.03) sc = 0; // no prints on water
-      this.p.set(x, h + 0.05, z);
+      this.p.set(x, h + 0.1, z);
       this.q.setFromAxisAngle(this.up, yaw);
       this.s.setScalar(Math.max(0.0001, sc));
       this.mesh.setMatrixAt(i, this.m.compose(this.p, this.q, this.s));

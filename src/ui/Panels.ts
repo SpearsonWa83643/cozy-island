@@ -79,10 +79,14 @@ export class Panels {
     this.api.sheet(kind);
   }
 
-  setAction(icon: string | null, label = '') {
-    if (!icon) { this.action.classList.remove('show'); return; }
+  /** key identifies the exact target (kind + item/animal) so the button never shows a stale icon */
+  setAction(icon: string | null, label = '', key = '') {
+    if (!icon) { this.action.classList.remove('show'); this.action.dataset.target = ''; return; }
     const ai = this.action.querySelector('.ai')!, al = this.action.querySelector('.al')!;
-    if (al.textContent !== label) { ai.textContent = icon; al.textContent = label; this.action.classList.remove('swap'); void this.action.offsetWidth; this.action.classList.add('swap'); }
+    if (this.action.dataset.target !== key || ai.textContent !== icon || al.textContent !== label) {
+      ai.textContent = icon; al.textContent = label; this.action.dataset.target = key;
+      this.action.classList.remove('swap'); void this.action.offsetWidth; this.action.classList.add('swap');
+    }
     this.action.classList.add('show');
   }
 

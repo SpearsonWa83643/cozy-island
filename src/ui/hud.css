@@ -210,3 +210,5 @@ body.touch .gbtn .gl { display: block; font-size: 11px; }
 .map-guide.on { background: #ffe7a3; color: #6a4a1a; box-shadow: 0 3px 0 #e0b84a; }
 .map-overlay.open .map-guide { opacity: 1; }
 .map-overlay:not(.open) .map-guide { pointer-events: none; }
+
+.action-btn .al { max-width: 90px; font-size: 12px; line-height: 1.1; text-align: center; white-space: normal; }

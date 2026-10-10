@@ -52,7 +52,7 @@ if (!process.argv.includes('--skip-desktop')) {
     const q = g.player.position; return Math.atan2(q.x - s.x, q.z - s.z); });
   await sim(page, 1.5);
   ok('guide trail visible with an active map', await page.evaluate(() => window.game.play.guide.mesh.visible));
-  await frame(page, gyaw + 0.25, 0.5, 8.5);
+  await frame(page, gyaw + 0.15, 0.62, 9);
   await shot(page, '23-guide-trail');
   await page.keyboard.press('g'); await sim(page, 2.5);
   ok('G hides the trail', !(await page.evaluate(() => window.game.play.guide.mesh.visible)));
@@ -110,7 +110,8 @@ if (!process.argv.includes('--skip-desktop')) {
   ok('dug up a chest', (await page.evaluate(() => window.game.play.save.data.map.state)) === 'dug');
   ok('chest → Open', (await targetKind(page)) === 'open');
   const camYaw = await page.evaluate(() => { const g = window.game, s = g.play.treasure.spot, p = g.player.position; g.play.rewardDelay = 90000; return Math.atan2(p.x - s.x, p.z - s.z) + 0.7; });
-  await frame(page, camYaw, 0.3, 5.5);
+  await page.evaluate(() => { const g = window.game; for (const f of g.fauna.friends()) { f.a.x += 3; f.a.z += 3; } });
+  await frame(page, camYaw, 0.5, 6.5);
   await page.keyboard.press('e'); await sim(page, 0.05);
   await page.evaluate(() => { const g = window.game; for (let n = 0; n < 32; n++) g.step(1 / 60); });
   await shot(page, '17-chest-open');
@@ -159,6 +160,28 @@ if (!process.argv.includes('--skip-ipad')) {
   await page.tap('.action-btn'); await page.waitForTimeout(1400);
   const after = await page.evaluate(() => Object.values(window.game.play.save.data.food).reduce((a, b) => a + b, 0));
   ok('iPad: tapping action picks food', after === before + 1, `${before}→${after}`);
+  // the button must always describe the exact item that gets collected, even when switching between foods
+  for (const want of ['cherry', 'apple', 'carrot']) {
+    const info = await page.evaluate((want) => {
+      const g = window.game, p = g.player.position;
+      const it = g.play.forage.items.filter((i) => i.id === want && i.active).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
+      if (!it) return null;
+      g.player.teleport(it.x + 0.8, it.z, -Math.PI / 2);
+      for (let i = 0; i < 6; i++) g.step(1 / 30);
+      const t = g.play.target, b = document.querySelector('.action-btn'), q = g.player.position;
+      // independently find what should be picked: nearest active item within reach
+      const near = g.play.forage.items.filter((i) => i.active && Math.hypot(i.x - q.x, i.z - q.z) < 1.5).sort((a, b) => Math.hypot(a.x - q.x, a.z - q.z) - Math.hypot(b.x - q.x, b.z - q.z))[0];
+      const ICON = { apple: '🍎', cherry: '🍒', berry: '🍓', blueberry: '🫐', acorn: '🌰', mushroom: '🍄', pinecone: '🌲', coconut: '🥥', cactusfruit: '🌵', seeds: '🌻', clover: '☘️', carrot: '🥕', reed: '🌾' };
+      window.__near = near;
+      return { want, nearId: near?.id, key: t?.key, label: b.querySelector('.al').textContent, icon: b.querySelector('.ai').textContent, data: b.dataset.target, expectIcon: ICON[near?.id], count: g.play.save.data.food[near?.id] ?? 0 };
+    }, want);
+    if (!info) { ok(`iPad: ${want} available`, false); continue; }
+    const match = info.key === `pick:${info.nearId}` && info.data === info.key && info.icon === info.expectIcon && info.label.startsWith('Pick ');
+    ok(`iPad: action button matches nearest item (${info.nearId})`, match, JSON.stringify(info));
+    await page.tap('.action-btn'); await page.waitForTimeout(1300);
+    const r = await page.evaluate((id) => ({ n: window.game.play.save.data.food[id] ?? 0, gone: !window.__near.active }), info.nearId);
+    ok(`iPad: tap collected exactly the ${info.nearId} shown`, r.n === info.count + 1 && r.gone, JSON.stringify(r));
+  }
   // wardrobe bottom sheet with live preview
   await page.tap('.gbtn.ward'); await page.waitForTimeout(400);
   await page.evaluate(() => new Promise((r) => { let n = 0; const f = () => (++n > 50 ? r() : requestAnimationFrame(f)); f(); }));

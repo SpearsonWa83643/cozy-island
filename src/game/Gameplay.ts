@@ -12,7 +12,7 @@ import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
-interface Target { kind: Kind; icon: string; label: string; pos: THREE.Vector3; run: () => void; }
+interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -161,17 +161,17 @@ export class Gameplay implements System {
   private findTarget(p: THREE.Vector3): Target | null {
     const tr = this.treasure, st = tr.state;
     if (tr.busy) return null;
-    if (st === 'dug' && p.distanceTo(tr.chestPos) < 2.2) return { kind: 'open', icon: '🎁', label: 'Open', pos: tr.chestPos.clone().add(new THREE.Vector3(0, 1.0, 0)), run: () => this.openChest() };
-    if (st === 'active') { const sp = tr.spot; if (Math.hypot(p.x - sp.x, p.z - sp.z) < 1.7) return { kind: 'dig', icon: '⛏️', label: 'Dig', pos: sp.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.dig() }; }
-    if (st === 'bottle' && Math.hypot(p.x - tr.bottlePos.x, p.z - tr.bottlePos.z) < 1.8) return { kind: 'take', icon: '🍾', label: 'Take', pos: tr.bottlePos.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.takeBottle() };
+    if (st === 'dug' && p.distanceTo(tr.chestPos) < 2.2) return { kind: 'open', icon: '🎁', label: 'Open', key: 'open:chest', pos: tr.chestPos.clone().add(new THREE.Vector3(0, 1.0, 0)), run: () => this.openChest() };
+    if (st === 'active') { const sp = tr.spot; if (Math.hypot(p.x - sp.x, p.z - sp.z) < 1.7) return { kind: 'dig', icon: '⛏️', label: 'Dig', key: 'dig:spot', pos: sp.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.dig() }; }
+    if (st === 'bottle' && Math.hypot(p.x - tr.bottlePos.x, p.z - tr.bottlePos.z) < 1.8) return { kind: 'take', icon: '🍾', label: 'Take', key: 'take:bottle', pos: tr.bottlePos.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.takeBottle() };
     const an = this.g.fauna.nearestFeedable(p.x, p.z, 2.5);
     if (an) {
       const food = this.bestFood(an.species as Species);
       const full = !an.a.friend && this.g.fauna.friendCount() >= Fauna.MAX_FRIENDS;
-      if (food && !full) return { kind: 'feed', icon: FOODS[food.id].icon, label: 'Feed', pos: new THREE.Vector3(an.a.x, an.a.y + 0.7, an.a.z), run: () => this.feed(an, food.id, food.fav) };
+      if (food && !full) return { kind: 'feed', icon: FOODS[food.id].icon, label: `Feed ${TASTES[an.species as Species].name}`, key: `feed:${an.species}:${food.id}`, pos: new THREE.Vector3(an.a.x, an.a.y + 0.7, an.a.z), run: () => this.feed(an, food.id, food.fav) };
     }
     const it = this.forage.nearest(p, 1.5);
-    if (it) return { kind: 'pick', icon: FOODS[it.id].icon, label: 'Pick', pos: new THREE.Vector3(it.x, it.y + 0.45, it.z), run: () => this.pick(it) };
+    if (it) return { kind: 'pick', icon: FOODS[it.id].icon, label: `Pick ${FOODS[it.id].name}`, key: `pick:${it.id}`, pos: new THREE.Vector3(it.x, it.y + 0.45, it.z), run: () => this.pick(it) };
     return null;
   }
 
@@ -304,9 +304,9 @@ export class Gameplay implements System {
     if (g.input.pressed.has('e') && !g.build.active) this.act();
     // contextual target
     this.targetT -= dt;
-    if (this.targetT <= 0) { this.target = g.build.active || this.previewOn ? null : this.findTarget(p); this.targetT = 0.08; }
+    if (this.targetT <= 0) this.target = g.build.active || this.previewOn ? null : this.findTarget(p);
     const t = this.target;
-    this.panels.setAction(t && g.isTouch ? t.icon : null, t?.label ?? '');
+    this.panels.setAction(t && g.isTouch ? t.icon : null, t?.label ?? '', t?.key ?? '');
     if (!g.isTouch) this.juice.setPrompt(t ? t.pos : null, t ? `<kbd>E</kbd> ${t.label} <span>${t.icon}</span>` : '');
     else this.juice.setPrompt(t ? t.pos : null, t ? `<span>${t.icon}</span>` : '');
     // warmer / colder
