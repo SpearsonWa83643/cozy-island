@@ -10,6 +10,7 @@ import { Flora, fadeCam, fadeTarget } from '../world/Flora';
 import { Particles } from '../world/Particles';
 import { Fauna } from '../world/Fauna';
 import { Reef } from '../world/Reef';
+import { Cave } from '../world/Cave';
 import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
@@ -21,6 +22,8 @@ import { AudioEngine } from '../audio/Audio';
 import { Gameplay } from '../game/Gameplay';
 
 const SPAWN = new THREE.Vector2(0, 6);
+
+const CAVE_FOG = new THREE.Color('#151020'), CAVE_SUN = new THREE.Color('#ffd9a8'), CAVE_SKY = new THREE.Color('#6a5a9a'), CAVE_GR = new THREE.Color('#1a2a30');
 
 export class Game {
   scene = new THREE.Scene();
@@ -39,6 +42,10 @@ export class Game {
   particles!: Particles;
   fauna!: Fauna;
   reef!: Reef;
+  cave!: Cave;
+  /** 0..1 eased blend toward the cave atmosphere */
+  caveK = 0;
+  private hiddenForCave: THREE.Object3D[] = [];
   hud!: Hud;
   terrain!: Terrain;
   audio = new AudioEngine();
@@ -91,6 +98,9 @@ export class Game {
     this.flora = new Flora(this.physics, SPAWN);
     this.terrain.bakeAO(this.flora.aoPoints);
     lap('flora');
+    this.cave = new Cave(this.physics);
+    this.scene.add(this.cave.outside, this.cave.interior);
+    lap('cave');
     this.scene.add(this.flora.group);
     this.particles = new Particles();
     this.scene.add(this.particles.group);
@@ -152,6 +162,7 @@ export class Game {
         this.fauna.update(dt, t, this.play.followCtx);
         this.particles.update(dt, t, this.player.position);
         this.reef.update(dt, t, this.player.position, this.player.swimming, Math.min(1, this.player.speed / 2.5));
+    this.cave.update(dt, t, this.player.position);
       },
     }, this.play);
     window.addEventListener('resize', () => {
@@ -186,10 +197,12 @@ export class Game {
     this.particles.setQuality(high);
     this.reef.setQuality(high);
     this.play?.forage.setQuality(high);
+    this.cave?.setQuality(high);
     this.hud.setQuality(q);
   }
 
   surfaceUnder(p: THREE.Vector3): Surface {
+    if (this.cave?.inside) return 'rock';
     if (p.y > heightAt(p.x, p.z) + 0.35) return 'wood'; // standing on a placed block
     return surfaceAt(p.x, p.z);
   }
@@ -219,6 +232,30 @@ export class Game {
     this.forest.v = Math.min(1, n / 6);
   }
 
+  /** go underground (or come back): only one side is drawn; the player/camera use the cave's floor and ceiling */
+  setCave(on: boolean) {
+    const c = this.cave;
+    if (c.inside === on) return;
+    c.inside = on;
+    this.player.ground = on ? (x, z) => c.floorAt(x, z) : heightAt;
+    this.player.inCave = on;
+    this.rig.cave = on ? c : null;
+    if (on) {
+      const keep = new Set<THREE.Object3D>([c.interior, this.player.object, this.hemi, this.sun, this.sun.target, this.camera]);
+      if (this.play) { keep.add(this.play.forage.group); keep.add(this.play.walk.marker); }
+      this.hiddenForCave = this.scene.children.filter((o) => o.visible && !keep.has(o));
+      for (const o of this.hiddenForCave) o.visible = false;
+      c.interior.visible = true;
+      this.caveK = Math.max(this.caveK, 0.85); // you arrive with eyes already adjusting
+    } else {
+      for (const o of this.hiddenForCave) o.visible = true;
+      this.hiddenForCave = [];
+      c.interior.visible = false;
+      this.caveK = Math.min(this.caveK, 0.15);
+    }
+    this.scene.background = on ? new THREE.Color('#06050a') : null;
+  }
+
   private updateAtmosphere(dt: number, p: THREE.Vector3) {
     biomeWeights(p.x, p.z, this.tmpW);
     const k = Math.min(1, dt * 1.5);
@@ -239,6 +276,16 @@ export class Game {
     skyFog.value.copy(fog);
     this.sun.color.copy(sun); this.sun.intensity = sunI;
     this.hemi.color.copy(sky); this.hemi.groundColor.copy(gr); this.hemi.intensity = hemiI;
+    // underground: deep violet fog, a dim cool fill and a faint warm key (the crystals' glow is baked into the rock)
+    this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
+    const ck = this.caveK;
+    if (ck > 0.001) {
+      this.fog.color.lerp(CAVE_FOG, ck); this.fog.near += (4 - this.fog.near) * ck; this.fog.far += (38 - this.fog.far) * ck;
+      skyFog.value.copy(this.fog.color);
+      this.sun.color.lerp(CAVE_SUN, ck); this.sun.intensity += (0.45 - this.sun.intensity) * ck;
+      this.hemi.color.lerp(CAVE_SKY, ck); this.hemi.groundColor.lerp(CAVE_GR, ck); this.hemi.intensity += (0.75 - this.hemi.intensity) * ck;
+    }
+    if (this.cave?.inside) { this.hud.setBiome('Crystal Cave'); return; }
     let best = 0; for (let i = 1; i < BIOME_COUNT; i++) if (this.biome[i] > this.biome[best]) best = i;
     this.hud.setBiome(BIOME_NAMES[best]);
   }
@@ -246,7 +293,7 @@ export class Game {
   /** Advance simulation by dt (also used by tests to step deterministically). */
   step(dt: number) {
     this.elapsed += dt;
-    if (this.input.pressed.has('b')) this.build.toggle();
+    if (this.input.pressed.has('b') && !this.cave.inside) this.build.toggle();
     for (const s of this.systems) s.update(dt, this.elapsed);
     this.physics.step(dt);
     this.sky.position.copy(this.camera.position);
@@ -267,6 +314,7 @@ export class Game {
       grass: (w[Biome.Meadow] + w[Biome.Autumn] * 0.7 + w[Biome.Marsh] * 0.8 + w[Biome.Tropical] * 0.5) * (1 - snowAt(p.x, p.z)),
       altitude: p.y,
       swim: this.player.swimBlend,
+      cave: this.caveK,
       reef: Math.max(0, 1 - Math.abs(this.player.offshoreDist - 7) / 12) * (this.player.depth > 0.4 ? 1 : 0),
     });
     this.input.endFrame();

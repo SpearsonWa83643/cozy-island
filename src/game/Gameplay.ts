@@ -7,7 +7,7 @@ import { Treasure } from './Treasure';
 import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
 import { Dig } from './Dig';
-import { WEARABLES } from './Items';
+import { WEARABLES, CAVE_WEAR } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
@@ -53,7 +53,7 @@ export class Gameplay implements System {
 
   constructor(private g: Game, spawn: THREE.Vector2) {
     const d = this.save.data;
-    this.forage = new Forage(g.flora, spawn);
+    this.forage = new Forage(g.flora, spawn, g.cave.itemSpots);
     g.scene.add(this.forage.group);
     this.treasure = new Treasure(d, g.flora, spawn);
     g.scene.add(this.treasure.group, this.guide.mesh);
@@ -188,6 +188,18 @@ export class Gameplay implements System {
 
   // ---------------- interaction ----------------
   private findTarget(p: THREE.Vector3): Target | null {
+    if (this.g.cave.inside) {
+      // underground: the mole, and cave finds
+      const mo = this.g.cave.mole;
+      if (mo.up > 0.5 && Math.hypot(p.x - mo.x, p.z - mo.z) < 2.1) {
+        const d = this.save.data, food = (['worm', 'bug'] as FoodId[]).find((f) => (d.food[f] ?? 0) > 0);
+        const pos = new THREE.Vector3(mo.x, mo.y + 0.8, mo.z);
+        if (food) return { kind: 'feed', icon: FOODS[food].icon, label: 'Feed Mole', key: `feed:mole:${food}`, pos, run: () => this.feedMole(food) };
+        return { kind: 'feed', icon: '🐾', label: 'Pet Mole', key: 'feed:mole:pet', pos, run: () => this.feedMole(null) };
+      }
+      const ci = this.forage.nearest(p, 1.5);
+      return ci ? { kind: 'pick', icon: FOODS[ci.id].icon, label: `Collect ${FOODS[ci.id].name}`, key: `pick:${ci.id}`, pos: new THREE.Vector3(ci.x, ci.y + 0.45, ci.z), run: () => this.pick(ci) } : null;
+    }
     const tr = this.treasure, st = tr.state;
     if (tr.busy) return null;
     if (st === 'dug' && p.distanceTo(tr.chestPos) < 2.2) return { kind: 'open', icon: '🎁', label: 'Open', key: 'open:chest', pos: tr.chestPos.clone().add(new THREE.Vector3(0, 1.0, 0)), run: () => this.openChest() };
@@ -212,6 +224,13 @@ export class Gameplay implements System {
     const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(ndc, g.camera);
     const o = this.ray.ray.origin, dir = this.ray.ray.direction;
+    if (g.cave.inside) {
+      const hit = this.ray.intersectObject(g.cave.floorMesh, false)[0];
+      if (!hit) return false;
+      const cpt = hit.point;
+      const goal = this.pickGoal(cpt, cx, cy) ?? { pos: () => ({ x: cpt.x, z: cpt.z }), reach: 0.3, key: '' };
+      this.walk.go(goal); return true;
+    }
     const ground = g.terrain.raycast(o, dir);
     let pt = ground;
     if (dir.y < 0) { const t = (0.02 - o.y) / dir.y, wp = o.clone().addScaledVector(dir, t); if (!pt || (pt.y < 0 && wp.distanceTo(o) < pt.distanceTo(o))) pt = wp; }
@@ -225,13 +244,16 @@ export class Gameplay implements System {
   private pickGoal(pt: THREE.Vector3, cx: number, cy: number): WalkGoal | null {
     const g = this.g, tr = this.treasure, st = tr.state, lim = g.isTouch ? 80 : 60;
     const cands: { key: string; pos: () => { x: number; z: number }; y: number; reach: number }[] = [];
-    for (const it of this.forage.items) if (it.active && it.t >= 0.9 && Math.hypot(it.x - pt.x, it.z - pt.z) < 3.5) cands.push({ key: `pick:${it.id}`, pos: () => it, y: it.y + 0.15, reach: 0.9 });
+    for (const it of this.forage.items) if (it.active && it.t >= 0.9 && Math.hypot(it.x - pt.x, it.z - pt.z) < 3.5 && Math.abs(it.y - pt.y) < 3) cands.push({ key: `pick:${it.id}`, pos: () => it, y: it.y + 0.15, reach: 0.9 });
+    if (g.cave.inside) { const mo = g.cave.mole; if (Math.hypot(mo.x - pt.x, mo.z - pt.z) < 2.5) cands.push({ key: 'feed:', pos: () => mo, y: mo.y + 0.4, reach: 1.5 }); }
+    else {
     if (st === 'bottle') cands.push({ key: 'take:bottle', pos: () => tr.bottlePos, y: tr.bottlePos.y + 0.2, reach: 1.1 });
     if (st === 'dug') cands.push({ key: 'open:chest', pos: () => tr.chestPos, y: tr.chestPos.y + 0.4, reach: 1.4 });
     if (st === 'active' && Math.hypot(tr.spot.x - pt.x, tr.spot.z - pt.z) < 2.5) cands.push({ key: 'dig:spot', pos: () => tr.spot, y: tr.spot.y + 0.1, reach: 0.9 });
     for (const b of g.reef.bottles) if (b.active) cands.push({ key: 'take:seabottle', pos: () => b, y: 0.1, reach: 1.1 });
     const an = g.fauna.nearestFeedable(pt.x, pt.z, 2.2);
     if (an && this.bestFood(an.species as Species)) cands.push({ key: 'feed:', pos: () => an.a, y: an.a.y + 0.4, reach: 1.6 });
+    }
     let best: (typeof cands)[0] | null = null, bd = lim;
     const v = new THREE.Vector3();
     for (const c of cands) {
@@ -267,6 +289,70 @@ export class Gameplay implements System {
     // count immediately (never lost if the page closes mid-flight); the badge updates when the icon lands
     const f = this.save.data.food; f[it.id] = (f[it.id] ?? 0) + 1; this.save.touch();
     this.juice.fly(pos, FOODS[it.id].icon, this.panels.bagBtn, () => this.panels.refreshBadges());
+    if (it.id === 'geode') this.crackGeode(pos);
+  }
+
+  /** geodes sometimes hold a piece of the cave set (the first one always does) */
+  private crackGeode(pos: THREE.Vector3) {
+    const d = this.save.data;
+    d.geodes = (d.geodes ?? 0) + 1;
+    if (d.geodes > 1 && Math.random() > 0.3) return;
+    this.giveCaveWear(pos, d.geodes === 1 ? 'crystalneck' : null, 'Cracked open the geode…');
+  }
+  private giveCaveWear(pos: THREE.Vector3, prefer: string | null, why: string) {
+    const d = this.save.data;
+    const pool = CAVE_WEAR.filter((id) => !d.owned[id]);
+    const id = prefer && !d.owned[prefer] ? prefer : pool[Math.floor(Math.random() * pool.length)];
+    if (!id) { d.shells += 5; this.juice.toast(`${why} <b>+5 🐚</b>`); return; }
+    const w = WEAR_BY_ID.get(id)!;
+    d.owned[id] = 1; this.lastReward = id;
+    setTimeout(() => {
+      this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.6, 0)), w.icon, 'emote big', 1.8, 60);
+      this.g.audio.chest(w.rarity); this.g.player.cheer();
+      this.juice.toast(`${why} <b style="color:${RARITY[w.rarity].color}">${w.name}</b>! ✨ <small>(in your wardrobe)</small>`, 3200);
+      this.save.touch(); this.panels.refreshBadges();
+    }, 450);
+  }
+  /** the friendly mole: loves worms and beetles; says thanks with cave treasures */
+  private feedMole(food: FoodId | null) {
+    const g = this.g, mo = g.cave.mole, d = this.save.data;
+    const pos = new THREE.Vector3(mo.x, mo.y + 0.7, mo.z);
+    mo.joy = 1.4;
+    if (!food) {
+      g.audio.pop(1.4); this.juice.hearts(pos, 2);
+      this.juice.toast('🐾 The mole sniffs your bag hopefully… it loves <b>worms 🪱</b> and <b>beetles 🐞</b> — dig for some!', 3200);
+      return;
+    }
+    d.food[food] = Math.max(0, (d.food[food] ?? 0) - 1);
+    this.juice.pop(pos, FOODS[food].icon, 'emote', 0.8, 20);
+    g.audio.feed(true); this.juice.hearts(pos, 6);
+    mo.fed++; d.moleFed = (d.moleFed ?? 0) + 1;
+    if (d.moleFed === 1) this.giveCaveWear(pos, 'minerhelmet', '🐾 The mole digs up a gift:');
+    else if (Math.random() < 0.25) this.giveCaveWear(pos, null, '🐾 The mole digs up a gift:');
+    else { d.food.geode = (d.food.geode ?? 0) + 1; this.juice.fly(pos, '🪨', this.panels.bagBtn, () => this.panels.refreshBadges()); this.juice.toast('🐾 Munch munch! The mole pushes a <b>geode 🪨</b> your way'); }
+    this.save.touch(); this.panels.refreshBadges();
+  }
+
+  // ---------------- cave ----------------
+  private caveCool = 0;
+  private fadeEl: HTMLElement | null = null;
+  /** walk into the arch / back out of the tunnel: soft fade, then swap worlds */
+  caveTransition(enter: boolean, instant = false) {
+    const g = this.g, c = g.cave;
+    this.walk.cancel(false); this.caveCool = 2;
+    const swap = () => {
+      g.setCave(enter);
+      if (enter) { const e = c.entry; g.player.teleport(e.x, e.z, e.facing); g.rig.yaw = e.facing + Math.PI; g.rig.pitch = 0.32; }
+      else { const o = c.outsideSpot; g.player.teleport(o.x, o.z, o.facing); g.rig.yaw = o.facing + Math.PI; g.rig.pitch = 0.35; }
+      g.rig.target.copy(g.player.position).add(new THREE.Vector3(0, 1.1, 0)); g.rig.apply();
+      g.audio.cave(enter);
+      if (enter && !this.save.data.caved) { this.save.data.caved = true; this.save.touch(); setTimeout(() => this.juice.toast('🔮 <b>Crystal Cave</b> — crystals, glowcaps, geodes and a shy friend live down here', 3600), 600); }
+    };
+    if (instant) { swap(); return; }
+    if (!this.fadeEl) { this.fadeEl = document.createElement('div'); this.fadeEl.className = 'cave-fade'; document.body.appendChild(this.fadeEl); }
+    const f = this.fadeEl; this.lockMove = 0.9;
+    f.classList.add('on');
+    setTimeout(() => { swap(); requestAnimationFrame(() => f.classList.remove('on')); }, 380);
   }
 
   private feed(an: FriendRef, food: FoodId, fav: boolean) {
@@ -329,6 +415,7 @@ export class Gameplay implements System {
   shovel() {
     const g = this.g, d = this.save.data, pl = g.player;
     if (this.lockMove > 0 || this.previewOn || g.build.active || this.digCool > 0 || pl.swimming) return false;
+    if (g.cave.inside) { if (this.digMsgT <= 0) { this.juice.toast('🪨 The cave floor is solid rock', 1300); this.digMsgT = 2; } g.audio.pop(0.55); this.digCool = 0.5; return false; }
     this.walk.cancel(false);
     const p = pl.position, f = pl.facingYaw;
     const x = p.x + Math.sin(f) * 0.75, z = p.z + Math.cos(f) * 0.75;
@@ -366,7 +453,7 @@ export class Gameplay implements System {
         this.juice.toast(`🪏 Buried shells! <b>+${find.n} 🐚</b>`, 1500);
         this.lastFind = 'coins';
       } else if (find.kind === 'wearable') {
-        const pool = WEARABLES.filter((w) => !d.owned[w.id] && w.rarity <= 1);
+        const pool = WEARABLES.filter((w) => !d.owned[w.id] && w.rarity <= 1 && !CAVE_WEAR.includes(w.id));
         const item = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
         if (item) {
           d.owned[item.id] = 1; this.lastReward = item.id;
@@ -464,12 +551,20 @@ export class Gameplay implements System {
 
   update(dt: number) {
     const g = this.g, p = g.player.position, d = this.save.data;
-    this.recordTrail(p);
+    if (!g.cave.inside) this.recordTrail(p);
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
     this.walk.update(dt);
+    // cave doors
+    this.caveCool -= dt;
+    { const c = g.cave;
+      if (this.caveCool <= 0 && this.lockMove <= 0) {
+        if (!c.inside) { const dp = c.doorPt; if (Math.hypot(p.x - dp.x, p.z - dp.z) < 1.15 && Math.abs(p.y - c.mouth.y) < 2.2) this.caveTransition(true); }
+        else { const ep = c.exitPt; if (Math.hypot(p.x - ep.x, p.z - ep.z) < 1.3) this.caveTransition(false); }
+      }
+    }
     this.forage.update(dt, p);
     this.treasure.update(dt, p);
-    this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy ? this.treasure.spot : null);
+    this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy && !g.cave.inside ? this.treasure.spot : null);
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action
     if (g.input.pressed.has('e') && !g.build.active) this.act();

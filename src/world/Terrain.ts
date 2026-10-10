@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
 import { Noise2D } from './noise';
-import { Biome, BiomeField, BIOME_CENTERS, BIOME_COUNT, POND, biomeWeightsRaw } from './Biomes';
+import { Biome, BiomeField, BASE_CENTERS, BIOME_COUNT, BASE_POND, biomeWeightsBase, ISLAND_SCALE } from './Biomes';
 
-export const WORLD_SIZE = 170; // terrain mesh extent (meters)
-export const ISLAND_RADIUS = 47;
+export const WORLD_SIZE = 196; // terrain mesh extent (meters)
+const BASE_RADIUS = 47;
+export const ISLAND_RADIUS = BASE_RADIUS * ISLAND_SCALE;
 export const WATER_LEVEL = 0;
 
 const noise = new Noise2D(7);
@@ -19,12 +20,14 @@ export const smooth = (a: number, b: number, x: number) => {
 const wRaw = new Float32Array(BIOME_COUNT);
 
 /** Analytic island height (slow: used to build the cached grid). */
-export function heightRaw(x: number, z: number): number {
+export function heightRaw(wx: number, wz: number): number {
+  // evaluate the original layout at scaled coordinates (bigger island, same heights → gentler, roomier)
+  const x = wx / ISLAND_SCALE, z = wz / ISLAND_SCALE;
   const ang = Math.atan2(z, x);
   const wobble = 1 + 0.14 * noise.noise(Math.cos(ang) * 1.3 + 3, Math.sin(ang) * 1.3 + 3)
     + 0.06 * noise.noise(Math.cos(ang) * 3 + 9, Math.sin(ang) * 3 + 9);
-  const r = Math.hypot(x, z) / (ISLAND_RADIUS * wobble);
-  const w = biomeWeightsRaw(x, z, wRaw);
+  const r = Math.hypot(x, z) / (BASE_RADIUS * wobble);
+  const w = biomeWeightsBase(x, z, wRaw);
   // tropical side gets a wider, flatter beach
   const beachW = 0.3 + w[Biome.Tropical] * 0.12 - w[Biome.Alpine] * 0.15;
   const land = smooth(1.04, 1.04 - beachW, r);
@@ -34,7 +37,7 @@ export function heightRaw(x: number, z: number): number {
   const bumps = noiseB.fbm(x * 0.12, z * 0.12, 3) * 0.25;
   const meadow = hills * 2.4 + bumps + 2.2 * Math.exp(-((x - 8) ** 2 + (z + 6) ** 2) / 90);
 
-  const [ax, az] = BIOME_CENTERS[Biome.Alpine];
+  const [ax, az] = BASE_CENTERS[Biome.Alpine];
   const da2 = (x - ax) ** 2 + (z - az) ** 2;
   const ridge = 1 - Math.abs(noiseC.fbm(x * 0.06, z * 0.06, 4));
   const alpine = 2 + 12.5 * Math.exp(-da2 / (2 * 10 * 10)) + ridge * ridge * 3.2 * Math.exp(-da2 / 400) + bumps;
@@ -50,14 +53,14 @@ export function heightRaw(x: number, z: number): number {
   const desert = 1.3 + mesa * 0.35 + terr * 0.65 + (noiseB.fbm(x * 0.09, z * 0.09, 2)) * 0.25;
 
   // marsh: low and soggy, with a pond and puddles
-  const dp = Math.hypot(x - POND.x, z - POND.z) / POND.r;
+  const dp = Math.hypot(x - BASE_POND.x, z - BASE_POND.z) / BASE_POND.r;
   const puddles = Math.min(0, noiseC.fbm(x * 0.18 + 3, z * 0.18 + 8, 2) + 0.28) * 2.5;
   const marsh = 0.62 + bumps * 0.5 + puddles - 2.7 * smooth(1.25, 0.3, dp);
 
   const inland = w[0] * meadow + w[1] * alpine + w[2] * autumn + w[3] * tropical + w[4] * desert + w[5] * marsh;
   let h = land * 1.1 + hillMask * inland;
   // seabed: a shallow, bumpy reef shelf ~16 m wide (swimmable, visible through clear water), then a drop-off
-  const past = Math.max(0, r - 1.04) * ISLAND_RADIUS * wobble;
+  const past = Math.max(0, r - 1.04) * ISLAND_RADIUS * wobble; // world metres past the beach
   const reefBump = noiseB.fbm(x * 0.16 + 40, z * 0.16 - 20, 2) * 0.45 * smooth(0, 4, past);
   const shelf = 1.75 + reefBump + smooth(13, 24, past) * 2.6;
   h -= (1 - land) * shelf;

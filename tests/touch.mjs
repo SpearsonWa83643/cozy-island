@@ -88,12 +88,9 @@ const center = (page, sel) => page.evaluate((sel) => { const r = document.queryS
 
   // Orbit drag on the right side + pinch zoom
   const r0 = await page.evaluate(() => ({ yaw: window.game.rig.yaw, d: window.game.rig.distance }));
-  console.log('pre-orbit', await page.evaluate(() => ({ ptrs: [...window.game.input.ptrs.keys()], stick: window.game.input.stickPtr?.id ?? null, locked: window.game.rig.locked, walk: window.game.play.walk.active })));
-  await page.evaluate(() => { const el = window.game.renderer.renderer.domElement; window.__ev = []; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) el.addEventListener(t, (e) => window.__ev.push(t[7] + Math.round(e.clientX) + ':' + e.pointerId)); window.__y = []; });
   await touch('touchStart', [{ x: 790, y: 400 }]);
   for (let i = 1; i <= 5; i++) { await touch('touchMove', [{ x: 790 - i * 30, y: 400 }]); await page.evaluate(() => window.game.step(1 / 30)); }
   await touch('touchEnd', []);
-  console.log('orbit ev', await page.evaluate(() => ({ ev: window.__ev.join(' '), yaw: window.game.rig.yaw, top: document.elementFromPoint(790, 400)?.className })));
   await frames(page, 2);
   await touch('touchStart', [{ x: 520, y: 400 }, { x: 620, y: 400 }]);
   for (let i = 1; i <= 5; i++) { await touch('touchMove', [{ x: 520 - i * 25, y: 400 }, { x: 620 + i * 25, y: 400 }]); await page.evaluate(() => window.game.step(1 / 30)); }

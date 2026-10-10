@@ -13,9 +13,11 @@ const box = (x: number, y: number, z: number) => new THREE.BoxGeometry(x, y, z);
 const baseMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.62 });
 const glowMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35, emissive: new THREE.Color('#ffb000'), emissiveIntensity: 0.35 });
 
-function mesh(b: Baker, glow = false) {
+const caveMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.1, emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.55 });
+const beamMat = new THREE.MeshBasicNodeMaterial({ color: '#fff2b0', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+function mesh(b: Baker, glow: boolean | 'cave' = false) {
   b.ao = false;
-  const m = new THREE.Mesh(b.build(), glow ? glowMat : baseMat);
+  const m = new THREE.Mesh(b.build(), glow === 'cave' ? caveMat : glow ? glowMat : baseMat);
   m.castShadow = true;
   return m;
 }
@@ -129,6 +131,41 @@ const B: Record<string, Builder> = {
     .add(sph(0.12, 10, 8), '#ffd84d', [0, -0.05, 0.78]).add(cone(0.05, 0.1, 6), '#ff9a2e', [0, -0.07, 0.92], [Math.PI / 2, 0, 0])
     .add(sph(0.022, 6, 4), '#1a1a1a', [0.07, -0.01, 0.86]).add(sph(0.022, 6, 4), '#1a1a1a', [-0.07, -0.01, 0.86])),
     anim: (t, o) => { o.rotation.z = Math.sin(t * 1.7) * 0.04; } }),
+  // ---------------- cave set ----------------
+  minerhelmet: () => {
+    const g = new THREE.Group();
+    g.add(mesh(new Baker().add(hemi(0.36), '#ffc93a', [0, 0.12, 0], [-0.05, 0, 0], [1, 0.95, 1.05]).add(cyl(0.4, 0.4, 0.03, 20), '#e8a92a', [0, 0.13, -0.02], [-0.05, 0, 0])
+      .add(box(0.05, 0.08, 0.3), '#e8a92a', [0, 0.44, -0.02], [-0.05, 0, 0])));
+    const lamp = mesh(new Baker().add(cyl(0.07, 0.08, 0.08, 12), '#6a6a72', [0, 0.32, 0.33], [Math.PI / 2 - 0.15, 0, 0]).add(cyl(0.06, 0.06, 0.02, 12), '#fff6c0', [0, 0.32, 0.375], [Math.PI / 2 - 0.15, 0, 0]), 'cave');
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.2, 14, 1, true).translate(0, -1.1, 0).rotateX(-Math.PI / 2 + 0.15), beamMat);
+    beam.position.set(0, 0.32, 0.38); beam.castShadow = false;
+    g.add(lamp, beam);
+    return { obj: g, top: 0.5, anim: (t, o) => { const b = o.children[2] as THREE.Mesh; (b.material as THREE.MeshBasicNodeMaterial).opacity = 0.13 + Math.sin(t * 7) * 0.01 + Math.sin(t * 2.3) * 0.02; } };
+  },
+  crystalcrown: () => {
+    const b = new Baker().add(torus(0.27, 0.04, 8, 24), '#e8c35a', [0, 0.27, 0], [Math.PI / 2, 0, 0]);
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2, tall = i % 2 ? 0.12 : 0.2; b.add(new THREE.OctahedronGeometry(0.06, 0), i % 3 === 0 ? '#c99bff' : '#7ff0ff', [Math.cos(a) * 0.27, 0.3 + tall * 0.5, Math.sin(a) * 0.27], [0, a, 0], [0.7, tall / 0.06 * 0.5, 0.7]); }
+    return { obj: mesh(b, 'cave'), top: 0.45, anim: (t, o) => { o.rotation.y = Math.sin(t * 0.8) * 0.06; } };
+  },
+  batwings: () => {
+    const g = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const b = new Baker();
+      for (let k = 0; k < 3; k++) b.add(sph(0.16 - k * 0.025, 9, 5), k % 2 ? '#4a3a66' : '#5a4878', [s * (0.16 + k * 0.13), 0.06 - k * 0.05, 0], [0, 0, s * (0.2 + k * 0.25)], [1, 0.75, 0.08]);
+      b.add(cyl(0.012, 0.012, 0.42, 5), '#2a2238', [s * 0.27, 0.1, 0.012], [0, 0, s * 1.35]);
+      const w = mesh(b); w.userData.side = s; g.add(w);
+    }
+    g.position.z = -0.1;
+    return { obj: g, anim: (t, o) => { for (const c of o.children) c.rotation.y = c.userData.side * (0.3 + Math.sin(t * 7) * 0.4); } };
+  },
+  crystalneck: () => ({ obj: mesh(new Baker().add(torus(0.24, 0.014, 5, 22), '#5a4a3a', [0, 0.02, 0], [Math.PI / 2 - 0.15, 0, 0])
+    .add(new THREE.OctahedronGeometry(0.06, 0), '#7ff0ff', [0, -0.08, 0.25], [0, 0, 0], [0.7, 1.3, 0.7]), 'cave') }),
+  glowsprout: () => {
+    const b = new Baker().add(cyl(0.015, 0.02, 0.18, 6), '#cfe8e0', [0, 0.09, 0])
+      .add(new THREE.SphereGeometry(0.09, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#5ff0e0', [0, 0.17, 0], [0, 0, 0], [1, 0.8, 1])
+      .add(new THREE.SphereGeometry(0.05, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#a8fff0', [0.07, 0.1, 0.02], [0, 0, 0.4], [1, 0.8, 1]);
+    return { obj: mesh(b, 'cave'), anim: (t, o) => { o.rotation.z = Math.sin(t * 2.1) * 0.1; } };
+  },
   kelpsprout: () => sprout((b) => { for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.025, 0.16, 3, 6), i % 2 ? '#3f9a5a' : '#5fbf6a', [(i - 1) * 0.05, 0.2 + (i % 2) * 0.03, 0], [0, 0, (i - 1) * 0.35]); }, false, '#3f9a5a'),
   pearlsprout: () => sprout((b) => b.add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.19, 0], [0, 0, 0.35], [1.2, 0.35, 1]).add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.25, 0], [0, 0, -0.35], [1.2, 0.35, 1]).add(sph(0.045, 10, 8), '#fffaf4', [0.03, 0.22, 0.02]), true),
   // ---------------- face ----------------

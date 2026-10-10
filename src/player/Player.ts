@@ -93,6 +93,10 @@ export class Player implements System {
   autoDir: { x: number; z: number; s: number } | null = null;
   /** true while keys / joystick are driving (cancels tap-to-walk) */
   manual = false;
+  /** ground height function (the cave swaps this for its floor) */
+  ground: (x: number, z: number) => number = heightAt;
+  /** underground: no water, no current, no shoreline watchdog */
+  inCave = false;
   /** times the anti-stuck nudge fired (tests) */
   unstuckCount = 0;
   private strokePhase = 0;
@@ -125,7 +129,7 @@ export class Player implements System {
   }
 
   teleport(x: number, z: number, facing?: number) {
-    const g = heightAt(x, z), deep = WATER_LEVEL - g > SWIM_IN;
+    const g = this.ground(x, z), deep = !this.inCave && WATER_LEVEL - g > SWIM_IN;
     const y = (deep ? FLOAT_FEET : g + 0.05) + HALF_H + RADIUS;
     this.body.setTranslation({ x, y, z }, true);
     this.body.setNextKinematicTranslation({ x, y, z });
@@ -152,8 +156,8 @@ export class Player implements System {
     }
     const len = Math.hypot(fx, fz);
     const t0 = this.body.translation();
-    const ground = heightAt(t0.x, t0.z);
-    this.depth = WATER_LEVEL - ground;
+    const ground = this.ground(t0.x, t0.z);
+    this.depth = this.inCave ? -10 : WATER_LEVEL - ground;
     if (!this.swimming && this.depth > SWIM_IN && t0.y - HALF_H - RADIUS < FLOAT_FEET + 0.35) { this.swimming = true; this.vy = 0; this.onSwimStart(this.position); }
     else if (this.swimming && this.depth < SWIM_OUT) { this.swimming = false; this.onSwimEnd(this.position); }
     // wading slows you a little; swimming is calmer still
@@ -186,7 +190,7 @@ export class Player implements System {
     const t = this.body.translation();
     const feet = t.y - HALF_H - RADIUS;
     // soft swim boundary: past SWIM_SOFT a gentle current carries you back toward the beach (no invisible wall)
-    this.offshoreDist = this.depth > 0.2 ? offshore(t.x, t.z) : -1;
+    this.offshoreDist = this.depth > 0.2 && !this.inCave ? offshore(t.x, t.z) : -1;
     this.current = smooth(SWIM_SOFT, SWIM_MAX, this.offshoreDist);
     if (this.current > 0) {
       const r = Math.hypot(t.x, t.z) || 1, push = this.current * 3.4 + smooth(SWIM_MAX, SWIM_MAX + 5, this.offshoreDist) * 6;
@@ -221,13 +225,13 @@ export class Player implements System {
       // free the capsule: a small hop along the wished direction, biased toward the beach, never below ground or the float line
       const r = Math.hypot(nx, nz) || 1, ml = Math.hypot(mx, mz) || 1;
       nx += (mx / ml) * 0.3 - (nx / r) * 0.25; nz += (mz / ml) * 0.3 - (nz / r) * 0.25;
-      const feetY = Math.max(heightAt(nx, nz) + 0.05, this.depth > SWIM_IN ? FLOAT_FEET : -99, ny - HALF_H - RADIUS);
+      const feetY = Math.max(this.ground(nx, nz) + 0.05, this.depth > SWIM_IN ? FLOAT_FEET : -99, ny - HALF_H - RADIUS);
       ny = feetY + HALF_H + RADIUS + 0.1;
       this.body.setTranslation({ x: nx, y: ny, z: nz }, true);
       this.unstuckCount++;
     }
     // safety net: fell through the ground somehow
-    const gy = heightAt(nx, nz);
+    const gy = this.ground(nx, nz);
     if (ny - HALF_H - RADIUS < gy - 0.5) ny = gy + HALF_H + RADIUS + 0.05;
     this.body.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
 

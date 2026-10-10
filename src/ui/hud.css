@@ -244,3 +244,7 @@ body.touch .hand-row { display: flex; }
 .hand-row .qbtn { padding: 6px 10px; }
 .touch-ui:not(.building) .tbtn.jump { grid-column: 2; }
 .touch-ui.building .tbtn.dig { display: none; }
+
+/* ---------- cave fade ---------- */
+.cave-fade { position: fixed; inset: 0; background: #06050a; opacity: 0; pointer-events: none; z-index: 40; transition: opacity .38s cubic-bezier(.4,0,.2,1); }
+.cave-fade.on { opacity: 1; }

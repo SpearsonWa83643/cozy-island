@@ -5,7 +5,7 @@ import { Biome, BIOME_CENTERS, BIOME_COUNT, BIOME_NAMES, POND } from '../world/B
 import { mulberry32 } from '../world/noise';
 import type { Flora } from '../world/Flora';
 import type { SaveData } from './Save';
-import { RARITY, WEARABLES, type Rarity, type WearDef } from './Items';
+import { RARITY, WEARABLES, type Rarity, type WearDef , CAVE_WEAR } from './Items';
 
 const easeOutBack = (t: number) => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 const easeOutElastic = (t: number) => t <= 0 ? 0 : t >= 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
@@ -173,7 +173,7 @@ export class Treasure {
     if (mp.sincePity >= 3) { rar = 2; const sub = weights.slice(2); let x = Math.random() * sub.reduce((a, b) => a + b); for (let i = 0; i < sub.length; i++) { x -= sub[i]; if (x <= 0) { rar = (i + 2) as Rarity; break; } } }
     else { let x = Math.random() * weights.reduce((a, b) => a + b); rar = 0; for (let i = 0; i < weights.length; i++) { x -= weights[i]; if (x <= 0) { rar = i as Rarity; break; } } }
     mp.sincePity = rar >= 2 ? 0 : mp.sincePity + 1;
-    const pool = WEARABLES.filter((w) => w.rarity === rar);
+    const pool = WEARABLES.filter((w) => w.rarity === rar && !CAVE_WEAR.includes(w.id));
     const fresh = pool.filter((w) => !owned[w.id]);
     // strongly prefer something new, but duplicates can still happen (they become shells)
     const usePool = fresh.length && Math.random() < 0.8 ? fresh : pool;

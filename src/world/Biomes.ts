@@ -5,8 +5,12 @@ export enum Biome { Meadow, Alpine, Autumn, Tropical, Desert, Marsh }
 export const BIOME_COUNT = 6;
 export const BIOME_NAMES = ['Meadow', 'Alpine Peak', 'Autumn Grove', 'Tropical Beach', 'Desert Mesa', 'Misty Marsh'];
 
-/** Biome centres on the island (x, z) and spread. */
-export const BIOME_CENTERS: [number, number, number][] = [
+/** island scale vs. the original 47 m layout: everything (noise, biomes, pond) is evaluated at x/S, z/S */
+export const ISLAND_SCALE = 1.15;
+/** area factor for densities (flora counts etc.) */
+export const AREA = ISLAND_SCALE * ISLAND_SCALE;
+/** Biome centres in the unscaled layout (x, z, spread). */
+export const BASE_CENTERS: [number, number, number][] = [
   [0, 3, 17],      // meadow (broad, middle)
   [-6, -31, 13],   // alpine peak, north
   [28, -10, 12],   // autumn grove, east
@@ -14,17 +18,24 @@ export const BIOME_CENTERS: [number, number, number][] = [
   [-31, 5, 12],    // desert mesa, west
   [-13, 27, 10],   // misty marsh + pond, south-west
 ];
-export const POND = { x: -12, z: 25, r: 5.5 };
+export const BASE_POND = { x: -12, z: 25, r: 5.5 };
+/** Biome centres on the (scaled) island in world metres. */
+export const BIOME_CENTERS: [number, number, number][] = BASE_CENTERS.map(([x, z, s]) => [x * ISLAND_SCALE, z * ISLAND_SCALE, s * ISLAND_SCALE]);
+export const POND = { x: BASE_POND.x * ISLAND_SCALE, z: BASE_POND.z * ISLAND_SCALE, r: BASE_POND.r * ISLAND_SCALE };
 
 const warp = new Noise2D(311);
 
 /** Normalised biome weights at a world position (domain-warped so borders meander). */
 export function biomeWeightsRaw(x: number, z: number, out: Float32Array = new Float32Array(BIOME_COUNT)) {
+  return biomeWeightsBase(x / ISLAND_SCALE, z / ISLAND_SCALE, out);
+}
+/** same, in unscaled layout coordinates */
+export function biomeWeightsBase(x: number, z: number, out: Float32Array = new Float32Array(BIOME_COUNT)) {
   const wx = x + warp.fbm(x * 0.035, z * 0.035, 3) * 9;
   const wz = z + warp.fbm(x * 0.035 + 40, z * 0.035 - 17, 3) * 9;
   let sum = 0;
   for (let i = 0; i < BIOME_COUNT; i++) {
-    const [cx, cz, s] = BIOME_CENTERS[i];
+    const [cx, cz, s] = BASE_CENTERS[i];
     const d2 = (wx - cx) ** 2 + (wz - cz) ** 2;
     let w = Math.exp(-d2 / (2 * s * s));
     if (i === 0) w = w * 1.0 + 0.04;

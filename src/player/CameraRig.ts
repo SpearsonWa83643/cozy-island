@@ -5,7 +5,11 @@ import type { Player } from './Player';
 import { heightAt } from '../world/Terrain';
 
 /** Third-person orbit camera: drag to orbit, wheel to zoom, Q/E to rotate. */
+export interface CaveBounds { clampCamera(target: THREE.Vector3, pos: THREE.Vector3): void; }
+
 export class CameraRig implements System {
+  /** set while underground */
+  cave: CaveBounds | null = null;
   yaw = 0.6;
   pitch = 0.42;
   distance = 9;
@@ -38,8 +42,15 @@ export class CameraRig implements System {
       this.target.y + Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * cp * this.distance,
     );
-    const minY = Math.max(heightAt(pos.x, pos.z) + 0.4, 0.75); // stays above the swell
-    if (pos.y < minY) pos.y = minY;
+    if (this.cave) {
+      // underground: closer, and never through the ceiling or the walls
+      const lim = Math.min(this.distance, 4.6), d = pos.clone().sub(this.target).setLength(lim);
+      pos.copy(this.target).add(d);
+      this.cave.clampCamera(this.target, pos);
+    } else {
+      const minY = Math.max(heightAt(pos.x, pos.z) + 0.4, 0.75); // stays above the swell
+      if (pos.y < minY) pos.y = minY;
+    }
     this.camera.position.copy(pos);
     this.camera.lookAt(this.target);
   }

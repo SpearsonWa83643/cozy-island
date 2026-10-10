@@ -8,6 +8,10 @@ export interface SaveData {
   swum?: boolean;
   /** holes dug */
   digs?: number;
+  geodes?: number;
+  moleFed?: number;
+  /** has visited the cave */
+  caved?: boolean;
   shells: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)
   seen: string[];                      // wearable ids the player has looked at (no NEW badge)

@@ -30,6 +30,10 @@ function foodGeo(id: FoodId): THREE.BufferGeometry {
     case 'seaglass': b.add(new THREE.DodecahedronGeometry(0.07, 0), '#7fe8d8', [0, 0.04, 0], [0.4, 0.3, 0], [1.3, 0.5, 1]).add(new THREE.DodecahedronGeometry(0.05, 0), '#8fc8ff', [0.1, 0.03, 0.05], [0.2, 1, 0], [1.2, 0.5, 1]); break;
     case 'starfish': for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; b.add(new THREE.ConeGeometry(0.045, 0.17, 5), '#ff8a3c', [Math.cos(a) * 0.08, 0.025, Math.sin(a) * 0.08], [0, -a, -Math.PI / 2], [1, 1, 0.5]); } b.add(sph(0.05), '#ff9a4c', [0, 0.025, 0], [0, 0, 0], [1, 0.5, 1]); break;
     case 'pearl': b.add(new THREE.SphereGeometry(0.15, 9, 4, 0, 6.29, 0, 1.4), '#8a7aa8', [0, 0.02, 0], [0, 0, 0], [1, 0.35, 1]).add(new THREE.SphereGeometry(0.15, 9, 4, 0, 6.29, 0, 1.4), '#a898c4', [0, 0.06, -0.09], [-1.2, 0, 0], [1, 0.35, 1]).add(sph(0.055), '#fff6fa', [0, 0.07, 0.02]); break;
+    case 'crystal': for (let i = 0; i < 4; i++) b.add(new THREE.OctahedronGeometry(0.06, 0), i % 2 ? '#7ff0ff' : '#b88cff', [Math.cos(i * 1.7) * 0.06, 0.1 + (i % 2) * 0.05, Math.sin(i * 1.7) * 0.06], [Math.cos(i) * 0.3, i, Math.sin(i) * 0.3], [0.7, 1.9, 0.7]); break;
+    case 'geode': b.add(new THREE.DodecahedronGeometry(0.13, 0), '#7a6e66', [0, 0.1, 0], [0.3, 0.5, 0], [1, 0.85, 1]).add(new THREE.SphereGeometry(0.09, 8, 5), '#c99bff', [0.04, 0.14, 0.08], [0, 0, 0], [1, 0.8, 0.6]); break;
+    case 'glowcap': b.add(cyl(0.02, 0.03, 0.12), '#d8f0ea', [0, 0.06, 0]).add(new THREE.SphereGeometry(0.08, 10, 6, 0, 6.29, 0, 1.6), '#5ff0e0', [0, 0.11, 0], [0, 0, 0], [1, 0.7, 1]).add(cyl(0.012, 0.018, 0.08), '#d8f0ea', [0.08, 0.04, 0.03]).add(new THREE.SphereGeometry(0.045, 8, 5, 0, 6.29, 0, 1.6), '#8ffff0', [0.08, 0.075, 0.03]); break;
+    case 'relic': b.add(cyl(0.07, 0.05, 0.16), '#c98a5a', [0, 0.1, 0]).add(sph(0.09), '#c98a5a', [0, 0.1, 0], [0, 0, 0], [1, 0.8, 1]).add(cyl(0.045, 0.06, 0.05), '#a8704a', [0, 0.21, 0]).add(new THREE.TorusGeometry(0.085, 0.012, 4, 12), '#ffd84d', [0, 0.12, 0], [Math.PI / 2, 0, 0]); break;
     case 'reed': for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.02, 0.1, 2, 5), '#d9b25a', [(i - 1) * 0.04, 0.2, 0], [0, 0, (i - 1) * 0.2]).add(cyl(0.005, 0.005, 0.2), '#a8944a', [(i - 1) * 0.03, 0.08, 0]); break;
   }
   return b.build();
@@ -56,8 +60,9 @@ export class Forage {
   private meshes = new Map<FoodId, THREE.InstancedMesh>();
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(); private v = new THREE.Vector3();
   private dirty = new Set<FoodId>();
+  private caveMat: THREE.MeshStandardNodeMaterial | null = null;
 
-  constructor(flora: Flora, spawn: THREE.Vector2) {
+  constructor(flora: Flora, spawn: THREE.Vector2, extra: { id: FoodId; x: number; y: number; z: number }[] = []) {
     const rnd = mulberry32(99);
     const counts = new Map<FoodId, number>();
     const add = (id: FoodId, x: number, z: number) => {
@@ -101,6 +106,8 @@ export class Forage {
       }
       counts.set(id, n);
     }
+    // extra spawns (the cave)
+    for (const e of extra) { const n = counts.get(e.id) ?? 0; counts.set(e.id, n + 1); this.items.push({ id: e.id, x: e.x, y: e.y, z: e.z, rot: rnd() * 6.28, idx: n, active: true, t: 1, respawn: 0, near: true }); }
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.5, flatShading: true });
     mat.emissive = new THREE.Color('#ffffff'); mat.emissiveIntensity = 0.06;
     // sea treasures glint through the water
@@ -108,7 +115,9 @@ export class Forage {
     seaMat.emissive = new THREE.Color('#ffffff'); seaMat.emissiveIntensity = 0.28;
     for (const [id, n] of counts) {
       if (!n) continue;
-      const im = new THREE.InstancedMesh(foodGeo(id), FOODS[id].sea ? seaMat : mat, n);
+      const cave = id === 'crystal' || id === 'glowcap' || id === 'geode' || id === 'relic';
+      if (cave && !this.caveMat) { this.caveMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.3, flatShading: true }); this.caveMat.emissive = new THREE.Color('#ffffff'); this.caveMat.emissiveIntensity = 0.7; }
+      const im = new THREE.InstancedMesh(foodGeo(id), cave ? this.caveMat! : FOODS[id].sea ? seaMat : mat, n);
       im.castShadow = true; im.frustumCulled = false; im.name = 'food-' + id;
       this.meshes.set(id, im); this.group.add(im);
       this.dirty.add(id);
@@ -146,7 +155,7 @@ export class Forage {
     if (player && this.cullT <= 0) {
       this.cullT = 0.5;
       for (const it of this.items) {
-        const near = Math.hypot(it.x - player.x, it.z - player.z) < 32;
+        const near = Math.hypot(it.x - player.x, it.z - player.z) < 32 && Math.abs(it.y - player.y) < 18;
         if (near !== it.near) { it.near = near; this.write(it, near && it.active ? 1 : 0); }
       }
     }

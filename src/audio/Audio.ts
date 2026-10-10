@@ -17,6 +17,7 @@ export interface Listen {
   altitude: number;        // player height
   swim?: number;           // 0..1 swimming
   reef?: number;           // 0..1 over the reef
+  cave?: number;           // 0..1 underground
 }
 
 type Ctx = AudioContext;
@@ -108,6 +109,9 @@ export class AudioEngine {
     this.bed('rustle', this.white, [['highpass', 2800, 0.5], ['lowpass', 7000, 0.5]]);
     this.bed('cicada', this.white, [['bandpass', 5200, 9]]);
     this.bed('marsh', this.brown, [['lowpass', 260, 0.8]]);
+    // cave: a deep earthy rumble and a faint hollow air tone
+    this.bed('cave', this.brown, [['lowpass', 150, 0.7]]);
+    this.bed('hollow', this.pink, [['bandpass', 520, 6]]);
     // reef: a soft, bubbly undertow with a shimmering top
     this.bed('reef', this.pink, [['bandpass', 380, 0.9], ['lowpass', 900, 0.6]]);
     this.bed('fizz', this.white, [['bandpass', 3800, 3]]);
@@ -170,8 +174,11 @@ export class AudioEngine {
   // ---------------- per-frame listener update ----------------
   update(l: Listen) { this.listen = l; }
 
+  private outdoor = 1;
+  private caveAmt = 0;
   private setBed(name: string, level: number, tc = 0.6) {
     const b = this.beds[name]; if (!b) return;
+    if (name !== 'cave' && name !== 'hollow') level *= this.outdoor;
     b.level = level;
     b.gain.gain.setTargetAtTime(level, this.ctx!.currentTime, tc);
   }
@@ -181,6 +188,11 @@ export class AudioEngine {
     if (!ctx || ctx.state !== 'running' || !l) return;
     const t = ctx.currentTime, w = l.biome;
     this.music?.tick(w);
+    // underground: the island fades away, the cave hums, drips echo
+    const cv = l.cave ?? 0; this.caveAmt = cv; this.outdoor = 1 - cv;
+    this.setBed('cave', cv * 0.17 * (0.85 + 0.15 * Math.sin(t * 0.3)), 0.8);
+    this.setBed('hollow', cv * 0.025 * (0.6 + 0.4 * Math.sin(t * 0.17)), 1.2);
+    if (Math.random() < cv * 0.07) this.drip();
 
     // ocean: louder near shore, swelling waves, panned towards the water
     this.swell += 0.1;
@@ -211,12 +223,27 @@ export class AudioEngine {
     // discrete critters
     this.eventClock += 0.1;
     const birdRate = (0.12 + l.forest * 0.5) * (w[Biome.Meadow] + w[Biome.Autumn] + w[Biome.Tropical] * 1.1 + w[Biome.Marsh] * 0.6 + w[Biome.Alpine] * 0.25);
+    if (Math.random() < this.outdoor) {
     if (Math.random() < birdRate * 0.12) this.bird(w);
     if (Math.random() < near * 0.012) this.gull();
     const cricket = w[Biome.Meadow] * 0.5 + w[Biome.Marsh] * 0.6 + w[Biome.Desert] * 0.4 + w[Biome.Tropical] * 0.3;
     if (Math.random() < cricket * 0.09) this.cricket();
     if (Math.random() < w[Biome.Marsh] * 0.07) this.frog();
     if (Math.random() < w[Biome.Autumn] * 0.012) this.woodpecker();
+    }
+  }
+
+  /** a single echoing water drip in the cave */
+  private drip() {
+    const t = this.go(); if (t < 0) return;
+    const o = this.tone('sine', 1500 + Math.random() * 900, t, 0.09, this.sfx((Math.random() - 0.5) * 1.6, 0.22 + Math.random() * 0.15, 0.9), 0.3, 0.001);
+    o.frequency.exponentialRampToValueAtTime(420 + Math.random() * 200, t + 0.06);
+  }
+  /** stepping into / out of the cave: a hollow whoosh */
+  cave(enter: boolean) {
+    const t = this.go(); if (t < 0) return;
+    const f = this.noiseHit(t, 0.7, this.sfx(0, 0.7, 0.8), 'bandpass', enter ? 1400 : 300, 1.5, 0.12, 0.15, this.pink);
+    f.frequency.exponentialRampToValueAtTime(enter ? 260 : 1600, t + 0.6);
   }
 
   // ---------------- voices ----------------
@@ -226,7 +253,9 @@ export class AudioEngine {
     let last: AudioNode = g;
     if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = fin(pan); g.connect(p); last = p; }
     last.connect(this.ambBus);
-    if (wet > 0) { const s = ctx.createGain(); s.gain.value = Number.isFinite(wet) ? wet : 0; last.connect(s).connect(this.reverbIn); }
+    // in the cave everything echoes
+    const w2 = Math.min(1.2, wet + this.caveAmt * 0.35) * (1 + this.caveAmt);
+    if (w2 > 0) { const s = ctx.createGain(); s.gain.value = Number.isFinite(w2) ? w2 : 0; last.connect(s).connect(this.reverbIn); }
     return g;
   }
   private env(g: AudioParam, t: number, a: number, peak: number, d: number) {

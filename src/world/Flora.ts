@@ -5,7 +5,7 @@ import {
   mx_noise_float, normalize, cameraPosition, pow, normalView, positionViewDirection, vertexColor,
 } from 'three/tsl';
 import { mulberry32 } from './noise';
-import { Biome, BIOME_COUNT, POND } from './Biomes';
+import { Biome, BIOME_COUNT, POND, AREA } from './Biomes';
 import { biomeWeights, heightAt, slopeAt, snowAt, terrainColor, ISLAND_RADIUS, smooth } from './Terrain';
 import * as P from './Plants';
 import type { Physics } from '../core/Physics';
@@ -141,7 +141,7 @@ export class Flora {
     const tint = new THREE.Color();
 
     for (const spec of SPECS) {
-      const per = Math.ceil(spec.count / spec.variants);
+      const per = Math.ceil((spec.count * AREA) / spec.variants);
       for (let v = 0; v < spec.variants; v++) {
         const geo = spec.make(rnd);
         const im = new THREE.InstancedMesh(geo, spec.name === 'lily' || spec.name === 'fern' || spec.name === 'tropplant' ? matDouble : mat, per);
@@ -199,7 +199,7 @@ export class Flora {
    * renderer can frustum-cull them (main camera and the sun's shadow camera).
    */
   private chunkAll() {
-    const N = 3, size = 108, cell = size / N;
+    const N = 3, size = 124, cell = size / N;
     const lowOf = new Map<THREE.InstancedMesh, number>();
     for (const s of this.scalable) lowOf.set(s.mesh, s.low);
     lowOf.set(this.grass, 0.3);
@@ -234,7 +234,7 @@ export class Flora {
   }
 
   private buildFlowers(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
-    const N = 1600;
+    const N = Math.round(1600 * AREA);
     const stemGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.28, 4); stemGeo.translate(0, 0.14, 0);
     const headGeo = new THREE.IcosahedronGeometry(0.075, 0); headGeo.translate(0, 0.3, 0);
     const stems = new THREE.InstancedMesh(stemGeo, new THREE.MeshStandardNodeMaterial({ color: '#4f9a43', flatShading: true }), N);
@@ -249,7 +249,7 @@ export class Flora {
     };
     const w = new Float32Array(BIOME_COUNT);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    const patches = Array.from({ length: 70 }, () => {
+    const patches = Array.from({ length: Math.round(70 * AREA) }, () => {
       const a = rnd() * 6.28, d = Math.sqrt(rnd()) * ISLAND_RADIUS * 0.9;
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
       biomeWeights(x, z, w);
@@ -302,7 +302,7 @@ export class Flora {
       .add(sin(time.mul(3.1).add(pl.x.mul(1.3))).mul(0.025)).mul(windStrength);
     material.positionNode = pl.add(vec3(sway, float(0), sway.mul(0.6)).mul(tip.mul(tip)));
 
-    const N = 22000;
+    const N = Math.round(22000 * AREA);
     const grass = new THREE.InstancedMesh(geo, material, N);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     const c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
@@ -336,7 +336,7 @@ export class Flora {
 
   private buildLeafLitter(rnd: () => number) {
     const geo = new THREE.CircleGeometry(0.09, 5); geo.rotateX(-Math.PI / 2);
-    const N = 2200;
+    const N = Math.round(2200 * AREA);
     const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, side: THREE.DoubleSide });
     const im = new THREE.InstancedMesh(geo, mat, N);
     const cols = ['#e8562e', '#f2a12e', '#d9432a', '#f5c242', '#b8322a'].map((c) => new THREE.Color(c));
