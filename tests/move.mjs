@@ -7,6 +7,10 @@ const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost
 const outDir = new URL('../screenshots/', import.meta.url).pathname;
 fs.mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const __closeBrowser = async (code) => { try { await browser.close(); } catch { /* ignore */ } process.exit(code); };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
 const results = []; const ok = (n, c, x = '') => { results.push(c); console.log(c ? 'PASS' : 'FAIL', n, x); };
 const errFilter = (m) => (m.type() === 'error' || (m.type() === 'warning' && !/GL Driver|GPU stall|swiftshader|Automatic fallback/i.test(m.text())));
 async function open(opts, q) {

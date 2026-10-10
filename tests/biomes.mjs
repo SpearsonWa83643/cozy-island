@@ -7,6 +7,10 @@ const only = (process.argv.find((a) => a.startsWith('--only=')) ?? '').slice(7).
 const outDir = new URL('../screenshots/', import.meta.url).pathname;
 fs.mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const __closeBrowser = async (code) => { try { await browser.close(); } catch { /* ignore */ } process.exit(code); };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
 const page = await browser.newPage({ viewport: { width: 1440, height: 810 } });
 page.setDefaultTimeout(300000);
 const errors = [];

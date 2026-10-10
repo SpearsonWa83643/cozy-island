@@ -5,6 +5,10 @@ const urls = process.argv.filter((a) => a.startsWith('http'));
 if (!urls.length) urls.push('http://localhost:4181/cozy-island/');
 const rounds = +(process.argv.find((a) => a.startsWith('--rounds='))?.slice(9) ?? 1);
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const __closeBrowser = async (code) => { try { await browser.close(); } catch { /* ignore */ } process.exit(code); };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
 for (let r = 0; r < rounds; r++) for (const base of urls) {
   const ctx = await browser.newContext({ ...devices['iPad Pro 11 landscape'], deviceScaleFactor: 1 });
   const page = await ctx.newPage();

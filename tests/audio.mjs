@@ -2,6 +2,10 @@
 import { chromium } from 'playwright';
 const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=user-gesture-required'] });
+const __closeBrowser = async (code) => { try { await browser.close(); } catch { /* ignore */ } process.exit(code); };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
 const ctx = await browser.newContext({ viewport: { width: 1000, height: 600 } });
 const page = await ctx.newPage(); page.setDefaultTimeout(240000);
 const errors = [];

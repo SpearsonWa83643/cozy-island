@@ -8,6 +8,10 @@ const outDir = new URL('../screenshots/', import.meta.url).pathname;
 fs.mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({
+const __closeBrowser = async (code) => { try { await browser.close(); } catch { /* ignore */ } process.exit(code); };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
   headless: true,
   args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
