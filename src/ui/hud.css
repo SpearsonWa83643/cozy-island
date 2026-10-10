@@ -228,3 +228,17 @@ body.touch .swim-meter { top: auto; bottom: calc(34px + env(safe-area-inset-bott
 .food-card.sea { background: linear-gradient(160deg, rgba(122, 240, 216, 0.22), rgba(47, 143, 224, 0.14)); }
 .food-card .trade { margin-top: 4px; border: 0; border-radius: 999px; padding: 4px 10px; min-height: 30px; background: #2fa7c9; color: #fff; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 .food-card .trade:active { transform: scale(0.95); }
+
+/* ---------- floating joystick (iPad) ---------- */
+.stick { pointer-events: none !important; opacity: .55; transition: opacity .2s ease, transform .2s ease; }
+.stick.idle-hide { opacity: 0; transform: scale(.85); }
+body[data-hand="right"] .stick { left: auto; right: max(28px, env(safe-area-inset-right)); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 200px); }
+.fstick { position: absolute; left: 0; top: 0; width: 124px; height: 124px; margin: -62px 0 0 -62px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,246,226,.16) 0 70%, rgba(255,246,226,.3) 71% 100%); border: 3px solid rgba(255,246,226,.6);
+  opacity: 0; transition: opacity .12s ease; will-change: transform; }
+.fstick.show { opacity: 1; }
+.fstick .knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: rgba(255,243,214,.92); border: 3px solid #f2a93b; box-shadow: 0 3px 0 rgba(47,34,25,.25); }
+.hand-row { display: none; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; }
+body.touch .hand-row { display: flex; }
+.hand-row .qbtn { padding: 6px 10px; }

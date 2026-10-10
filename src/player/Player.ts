@@ -89,6 +89,10 @@ export class Player implements System {
   onSwimEnd: (pos: THREE.Vector3) => void = () => {};
   onStroke: (pos: THREE.Vector3, moving: number) => void = () => {};
   private stuckT = 0;
+  /** tap-to-walk steering (world-space unit dir + speed scale), set by TapWalk each frame */
+  autoDir: { x: number; z: number; s: number } | null = null;
+  /** true while keys / joystick are driving (cancels tap-to-walk) */
+  manual = false;
   /** times the anti-stuck nudge fired (tests) */
   unstuckCount = 0;
   private strokePhase = 0;
@@ -157,6 +161,13 @@ export class Player implements System {
     const fast = k.has('shift') || analog > 1;
     const speed = this.swimming ? (fast ? SWIM_FAST : SWIM) * Math.min(1, analog) : (k.has('shift') ? RUN : WALK) * analog * wade;
     let mx = 0, mz = 0;
+    this.manual = len > 0;
+    if (len === 0 && this.autoDir && this.enabled) {
+      const a = this.autoDir, sp = (this.swimming ? SWIM : WALK) * a.s * (this.swimming ? 1 : wade);
+      mx = a.x * sp; mz = a.z * sp;
+      let d = Math.atan2(a.x, a.z) - this.facing; d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.facing += d * Math.min(1, dt * 10);
+    }
     if (len > 0) {
       fx /= len; fz /= len;
       const cy = Math.cos(this.cameraYaw), sy = Math.sin(this.cameraYaw);

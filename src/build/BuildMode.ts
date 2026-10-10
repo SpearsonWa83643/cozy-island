@@ -64,7 +64,13 @@ export class BuildMode implements System {
       if (e.button === 0) {
         // taps carry no hover history: aim at the tap point first
         this.input.setMouse(e.clientX, e.clientY);
-        if (this.removeMode) this.removeHovered();
+        if (this.removeMode) {
+          // far pieces: walk over first (tap-to-walk), then remove on arrival
+          this.computeTarget();
+          const hp = this.hoverPlaced;
+          if (hp && hp.obj.position.distanceTo(this.playerPos()) > 4.5 && this.onFarRemove(hp.obj.position.clone(), () => this.removePiece(hp))) return;
+          this.removeHovered();
+        }
         else { this.refreshTarget(); this.place(); }
       } else if (e.button === 2) this.removeHovered();
     });
@@ -198,9 +204,12 @@ export class BuildMode implements System {
     return this.placed.map((p) => ({ x: +p.obj.position.x.toFixed(3), y: +p.obj.position.y.toFixed(3), z: +p.obj.position.z.toFixed(3), t: BUILDABLES.indexOf(p.def), r: +p.obj.rotation.y.toFixed(4) }));
   }
 
-  removeHovered() {
+  /** hook: return true to take over a far remove (walk there first) */
+  onFarRemove: (pos: THREE.Vector3, done: () => void) => boolean = () => false;
+  removePiece(p: Placed) { if (!this.placed.includes(p)) return; this.hoverPlaced = p; this.removeHovered(true); }
+  removeHovered(keep = false) {
     if (!this.active) return;
-    this.computeTarget();
+    if (!keep) this.computeTarget();
     const p = this.hoverPlaced;
     if (!p) return;
     this.group.remove(p.obj);

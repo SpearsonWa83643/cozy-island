@@ -130,6 +130,7 @@ export class Game {
     lap('renderer');
     this.hud = new Hud(this.renderer.backendName);
     this.hud.bindAudio(this.audio);
+    this.hud.bindHand(this.input);
     this.hud.onQuality = (q) => this.setQuality(q);
     this.hud.onSelect = (i) => { if (!this.build.active) this.build.toggle(true); this.build.select(i); };
     if (this.isTouch) {

@@ -5,6 +5,7 @@ import { Save } from './Save';
 import { Forage, type FoodItem } from './Forage';
 import { Treasure } from './Treasure';
 import { Guide } from './Guide';
+import { TapWalk, type WalkGoal } from './TapWalk';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
@@ -23,6 +24,8 @@ export class Gameplay implements System {
   forage: Forage;
   treasure: Treasure;
   guide = new Guide();
+  walk: TapWalk;
+  private ray = new THREE.Raycaster();
   map: MapOverlay;
   juice: Juice;
   panels: Panels;
@@ -50,6 +53,12 @@ export class Gameplay implements System {
     g.scene.add(this.forage.group);
     this.treasure = new Treasure(d, g.flora, spawn);
     g.scene.add(this.treasure.group, this.guide.mesh);
+    this.walk = new TapWalk(g.player);
+    g.scene.add(this.walk.marker);
+    this.walk.onGiveUp = () => this.juice.pop(g.player.position.add(new THREE.Vector3(0, 1.9, 0)), '🤔', 'emote', 1.2, 20);
+    g.input.onStickStart.push(() => this.walk.cancel());
+    // build mode: far pieces in remove mode → walk over, then remove
+    g.build.onFarRemove = (pos, done) => { this.walk.go({ pos: () => pos, reach: 3.2, key: '', arrive: done }); return true; };
     this.guide.enabled = d.guide !== false;
     const root = document.getElementById('hud') ?? document.body;
     this.map = new MapOverlay(document.body, g.flora);
@@ -78,9 +87,14 @@ export class Gameplay implements System {
     this.panels.onAction = () => this.act();
     // contextual action from a tap/click near the target
     g.input.onClick.push((e, drag) => {
-      if (drag || g.build.active || e.button !== 0 || !this.target) return;
-      const s = this.juice.project(this.target.pos);
-      if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 90 : 110)) this.act();
+      if (drag || g.build.active || e.button !== 0 || this.previewOn || this.lockMove > 0) return;
+      g.audio.unlock();
+      // tapping the thing you're already next to uses it right away
+      if (this.target) {
+        const s = this.juice.project(this.target.pos);
+        if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 90 : 110)) { this.walk.cancel(false); this.act(); return; }
+      }
+      this.tapAt(e.clientX, e.clientY);
     });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -186,6 +200,52 @@ export class Gameplay implements System {
     const it = this.forage.nearest(p, 1.5);
     if (it) return { kind: 'pick', icon: FOODS[it.id].icon, label: `${FOODS[it.id].sea ? 'Collect' : 'Pick'} ${FOODS[it.id].name}`, key: `pick:${it.id}`, pos: new THREE.Vector3(it.x, it.y + 0.45, it.z), run: () => this.pick(it) };
     return null;
+  }
+
+  /** tap / click on the world: walk to an interactable (and use it on arrival) or to the ground spot */
+  tapAt(cx: number, cy: number) {
+    const g = this.g, r = g.renderer.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    this.ray.setFromCamera(ndc, g.camera);
+    const o = this.ray.ray.origin, dir = this.ray.ray.direction;
+    const ground = g.terrain.raycast(o, dir);
+    let pt = ground;
+    if (dir.y < 0) { const t = (0.02 - o.y) / dir.y, wp = o.clone().addScaledVector(dir, t); if (!pt || (pt.y < 0 && wp.distanceTo(o) < pt.distanceTo(o))) pt = wp; }
+    if (!pt) return false;
+    const goal = this.pickGoal(pt, cx, cy) ?? { pos: () => ({ x: pt!.x, z: pt!.z }), reach: 0.3, key: '' };
+    this.walk.go(goal);
+    return true;
+  }
+
+  /** nearest interactable around the tapped point (by screen distance), as a walk goal that acts on arrival */
+  private pickGoal(pt: THREE.Vector3, cx: number, cy: number): WalkGoal | null {
+    const g = this.g, tr = this.treasure, st = tr.state, lim = g.isTouch ? 80 : 60;
+    const cands: { key: string; pos: () => { x: number; z: number }; y: number; reach: number }[] = [];
+    for (const it of this.forage.items) if (it.active && it.t >= 0.9 && Math.hypot(it.x - pt.x, it.z - pt.z) < 3.5) cands.push({ key: `pick:${it.id}`, pos: () => it, y: it.y + 0.15, reach: 0.9 });
+    if (st === 'bottle') cands.push({ key: 'take:bottle', pos: () => tr.bottlePos, y: tr.bottlePos.y + 0.2, reach: 1.1 });
+    if (st === 'dug') cands.push({ key: 'open:chest', pos: () => tr.chestPos, y: tr.chestPos.y + 0.4, reach: 1.4 });
+    if (st === 'active' && Math.hypot(tr.spot.x - pt.x, tr.spot.z - pt.z) < 2.5) cands.push({ key: 'dig:spot', pos: () => tr.spot, y: tr.spot.y + 0.1, reach: 0.9 });
+    for (const b of g.reef.bottles) if (b.active) cands.push({ key: 'take:seabottle', pos: () => b, y: 0.1, reach: 1.1 });
+    const an = g.fauna.nearestFeedable(pt.x, pt.z, 2.2);
+    if (an && this.bestFood(an.species as Species)) cands.push({ key: 'feed:', pos: () => an.a, y: an.a.y + 0.4, reach: 1.6 });
+    let best: (typeof cands)[0] | null = null, bd = lim;
+    const v = new THREE.Vector3();
+    for (const c of cands) {
+      const p = c.pos(); const s = this.juice.project(v.set(p.x, c.y, p.z));
+      const d = Math.hypot(s.x - cx, s.y - cy);
+      if (d < bd) { bd = d; best = c; }
+    }
+    if (!best) return null;
+    const want = best.key;
+    return {
+      pos: best.pos, reach: best.reach, key: want,
+      arrive: () => {
+        const t = this.findTarget(g.player.position);
+        // picks must be the same item type; other actions just need the same kind (the animal may have shuffled)
+        const kind = want.split(':')[0];
+        if (t && (kind === 'pick' ? t.key === want : t.kind === kind)) { this.target = t; this.act(); }
+      },
+    };
   }
 
   act() {
@@ -341,6 +401,7 @@ export class Gameplay implements System {
     const g = this.g, p = g.player.position, d = this.save.data;
     this.recordTrail(p);
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
+    this.walk.update(dt);
     this.forage.update(dt, p);
     this.treasure.update(dt, p);
     this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy ? this.treasure.spot : null);
