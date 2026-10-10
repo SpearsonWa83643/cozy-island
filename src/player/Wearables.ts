@@ -87,6 +87,50 @@ const B: Record<string, Builder> = {
   },
   halo: () => ({ obj: mesh(new Baker().add(torus(0.27, 0.035, 8, 28), '#ffe27a', [0, 0.62, 0], [Math.PI / 2, 0, 0]), true), top: 0.33,
     anim: (t, o) => { o.position.y = Math.sin(t * 2) * 0.03; o.rotation.y = t * 0.6; } }),
+  // ---------------- seaside set ----------------
+  sailor: () => ({ obj: mesh(new Baker().add(cyl(0.3, 0.27, 0.16, 20), '#ffffff', [0, 0.3, 0], [-0.1, 0, 0]).add(cyl(0.305, 0.305, 0.05, 20), '#2f4f9a', [0, 0.24, 0], [-0.1, 0, 0])
+    .add(cyl(0.02, 0.02, 0.01, 8), '#e05a4a', [0, 0.3, 0.3], [Math.PI / 2 - 0.1, 0, 0])), top: 0.4 }),
+  captain: () => ({ obj: mesh(new Baker().add(cyl(0.3, 0.3, 0.13, 20), '#ffffff', [0, 0.36, 0], [-0.08, 0, 0], [1.1, 1, 1.1]).add(cyl(0.3, 0.3, 0.06, 20), '#1f2a4a', [0, 0.28, 0], [-0.08, 0, 0])
+    .add(sph(0.2, 14, 6), '#1f2a4a', [0, 0.25, 0.25], [0, 0, 0], [1, 0.12, 0.7]).add(sph(0.045, 8, 6), '#ffc93a', [0, 0.32, 0.31])), top: 0.44 }),
+  fishhat: () => {
+    const b = new Baker().add(sph(0.3, 14, 10), '#ff9a3c', [0, 0.32, 0], [0, 0, 0], [0.75, 0.55, 1.15])
+      .add(sph(0.1, 10, 6), '#ffffff', [0, 0.33, 0.05], [0, 0, 0], [0.77, 0.5, 0.2])
+      .add(cone(0.16, 0.22, 4), '#ff7a2a', [0, 0.34, -0.42], [-Math.PI / 2, 0, 0], [1, 1, 0.25])
+      .add(sph(0.05, 8, 6), '#ffffff', [0.2, 0.38, 0.22]).add(sph(0.05, 8, 6), '#ffffff', [-0.2, 0.38, 0.22])
+      .add(sph(0.026, 6, 4), '#1a1a1a', [0.23, 0.38, 0.25]).add(sph(0.026, 6, 4), '#1a1a1a', [-0.23, 0.38, 0.25]);
+    return { obj: mesh(b), top: 0.5, anim: (t, o) => { o.rotation.y = Math.sin(t * 3) * 0.08; } };
+  },
+  coralcrown: () => {
+    const b = new Baker().add(torus(0.29, 0.035, 6, 24), '#ff8fa3', [0, 0.22, 0], [Math.PI / 2 - 0.08, 0, 0]);
+    const cols = ['#ff6f91', '#ff9a3c', '#a46cff', '#ffd23f', '#3fd6c6'];
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2, x = Math.cos(a) * 0.28, z = Math.sin(a) * 0.28, c = cols[i % 5];
+      b.add(cyl(0.022, 0.03, 0.2, 6), c, [x, 0.32, z], [0, 0, 0.2 * Math.cos(a)]).add(cyl(0.016, 0.02, 0.1, 6), c, [x + 0.04, 0.4, z], [0, 0, -0.7]).add(sph(0.03, 6, 4), c, [x, 0.43, z]);
+    }
+    b.add(sph(0.05, 10, 8), '#f8f4ff', [0, 0.25, 0.31]);
+    return { obj: mesh(b), top: 0.42 };
+  },
+  goggles: () => ({ obj: mesh(new Baker().add(sph(0.075, 10, 8), '#6fe0ff', [-0.11, 0.03, 0.31], [0, 0, 0], [1, 0.85, 0.45]).add(sph(0.075, 10, 8), '#6fe0ff', [0.11, 0.03, 0.31], [0, 0, 0], [1, 0.85, 0.45])
+    .add(torus(0.335, 0.018, 6, 28), '#ff7a2a', [0, 0.03, 0], [Math.PI / 2, 0, 0])) }),
+  kelpscarf: () => scarf(['#3f9a5a', '#5fbf6a', '#2f7a4a']),
+  shellneck: () => {
+    const b = new Baker().add(torus(0.26, 0.012, 4, 24), '#c9a87a', [0, 0, 0], [Math.PI / 2, 0, 0]);
+    const cols = ['#ffd9c9', '#ffb8a8', '#fff2dc'];
+    for (let i = 0; i < 5; i++) { const a = Math.PI / 2 + (i - 2) * 0.42; b.add(cone(0.05, 0.1, 8), cols[i % 3], [Math.cos(a) * 0.27, -0.05 - (2 - Math.abs(i - 2)) * 0.02, Math.sin(a) * 0.27], [Math.PI, 0, 0]); }
+    return { obj: mesh(b) };
+  },
+  pearls: () => {
+    const b = new Baker();
+    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; b.add(sph(0.035, 8, 6), '#fbf6f0', [Math.cos(a) * 0.27, -Math.max(0, Math.sin(a)) * 0.08, Math.sin(a) * 0.27]); }
+    b.add(sph(0.06, 10, 8), '#ffe8f0', [0, -0.12, 0.27]);
+    return { obj: mesh(b, true) };
+  },
+  floatie: () => ({ obj: mesh(new Baker().add(torus(0.4, 0.12, 8, 22), '#ffd84d', [0, -0.2, 0.3], [Math.PI / 2, 0, 0])
+    .add(sph(0.12, 10, 8), '#ffd84d', [0, -0.05, 0.78]).add(cone(0.05, 0.1, 6), '#ff9a2e', [0, -0.07, 0.92], [Math.PI / 2, 0, 0])
+    .add(sph(0.022, 6, 4), '#1a1a1a', [0.07, -0.01, 0.86]).add(sph(0.022, 6, 4), '#1a1a1a', [-0.07, -0.01, 0.86])),
+    anim: (t, o) => { o.rotation.z = Math.sin(t * 1.7) * 0.04; } }),
+  kelpsprout: () => sprout((b) => { for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.025, 0.16, 3, 6), i % 2 ? '#3f9a5a' : '#5fbf6a', [(i - 1) * 0.05, 0.2 + (i % 2) * 0.03, 0], [0, 0, (i - 1) * 0.35]); }, false, '#3f9a5a'),
+  pearlsprout: () => sprout((b) => b.add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.19, 0], [0, 0, 0.35], [1.2, 0.35, 1]).add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.25, 0], [0, 0, -0.35], [1.2, 0.35, 1]).add(sph(0.045, 10, 8), '#fffaf4', [0.03, 0.22, 0.02]), true),
   // ---------------- face ----------------
   roundglasses: () => ({ obj: mesh(new Baker().add(torus(0.075, 0.014), '#5a3a2a', [-0.11, 0.02, 0.32]).add(torus(0.075, 0.014), '#5a3a2a', [0.11, 0.02, 0.32])
     .add(cyl(0.01, 0.01, 0.07, 6), '#5a3a2a', [0, 0.03, 0.33], [0, 0, Math.PI / 2])) }),

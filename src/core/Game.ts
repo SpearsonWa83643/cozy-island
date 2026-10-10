@@ -9,6 +9,8 @@ import { createWater } from '../world/Water';
 import { Flora, fadeCam, fadeTarget } from '../world/Flora';
 import { Particles } from '../world/Particles';
 import { Fauna } from '../world/Fauna';
+import { Reef } from '../world/Reef';
+import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
@@ -36,6 +38,7 @@ export class Game {
   flora!: Flora;
   particles!: Particles;
   fauna!: Fauna;
+  reef!: Reef;
   hud!: Hud;
   terrain!: Terrain;
   audio = new AudioEngine();
@@ -44,6 +47,7 @@ export class Game {
   readonly isTouch = detectTouch();
   /** debug/test helper */
   heightAt = heightAt;
+  shore = { offshore, atOffshore, shoreRadius };
   ready = false;
   /** blended biome weights around the player (smoothed) */
   biome = new Float32Array(BIOME_COUNT);
@@ -93,6 +97,9 @@ export class Game {
     this.fauna = new Fauna(this.flora.flowerSpots);
     lap('fauna');
     this.scene.add(this.fauna.group);
+    this.reef = new Reef();
+    this.scene.add(this.reef.group);
+    lap('reef');
 
     // --- Actors ---
     this.player = new Player(this.physics, this.input, new THREE.Vector3(SPAWN.x, 0, SPAWN.y));
@@ -105,6 +112,13 @@ export class Game {
     this.player.onStep = (p, run) => this.audio.footstep(this.surfaceUnder(p), run ? 1.25 : 1);
     this.player.onJump = () => this.audio.jump();
     this.player.onLand = (p, impact) => this.audio.land(this.surfaceUnder(p), impact);
+    this.player.onSwimStart = (p) => { this.audio.splash(0, 0.55, true); this.reef.ring(p.x, p.z, 1.1, 1.3); this.reef.ring(p.x, p.z, 0.6, 0.9); };
+    this.player.onSwimEnd = (p) => { this.audio.splash(0, 0.25, false); this.reef.ring(p.x, p.z, 0.7, 1); };
+    this.player.onStroke = (p, mov) => { this.audio.stroke(mov); if (mov > 0.2) this.reef.ring(p.x, p.z, 0.55 + mov * 0.2, 1.1); };
+    this.reef.onSplash = (x, z, big) => {
+      const p = this.player.position, d = Math.hypot(x - p.x, z - p.z);
+      this.audio.splash(this.panOf(x, z), Math.max(0, 1 - d / 40) * (big ? 0.55 : 0.3), big);
+    };
     this.build.onPlace = (type) => this.audio.place(type);
     this.build.onRemove = () => this.audio.remove();
     this.fauna.school.onSplash = (x, z, big) => {
@@ -136,6 +150,7 @@ export class Game {
         this.flora.update(dt);
         this.fauna.update(dt, t, this.play.followCtx);
         this.particles.update(dt, t, this.player.position);
+        this.reef.update(dt, t, this.player.position, this.player.swimming, Math.min(1, this.player.speed / 2.5));
       },
     }, this.play);
     window.addEventListener('resize', () => {
@@ -168,6 +183,7 @@ export class Game {
     this.flora.setQuality(high);
     this.fauna.setQuality(high);
     this.particles.setQuality(high);
+    this.reef.setQuality(high);
     this.play?.forage.setQuality(high);
     this.hud.setQuality(q);
   }
@@ -249,6 +265,8 @@ export class Game {
       biome: w, shoreDist: this.shore.dist, shorePan: this.shore.pan, forest: this.forest.v,
       grass: (w[Biome.Meadow] + w[Biome.Autumn] * 0.7 + w[Biome.Marsh] * 0.8 + w[Biome.Tropical] * 0.5) * (1 - snowAt(p.x, p.z)),
       altitude: p.y,
+      swim: this.player.swimBlend,
+      reef: Math.max(0, 1 - Math.abs(this.player.offshoreDist - 7) / 12) * (this.player.depth > 0.4 ? 1 : 0),
     });
     this.input.endFrame();
   }

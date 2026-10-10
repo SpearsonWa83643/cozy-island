@@ -39,7 +39,7 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   const depth = clamp(h.negate(), 0, 6);
 
   let col = mix(color('#7af0d8'), color('#2fc2cf'), smoothstep(float(0.0), float(0.9), depth));
-  col = mix(col, color('#1a86c4'), smoothstep(float(0.9), float(3.2), depth));
+  col = mix(col, color('#1d9ccc'), smoothstep(float(0.9), float(3.0), depth));
   col = mix(col, color('#1466a8'), smoothstep(float(3.2), float(6.0), depth));
 
   // Foam
@@ -58,7 +58,8 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
 
   mat.colorNode = mix(col, color('#ffffff'), foam);
   mat.emissiveNode = vec3(sparkle).mul(smoothstep(float(0.5), float(2.5), depth));
-  mat.opacityNode = clamp(max(mix(float(0.5), float(0.96), smoothstep(float(0.0), float(1.6), depth)), foam), 0, 1);
+  // clear shallows: you can see the reef shelf (~1.5-2.5 m) through the water; the drop-off goes deep blue
+  mat.opacityNode = clamp(max(mix(float(0.3), float(0.95), smoothstep(float(0.2), float(4.4), depth)), foam), 0, 1);
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = false;

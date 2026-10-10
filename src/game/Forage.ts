@@ -4,7 +4,8 @@ import { heightAt, slopeAt, biomeWeights, ISLAND_RADIUS } from '../world/Terrain
 import { Biome, BIOME_COUNT } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
 import type { Flora } from '../world/Flora';
-import type { FoodId } from './Items';
+import { FOODS, type FoodId } from './Items';
+import { atOffshore } from '../world/Shore';
 
 const sph = (r: number) => new THREE.SphereGeometry(r, 7, 5);
 const cyl = (a: number, b: number, h: number) => new THREE.CylinderGeometry(a, b, h, 6);
@@ -25,6 +26,10 @@ function foodGeo(id: FoodId): THREE.BufferGeometry {
     case 'seeds': b.add(cyl(0.12, 0.12, 0.03), '#6b4a2a', [0, 0.04, 0]); for (let i = 0; i < 10; i++) { const a = i * 0.628; b.add(cone(0.04, 0.09), '#ffcc2e', [Math.cos(a) * 0.15, 0.04, Math.sin(a) * 0.15], [0, -a, Math.PI / 2]); } break;
     case 'clover': for (let i = 0; i < 3; i++) { const a = i * 2.094; b.add(sph(0.05), '#3fae46', [Math.cos(a) * 0.05, 0.12, Math.sin(a) * 0.05], [0, 0, 0], [1, 0.3, 1]); } b.add(cyl(0.006, 0.006, 0.12), '#3f8a40', [0, 0.06, 0]); break;
     case 'carrot': b.add(cone(0.05, 0.1), '#ff8a2e', [0, 0.03, 0], [Math.PI, 0, 0]); for (let i = 0; i < 4; i++) b.add(cone(0.02, 0.18), '#4fbf4a', [Math.cos(i * 1.57) * 0.02, 0.15, Math.sin(i * 1.57) * 0.02], [Math.cos(i * 1.57) * 0.3, 0, Math.sin(i * 1.57) * 0.3]); break;
+    case 'conch': b.add(new THREE.ConeGeometry(0.1, 0.26, 8), '#ffc9b0', [0, 0.08, 0], [0, 0, Math.PI / 2 - 0.2]); for (let i = 0; i < 3; i++) b.add(new THREE.TorusGeometry(0.075 - i * 0.02, 0.025, 5, 10), '#ffb39a', [-0.05 + i * 0.06, 0.08, 0], [0, Math.PI / 2, 0]); b.add(sph(0.06), '#ff8fa3', [-0.12, 0.08, 0], [0, 0, 0], [0.5, 1, 1]); break;
+    case 'seaglass': b.add(new THREE.DodecahedronGeometry(0.07, 0), '#7fe8d8', [0, 0.04, 0], [0.4, 0.3, 0], [1.3, 0.5, 1]).add(new THREE.DodecahedronGeometry(0.05, 0), '#8fc8ff', [0.1, 0.03, 0.05], [0.2, 1, 0], [1.2, 0.5, 1]); break;
+    case 'starfish': for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; b.add(new THREE.ConeGeometry(0.045, 0.17, 5), '#ff8a3c', [Math.cos(a) * 0.08, 0.025, Math.sin(a) * 0.08], [0, -a, -Math.PI / 2], [1, 1, 0.5]); } b.add(sph(0.05), '#ff9a4c', [0, 0.025, 0], [0, 0, 0], [1, 0.5, 1]); break;
+    case 'pearl': b.add(new THREE.SphereGeometry(0.15, 9, 4, 0, 6.29, 0, 1.4), '#8a7aa8', [0, 0.02, 0], [0, 0, 0], [1, 0.35, 1]).add(new THREE.SphereGeometry(0.15, 9, 4, 0, 6.29, 0, 1.4), '#a898c4', [0, 0.06, -0.09], [-1.2, 0, 0], [1, 0.35, 1]).add(sph(0.055), '#fff6fa', [0, 0.07, 0.02]); break;
     case 'reed': for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.02, 0.1, 2, 5), '#d9b25a', [(i - 1) * 0.04, 0.2, 0], [0, 0, (i - 1) * 0.2]).add(cyl(0.005, 0.005, 0.2), '#a8944a', [(i - 1) * 0.03, 0.08, 0]); break;
   }
   return b.build();
@@ -81,10 +86,29 @@ export class Forage {
       if (w[Biome.Meadow] + w[Biome.Marsh] > 0.6 && rnd() < 0.5) add('clover', x, z);
       else if (w[Biome.Meadow] > 0.6) add('carrot', x, z);
     }
+    // sea treasures on the reef shelf (and a few on the wet sand), reached by swimming
+    const SEA: [FoodId, number][] = [['conch', 22], ['starfish', 18], ['seaglass', 16], ['pearl', 8]];
+    const pt = { x: 0, z: 0 };
+    for (const [id, cap] of SEA) {
+      let n = 0;
+      for (let tries = 0; tries < 900 && n < cap; tries++) {
+        const beach = id !== 'pearl' && rnd() < 0.18;
+        atOffshore(rnd() * Math.PI * 2, beach ? -1.5 - rnd() * 2 : 2 + rnd() * (id === 'pearl' ? 14 : 12), pt);
+        const h = heightAt(pt.x, pt.z);
+        if (beach ? h < 0.02 || h > 0.35 : h > -0.9 || h < -2.3) continue;
+        this.items.push({ id, x: pt.x, y: h - 0.01, z: pt.z, rot: rnd() * 6.28, idx: n, active: true, t: 1, respawn: 0, near: true });
+        n++;
+      }
+      counts.set(id, n);
+    }
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.5, flatShading: true });
     mat.emissive = new THREE.Color('#ffffff'); mat.emissiveIntensity = 0.06;
+    // sea treasures glint through the water
+    const seaMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.3, flatShading: true });
+    seaMat.emissive = new THREE.Color('#ffffff'); seaMat.emissiveIntensity = 0.28;
     for (const [id, n] of counts) {
-      const im = new THREE.InstancedMesh(foodGeo(id), mat, n);
+      if (!n) continue;
+      const im = new THREE.InstancedMesh(foodGeo(id), FOODS[id].sea ? seaMat : mat, n);
       im.castShadow = true; im.frustumCulled = false; im.name = 'food-' + id;
       this.meshes.set(id, im); this.group.add(im);
       this.dirty.add(id);
@@ -106,7 +130,7 @@ export class Forage {
     for (const it of this.items) {
       if (!it.active || it.t < 0.9) continue;
       const d = Math.hypot(it.x - p.x, it.z - p.z);
-      if (d < bd && Math.abs(it.y - p.y) < 1.6) { bd = d; best = it; }
+      if (d < bd && Math.abs(it.y - p.y) < (it.y < -0.3 ? 2.1 : 1.6)) { bd = d; best = it; }
     }
     return best;
   }

@@ -1,7 +1,9 @@
 /** Static game data: foods, wearables, rarities, dyes, animal tastes. */
 
-export type FoodId = 'apple' | 'cherry' | 'berry' | 'blueberry' | 'acorn' | 'mushroom' | 'pinecone' | 'coconut' | 'cactusfruit' | 'seeds' | 'clover' | 'carrot' | 'reed';
-export interface FoodDef { id: FoodId; name: string; icon: string; }
+export type FoodId = 'apple' | 'cherry' | 'berry' | 'blueberry' | 'acorn' | 'mushroom' | 'pinecone' | 'coconut' | 'cactusfruit' | 'seeds' | 'clover' | 'carrot' | 'reed'
+  | 'conch' | 'seaglass' | 'starfish' | 'pearl';
+/** sea items are treasures, not food: they show in the bag and trade for shells */
+export interface FoodDef { id: FoodId; name: string; icon: string; sea?: boolean; trade?: number; }
 export const FOODS: Record<FoodId, FoodDef> = {
   apple: { id: 'apple', name: 'Apple', icon: '🍎' },
   cherry: { id: 'cherry', name: 'Cherries', icon: '🍒' },
@@ -16,6 +18,10 @@ export const FOODS: Record<FoodId, FoodDef> = {
   clover: { id: 'clover', name: 'Clover', icon: '☘️' },
   carrot: { id: 'carrot', name: 'Wild carrot', icon: '🥕' },
   reed: { id: 'reed', name: 'Reed grain', icon: '🌾' },
+  conch: { id: 'conch', name: 'Conch shell', icon: '🐚', sea: true, trade: 2 },
+  seaglass: { id: 'seaglass', name: 'Sea glass', icon: '💎', sea: true, trade: 3 },
+  starfish: { id: 'starfish', name: 'Starfish', icon: '⭐', sea: true, trade: 2 },
+  pearl: { id: 'pearl', name: 'Pearl', icon: '🦪', sea: true, trade: 6 },
 };
 export const FOOD_ORDER = Object.keys(FOODS) as FoodId[];
 
@@ -51,6 +57,7 @@ export const WEARABLES: WearDef[] = [
   W('flowercrown', 'hat', 'Flower Crown', 2, '🌸'), W('pirate', 'hat', 'Pirate Tricorn', 2, '🏴‍☠️'), W('frog', 'hat', 'Froggy Hood', 2, '🐸'),
   W('tophat', 'hat', 'Top Hat', 2, '🎩'), W('wizard', 'hat', 'Starry Wizard Hat', 3, '🧙'), W('viking', 'hat', 'Viking Helm', 3, '⚔️'),
   W('crown', 'hat', 'Golden Crown', 4, '👑'), W('halo', 'hat', 'Sunny Halo', 4, '😇'),
+  W('sailor', 'hat', 'Sailor Cap', 1, '⚓'), W('fishhat', 'hat', 'Fish Hat', 2, '🐟'), W('captain', 'hat', 'Captain Hat', 2, '🧑‍✈️'), W('coralcrown', 'hat', 'Coral Crown', 3, '🪸'),
   // face
   W('roundglasses', 'face', 'Round Glasses', 0, '👓'), W('rosy', 'face', 'Rosy Cheeks', 0, '😊'), W('sunglasses', 'face', 'Shades', 1, '🕶️'),
   W('mustache', 'face', 'Dapper Mustache', 1, '🥸'), W('heartglasses', 'face', 'Heart Glasses', 2, '😍'), W('monocle', 'face', 'Monocle', 2, '🧐'),
@@ -59,10 +66,12 @@ export const WEARABLES: WearDef[] = [
   W('redscarf', 'neck', 'Red Scarf', 0, '🧣'), W('bluescarf', 'neck', 'Blue Scarf', 0, '🧣'), W('bandana', 'neck', 'Bandana', 1, '🤠'),
   W('bowtie', 'neck', 'Bow Tie', 1, '🎀'), W('stripescarf', 'neck', 'Striped Scarf', 1, '🧣'), W('bell', 'neck', 'Bell Collar', 2, '🔔'),
   W('lei', 'neck', 'Flower Lei', 2, '🌺'), W('medal', 'neck', 'Explorer Medal', 3, '🏅'),
+  W('kelpscarf', 'neck', 'Kelp Scarf', 1, '🌿'), W('shellneck', 'neck', 'Shell Necklace', 1, '🐚'), W('pearls', 'neck', 'Pearl Necklace', 3, '🦪'),
   // back
   W('backpack', 'back', 'Yellow Backpack', 0, '🎒'), W('explorer', 'back', 'Explorer Pack', 1, '🧭'), W('balloon', 'back', 'Red Balloon', 1, '🎈'),
   W('leafwings', 'back', 'Leaf Wings', 2, '🍃'), W('cape', 'back', 'Hero Cape', 2, '🦸'), W('shell', 'back', 'Turtle Shell', 3, '🐢'),
   W('butterfly', 'back', 'Butterfly Wings', 3, '🦋'), W('royalcape', 'back', 'Royal Cape', 4, '👑'),
+  W('floatie', 'back', 'Duck Floatie', 1, '🛟'),
   // body
   W('sunny', 'body', 'Sunny Tee', 0, '👕'), W('stripes', 'body', 'Sailor Stripes', 0, '🎽'), W('dots', 'body', 'Polka Dots', 1, '🔴'),
   W('overalls', 'body', 'Garden Overalls', 1, '👖'), W('hoodie', 'body', 'Leafy Hoodie', 2, '🧥'), W('starry', 'body', 'Starry Night', 3, '🌌'),
@@ -70,6 +79,7 @@ export const WEARABLES: WearDef[] = [
   // sprout
   W('leaf', 'sprout', 'Leaf Sprout', 0, '🌱'), W('twoleaf', 'sprout', 'Double Leaf', 0, '🌿'), W('flower', 'sprout', 'Daisy Sprout', 1, '🌼'),
   W('cherrysprout', 'sprout', 'Cherry Sprout', 2, '🍒'), W('starsprout', 'sprout', 'Star Sprout', 3, '⭐'), W('goldsprout', 'sprout', 'Golden Sprout', 4, '✨'),
+  W('kelpsprout', 'sprout', 'Kelp Sprout', 1, '🌱'), W('pearlsprout', 'sprout', 'Pearl Sprout', 3, '🫧'),
 ];
 export const WEAR_BY_ID = new Map(WEARABLES.map((w) => [w.id, w]));
 export const DEFAULT_OWNED = ['backpack', 'sunny', 'leaf'];
@@ -82,3 +92,6 @@ export const DYES = [
   { id: 'forest', name: 'Forest', color: '#4f9a5a', cost: 16 }, { id: 'night', name: 'Midnight', color: '#3d4a8a', cost: 20 },
   { id: 'snow', name: 'Snow', color: '#f4f4f0', cost: 20 },
 ];
+
+/** the seaside set: found in floating bottles out on the reef (also in chests) */
+export const SEA_WEAR = ['sailor', 'fishhat', 'captain', 'coralcrown', 'goggles', 'snorkel', 'kelpscarf', 'shellneck', 'pearls', 'floatie', 'kelpsprout', 'pearlsprout', 'stripes'];

@@ -3,12 +3,18 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
 import type { System } from '../core/System';
-import { heightAt } from '../world/Terrain';
+import { heightAt, WATER_LEVEL } from '../world/Terrain';
+import { offshore, SWIM_SOFT, SWIM_MAX } from '../world/Shore';
 import { mat } from '../world/Models';
 import { Outfit, type Sockets } from './Wearables';
 
 const HALF_H = 0.35, RADIUS = 0.32;
 const WALK = 4.2, RUN = 7, JUMP = 7.5, GRAVITY = -20;
+const SWIM = 2.5, SWIM_FAST = 3.6;
+/** feet height while floating: head and shoulders stay above the surface */
+const FLOAT_FEET = WATER_LEVEL - 0.8;
+const SWIM_IN = 0.95, SWIM_OUT = 0.82; // ground depth thresholds (hysteresis)
+const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 function makeCharacter() {
   const root = new THREE.Group();
@@ -70,6 +76,22 @@ export class Player implements System {
   onLand: (pos: THREE.Vector3, impact: number) => void = () => {};
   private lastStepSign = 1;
   private airVy = 0;
+  /** swimming state + 0..1 blend for the animation */
+  swimming = false;
+  swimBlend = 0;
+  /** 0..1 how hard the current is pulling (UI stamina ring) */
+  current = 0;
+  /** metres past the shoreline */
+  offshoreDist = 0;
+  /** water depth at the player's feet column (ground below surface) */
+  depth = 0;
+  onSwimStart: (pos: THREE.Vector3) => void = () => {};
+  onSwimEnd: (pos: THREE.Vector3) => void = () => {};
+  onStroke: (pos: THREE.Vector3, moving: number) => void = () => {};
+  private stuckT = 0;
+  /** times the anti-stuck nudge fired (tests) */
+  unstuckCount = 0;
+  private strokePhase = 0;
 
   constructor(physics: Physics, private input: Input, spawn: THREE.Vector3) {
     const R = physics.R;
@@ -99,8 +121,10 @@ export class Player implements System {
   }
 
   teleport(x: number, z: number, facing?: number) {
-    this.body.setTranslation({ x, y: heightAt(x, z) + HALF_H + RADIUS + 0.05, z }, true);
-    this.body.setNextKinematicTranslation({ x, y: heightAt(x, z) + HALF_H + RADIUS + 0.05, z });
+    const g = heightAt(x, z), deep = WATER_LEVEL - g > SWIM_IN;
+    const y = (deep ? FLOAT_FEET : g + 0.05) + HALF_H + RADIUS;
+    this.body.setTranslation({ x, y, z }, true);
+    this.body.setNextKinematicTranslation({ x, y, z });
     if (facing !== undefined) this.facing = facing;
     this.vy = 0;
   }
@@ -123,7 +147,15 @@ export class Player implements System {
       analog = Math.min(1, sm) < 0.9 ? Math.min(1, sm / 0.9) : 1 + (RUN / WALK - 1) * 0.8;
     }
     const len = Math.hypot(fx, fz);
-    const speed = (k.has('shift') ? RUN : WALK) * analog;
+    const t0 = this.body.translation();
+    const ground = heightAt(t0.x, t0.z);
+    this.depth = WATER_LEVEL - ground;
+    if (!this.swimming && this.depth > SWIM_IN && t0.y - HALF_H - RADIUS < FLOAT_FEET + 0.35) { this.swimming = true; this.vy = 0; this.onSwimStart(this.position); }
+    else if (this.swimming && this.depth < SWIM_OUT) { this.swimming = false; this.onSwimEnd(this.position); }
+    // wading slows you a little; swimming is calmer still
+    const wade = 1 - smooth(0.15, SWIM_IN, this.depth) * 0.35;
+    const fast = k.has('shift') || analog > 1;
+    const speed = this.swimming ? (fast ? SWIM_FAST : SWIM) * Math.min(1, analog) : (k.has('shift') ? RUN : WALK) * analog * wade;
     let mx = 0, mz = 0;
     if (len > 0) {
       fx /= len; fz /= len;
@@ -138,14 +170,27 @@ export class Player implements System {
     if (this.enabled && this.input.pressed.has(' ')) this.jumpBuffer = 0.15;
     this.jumpBuffer -= dt;
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
+    if (this.swimming) { this.coyote = 0; this.jumpBuffer = 0; }
     if (this.jumpBuffer > 0 && this.coyote > 0) { this.vy = JUMP; this.grounded = false; this.coyote = 0; this.jumpBuffer = 0; this.onJump(); }
-    this.vy += GRAVITY * dt;
-    if (this.vy < -30) this.vy = -30;
-
     const t = this.body.translation();
-    // keep the player on the island: block moves into deep water
-    const nx = t.x + mx * dt, nz = t.z + mz * dt;
-    if (heightAt(nx, nz) < -0.45) { mx = 0; mz = 0; }
+    const feet = t.y - HALF_H - RADIUS;
+    // soft swim boundary: past SWIM_SOFT a gentle current carries you back toward the beach (no invisible wall)
+    this.offshoreDist = this.depth > 0.2 ? offshore(t.x, t.z) : -1;
+    this.current = smooth(SWIM_SOFT, SWIM_MAX, this.offshoreDist);
+    if (this.current > 0) {
+      const r = Math.hypot(t.x, t.z) || 1, push = this.current * 3.4 + smooth(SWIM_MAX, SWIM_MAX + 5, this.offshoreDist) * 6;
+      mx -= (t.x / r) * push; mz -= (t.z / r) * push;
+    }
+    if (this.swimming) {
+      // buoyancy: ease the feet toward the float line with a gentle bob
+      const bob = Math.sin(this.t * 2.2) * 0.04;
+      this.vy = (FLOAT_FEET + bob - feet) * 5;
+    } else {
+      this.vy += GRAVITY * dt;
+      if (this.vy < -30) this.vy = -30;
+      // never sink below the float line in deep water (e.g. jumping off a rock into the sea)
+      if (this.depth > SWIM_IN && feet < FLOAT_FEET && this.vy < 0) this.vy *= 0.5;
+    }
 
     const desired = { x: mx * dt, y: this.vy * dt, z: mz * dt };
     this.controller.computeColliderMovement(this.collider, desired);
@@ -155,7 +200,25 @@ export class Player implements System {
     if (!wasGrounded && this.grounded && this.airVy < -4) this.onLand(this.position, -this.airVy);
     if (!this.grounded) this.airVy = this.vy;
     if (this.grounded && this.vy < 0) this.vy = 0;
-    this.body.setNextKinematicTranslation({ x: t.x + mv.x, y: t.y + mv.y, z: t.z + mv.z });
+    let nx = t.x + mv.x, ny = t.y + mv.y, nz = t.z + mv.z;
+    // anti-stuck: wanted to move but barely did for a while (wedged at the shoreline, a rock, a follower)
+    const want = Math.hypot(desired.x, desired.z), got = Math.hypot(mv.x, mv.z);
+    // (only around the waterline, so walls and placed blocks stay solid)
+    if (len > 0 && want > 0.01 && got < want * 0.15 && this.depth > -0.35) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
+    if (this.stuckT > 0.8) {
+      this.stuckT = 0;
+      // free the capsule: a small hop along the wished direction, biased toward the beach, never below ground or the float line
+      const r = Math.hypot(nx, nz) || 1, ml = Math.hypot(mx, mz) || 1;
+      nx += (mx / ml) * 0.3 - (nx / r) * 0.25; nz += (mz / ml) * 0.3 - (nz / r) * 0.25;
+      const feetY = Math.max(heightAt(nx, nz) + 0.05, this.depth > SWIM_IN ? FLOAT_FEET : -99, ny - HALF_H - RADIUS);
+      ny = feetY + HALF_H + RADIUS + 0.1;
+      this.body.setTranslation({ x: nx, y: ny, z: nz }, true);
+      this.unstuckCount++;
+    }
+    // safety net: fell through the ground somehow
+    const gy = heightAt(nx, nz);
+    if (ny - HALF_H - RADIUS < gy - 0.5) ny = gy + HALF_H + RADIUS + 0.05;
+    this.body.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
 
     // Visuals
     const p = this.position;
@@ -167,8 +230,23 @@ export class Player implements System {
     this.walkPhase += dt * (4 + this.speedSmoothed * 2.2);
     const amt = Math.min(1, this.speedSmoothed / WALK);
     const sgn = Math.sin(this.walkPhase) >= 0 ? 1 : -1;
-    if (sgn !== this.lastStepSign) { this.lastStepSign = sgn; if (this.grounded && horiz > 0.8) this.onStep(p, horiz > WALK * 1.2); }
+    if (sgn !== this.lastStepSign) { this.lastStepSign = sgn; if (this.grounded && !this.swimming && horiz > 0.8) this.onStep(p, horiz > WALK * 1.2); }
     const { body, footL, footR } = this.parts;
+    this.swimBlend += ((this.swimming ? 1 : 0) - this.swimBlend) * Math.min(1, dt * 5);
+    if (this.swimBlend > 0.02) {
+      // breaststroke-ish paddle: lean forward, bob, kicking feet, a stroke sound every half cycle
+      const mov = Math.min(1, this.speedSmoothed / SWIM);
+      this.strokePhase += dt * (2.4 + mov * 3.2);
+      const s = this.swimBlend, sp = this.strokePhase;
+      const prev = Math.sin(sp - dt * (2.4 + mov * 3.2)), now = Math.sin(sp);
+      if (this.swimming && prev < 0 && now >= 0) this.onStroke(p, mov);
+      body.position.y = (Math.sin(sp * 2) * 0.035 - 0.04) * s;
+      body.rotation.x = (0.32 + mov * 0.18) * s;
+      body.rotation.z = Math.sin(sp) * 0.07 * s;
+      footL.position.set(-0.14, 0.08 + (0.22 + Math.sin(sp * 2.2) * 0.07) * s, 0.04 - (0.32 - Math.sin(sp * 2.2) * 0.1) * s);
+      footR.position.set(0.14, 0.08 + (0.22 - Math.sin(sp * 2.2) * 0.07) * s, 0.04 - (0.32 + Math.sin(sp * 2.2) * 0.1) * s);
+      if (s > 0.5) { body.scale.set(1, 1, 1); return; }
+    }
     body.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.08 * amt + (this.grounded ? 0 : 0.05);
     body.rotation.z = Math.sin(this.walkPhase) * 0.06 * amt;
     body.rotation.x = 0.08 * amt;

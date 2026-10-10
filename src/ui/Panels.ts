@@ -1,4 +1,4 @@
-import { DYES, FOODS, FOOD_ORDER, RARITY, SLOTS, TASTES, WEARABLES, type Slot, type Species } from '../game/Items';
+import { DYES, FOODS, FOOD_ORDER, RARITY, SLOTS, TASTES, WEARABLES, type FoodId, type Slot, type Species } from '../game/Items';
 import type { SaveData } from '../game/Save';
 
 export interface PanelApi {
@@ -11,6 +11,8 @@ export interface PanelApi {
   sheet: (kind: 'bag' | 'wardrobe' | null) => void;
   map: () => void;
   ui: () => void;
+  /** trade all of one sea treasure for shells */
+  trade: (id: FoodId) => void;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -107,10 +109,14 @@ export class Panels {
   renderBag() {
     const s = this.api.save();
     this.bag.querySelector('.sheet-meta')!.innerHTML = `<span class="shells">🐚 ${s.shells}</span>`;
-    const foods = FOOD_ORDER.map((id) => {
+    const foods = FOOD_ORDER.filter((id) => !FOODS[id].sea).map((id) => {
       const n = s.food[id] ?? 0, f = FOODS[id];
       const fans = (Object.keys(TASTES) as Species[]).filter((sp) => TASTES[sp].fav.includes(id) || TASTES[sp].likes.includes(id)).map((sp) => TASTES[sp].icon + (TASTES[sp].fav.includes(id) ? '<b>♥</b>' : '')).join(' ');
       return `<div class="food-card ${n ? '' : 'empty'}"><div class="fi">${f.icon}</div><div class="fn">${esc(f.name)}</div><div class="fc">×${n}</div><div class="ff">${fans}</div></div>`;
+    }).join('');
+    const sea = FOOD_ORDER.filter((id) => FOODS[id].sea).map((id) => {
+      const n = s.food[id] ?? 0, f = FOODS[id];
+      return `<div class="food-card sea ${n ? '' : 'empty'}"><div class="fi">${f.icon}</div><div class="fn">${esc(f.name)}</div><div class="fc">×${n}</div>${n ? `<button class="trade" data-id="${id}">→ 🐚 ${n * (f.trade ?? 1)}</button>` : `<div class="ff">🐚 ${f.trade} each</div>`}</div>`;
     }).join('');
     const fr = this.api.friends();
     const friends = fr.length ? fr.map((f, i) => {
@@ -119,7 +125,8 @@ export class Panels {
       return `<div class="friend-row"><span class="fri">${t.icon}</span><span class="frn">${t.name}${f.hunger <= 0 ? ' <i>is hungry!</i>' : ''}</span>
         <span class="hb"><span style="width:${pct * 100}%"></span></span><button class="bye" data-i="${i}">👋 Bye</button></div>`;
     }).join('') : `<div class="hint">No followers yet. Carry a food an animal likes, walk up gently and press <b>Feed</b>. Favourite foods (♥) win them over right away.</div>`;
-    this.bag.querySelector('.sheet-body')!.innerHTML = `<div class="food-grid">${foods}</div><h3>Friends <small>${fr.length}/6</small></h3><div class="friends">${friends}</div>`;
+    this.bag.querySelector('.sheet-body')!.innerHTML = `<div class="food-grid">${foods}</div><h3>Sea treasures <small>swim out to the reef</small></h3><div class="food-grid">${sea}</div><h3>Friends <small>${fr.length}/6</small></h3><div class="friends">${friends}</div>`;
+    this.bag.querySelectorAll('.trade').forEach((b) => b.addEventListener('click', () => { this.api.trade((b as HTMLElement).dataset.id as FoodId); this.renderBag(); }));
     this.bag.querySelectorAll('.bye').forEach((b) => b.addEventListener('click', () => { this.api.dismiss(Number((b as HTMLElement).dataset.i)); this.renderBag(); }));
   }
 

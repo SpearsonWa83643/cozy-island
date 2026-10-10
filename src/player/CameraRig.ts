@@ -38,7 +38,7 @@ export class CameraRig implements System {
       this.target.y + Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * cp * this.distance,
     );
-    const minY = Math.max(heightAt(pos.x, pos.z), 0) + 0.4;
+    const minY = Math.max(heightAt(pos.x, pos.z) + 0.4, 0.75); // stays above the swell
     if (pos.y < minY) pos.y = minY;
     this.camera.position.copy(pos);
     this.camera.lookAt(this.target);

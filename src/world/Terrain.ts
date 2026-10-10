@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, cameraPosition, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
+import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
 import { Noise2D } from './noise';
 import { Biome, BiomeField, BIOME_CENTERS, BIOME_COUNT, POND, biomeWeightsRaw } from './Biomes';
 
@@ -56,7 +56,11 @@ export function heightRaw(x: number, z: number): number {
 
   const inland = w[0] * meadow + w[1] * alpine + w[2] * autumn + w[3] * tropical + w[4] * desert + w[5] * marsh;
   let h = land * 1.1 + hillMask * inland;
-  h -= (1 - land) * 3.5; // seabed
+  // seabed: a shallow, bumpy reef shelf ~16 m wide (swimmable, visible through clear water), then a drop-off
+  const past = Math.max(0, r - 1.04) * ISLAND_RADIUS * wobble;
+  const reefBump = noiseB.fbm(x * 0.16 + 40, z * 0.16 - 20, 2) * 0.45 * smooth(0, 4, past);
+  const shelf = 1.75 + reefBump + smooth(13, 24, past) * 2.6;
+  h -= (1 - land) * shelf;
   return h;
 }
 
@@ -220,7 +224,13 @@ export class Terrain {
     const cell = floor(pw.mul(13));
     const hsh = fract(sin(dot(cell.xz.add(cell.y).add(floor(cameraPosition.xz.mul(1.5))), vec2(12.9898, 78.233))).mul(43758.5453));
     const glint = step(0.99, hsh).mul(mk.y.mul(0.8).add(mk.x.mul(0.12)));
-    mat.emissiveNode = vec3(glint).mul(smoothstep(float(60), float(10), pw.sub(cameraPosition).length()));
+    // underwater caustics: two drifting noise ridges multiplied → dancing light net on the reef shelf
+    const cuv = pw.xz.mul(0.9);
+    const c1 = float(1).sub(mx_noise_float(vec3(cuv.x, cuv.y, time.mul(0.45))).abs()).pow(5);
+    const c2 = float(1).sub(mx_noise_float(vec3(cuv.x.mul(1.3).add(5), cuv.y.mul(1.3), time.mul(0.6).add(9))).abs()).pow(5);
+    const under = smoothstep(float(-0.15), float(-0.6), pw.y).mul(smoothstep(float(-4.2), float(-1.2), pw.y));
+    const caustic = c1.mul(c2).mul(under).mul(0.55);
+    mat.emissiveNode = vec3(glint).mul(smoothstep(float(60), float(10), pw.sub(cameraPosition).length())).add(vec3(0.55, 0.85, 0.8).mul(caustic));
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.receiveShadow = true;
     this.mesh.name = 'terrain';

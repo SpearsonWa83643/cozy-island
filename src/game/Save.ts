@@ -4,6 +4,8 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from './Items';
 export interface SaveData {
   v: 1;
   food: Partial<Record<FoodId, number>>;
+  /** has been swimming (first-time tip) */
+  swum?: boolean;
   shells: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)
   seen: string[];                      // wearable ids the player has looked at (no NEW badge)

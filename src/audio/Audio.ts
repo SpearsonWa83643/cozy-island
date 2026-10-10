@@ -13,6 +13,8 @@ export interface Listen {
   forest: number;          // 0..1 tree density nearby
   grass: number;           // 0..1 grassiness
   altitude: number;        // player height
+  swim?: number;           // 0..1 swimming
+  reef?: number;           // 0..1 over the reef
 }
 
 type Ctx = AudioContext;
@@ -104,6 +106,9 @@ export class AudioEngine {
     this.bed('rustle', this.white, [['highpass', 2800, 0.5], ['lowpass', 7000, 0.5]]);
     this.bed('cicada', this.white, [['bandpass', 5200, 9]]);
     this.bed('marsh', this.brown, [['lowpass', 260, 0.8]]);
+    // reef: a soft, bubbly undertow with a shimmering top
+    this.bed('reef', this.pink, [['bandpass', 380, 0.9], ['lowpass', 900, 0.6]]);
+    this.bed('fizz', this.white, [['bandpass', 3800, 3]]);
     // cicada amplitude modulation
     const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 34;
     const depth = ctx.createGain(); depth.gain.value = 0.5; lfo.connect(depth);
@@ -188,13 +193,18 @@ export class AudioEngine {
     // wind in grass; high alpine howl
     const gust = 0.6 + 0.4 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 2);
     const alt = Math.min(1, Math.max(0, (l.altitude - 3) / 8));
-    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12) * gust, 0.5);
+    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12) * gust * (1 - (l.swim ?? 0) * 0.6), 0.5);
     this.beds.wind.filter!.frequency.setTargetAtTime(420 + gust * 500, t, 0.6);
     this.setBed('howl', w[Biome.Alpine] * (0.04 + alt * 0.2) * gust, 0.7);
     this.beds.howl.filter!.frequency.setTargetAtTime(380 + Math.sin(t * 0.21) * 160 + alt * 200, t, 0.8);
     this.setBed('rustle', (l.forest * 0.05 + w[Biome.Autumn] * 0.07) * Math.max(0, gust - 0.35), 0.3);
     this.setBed('cicada', w[Biome.Desert] * 0.05 * (0.6 + 0.4 * Math.sin(t * 0.2)), 1.2);
     this.setBed('marsh', w[Biome.Marsh] * 0.12, 1);
+    // swimming: the surf muffles, the reef hums and fizzes, the odd bubble rises
+    const swim = l.swim ?? 0, reef = l.reef ?? 0;
+    this.setBed('reef', swim * (0.08 + reef * 0.16) * (0.8 + 0.2 * Math.sin(t * 0.5)), 0.6);
+    this.setBed('fizz', swim * reef * 0.035 * (0.6 + 0.4 * Math.sin(t * 1.3)), 0.4);
+    if (swim > 0.6 && Math.random() < 0.05 + reef * 0.1) this.bubble(reef);
 
     // discrete critters
     this.eventClock += 0.1;
@@ -358,6 +368,17 @@ export class AudioEngine {
     const ctx = this.ctx!, t = ctx.currentTime + 0.01, d = this.sfx(pan, gain, 0.3);
     const b = this.noiseHit(t, big ? 0.35 : 0.2, d, 'bandpass', 700, 1, 0.3, 0.005); b.frequency.exponentialRampToValueAtTime(2600, t + 0.2);
     if (big) for (let i = 0; i < 4; i++) this.tone('sine', rand(900, 1800), t + 0.12 + i * rand(0.03, 0.07), 0.05, d, 0.05, 0.003);
+  }
+  /** one swim stroke: a soft watery push */
+  stroke(mov: number) {
+    if (!this.started) return;
+    const t = this.ctx!.currentTime + 0.01, d = this.sfx(rand(-0.2, 0.2), 0.18 + mov * 0.25, 0.25);
+    const b = this.noiseHit(t, 0.32, d, 'bandpass', rand(500, 700), 0.9, 0.22, 0.06); b.frequency.exponentialRampToValueAtTime(rand(1400, 1900), t + 0.28);
+  }
+  /** little rising bubble blip */
+  private bubble(reef: number) {
+    const t = this.ctx!.currentTime + rand(0, 0.2), d = this.sfx(rand(-0.6, 0.6), 0.25, 0.35);
+    const o = this.tone('sine', rand(380, 700), t, 0.09, d, 0.03 + reef * 0.03, 0.004); o.frequency.exponentialRampToValueAtTime(rand(1200, 2200), t + 0.08);
   }
   // ---------- gameplay juice ----------
   private go() { return this.started ? this.ctx!.currentTime + 0.005 : -1; }
