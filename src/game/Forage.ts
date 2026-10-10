@@ -6,7 +6,7 @@ import { mulberry32 } from '../world/noise';
 import type { Flora } from '../world/Flora';
 import type { FoodId } from './Items';
 
-const sph = (r: number) => new THREE.SphereGeometry(r, 9, 7);
+const sph = (r: number) => new THREE.SphereGeometry(r, 7, 5);
 const cyl = (a: number, b: number, h: number) => new THREE.CylinderGeometry(a, b, h, 6);
 const cone = (r: number, h: number) => new THREE.ConeGeometry(r, h, 7);
 
@@ -41,7 +41,7 @@ const SOURCES: Record<string, [FoodId, number, number, number, number, number]> 
 };
 const CAP = 34;
 
-export interface FoodItem { id: FoodId; x: number; y: number; z: number; rot: number; idx: number; active: boolean; t: number; respawn: number; }
+export interface FoodItem { id: FoodId; x: number; y: number; z: number; rot: number; idx: number; active: boolean; t: number; respawn: number; near: boolean; }
 
 const easeOutBack = (t: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 
@@ -61,7 +61,7 @@ export class Forage {
       const h = heightAt(x, z);
       if (h < 0.15 || slopeAt(x, z) > 0.7 || Math.hypot(x - spawn.x, z - spawn.y) < 2.5) return;
       counts.set(id, n + 1);
-      this.items.push({ id, x, y: h - 0.02, z, rot: rnd() * 6.28, idx: n, active: true, t: 1, respawn: 0 });
+      this.items.push({ id, x, y: h - 0.02, z, rot: rnd() * 6.28, idx: n, active: true, t: 1, respawn: 0, near: true });
     };
     const order = [...flora.spots].sort(() => rnd() - 0.5);
     for (const sp of order) {
@@ -96,7 +96,7 @@ export class Forage {
     const im = this.meshes.get(it.id)!;
     this.v.set(it.x, it.y, it.z);
     this.q.setFromEuler(this.e.set(0, it.rot, 0));
-    this.s.setScalar(Math.max(0.0001, scale) * 1.15);
+    this.s.setScalar(it.near ? Math.max(0.0001, scale) * 1.15 : 0);
     im.setMatrixAt(it.idx, this.m.compose(this.v, this.q, this.s));
     this.dirty.add(it.id);
   }
@@ -113,7 +113,19 @@ export class Forage {
 
   pick(it: FoodItem) { it.active = false; it.t = 0; it.respawn = 120 + Math.random() * 120; }
 
-  update(dt: number) {
+  setQuality(high: boolean) { for (const m of this.meshes.values()) m.castShadow = high; }
+
+  private cullT = 0;
+  update(dt: number, player?: THREE.Vector3) {
+    // only food near the player is drawn (keeps triangles flat across the island)
+    this.cullT -= dt;
+    if (player && this.cullT <= 0) {
+      this.cullT = 0.5;
+      for (const it of this.items) {
+        const near = Math.hypot(it.x - player.x, it.z - player.z) < 32;
+        if (near !== it.near) { it.near = near; this.write(it, near && it.active ? 1 : 0); }
+      }
+    }
     for (const it of this.items) {
       if (!it.active) {
         if (it.t < 1) { it.t = Math.min(1, it.t + dt / 0.28); const k = it.t; this.write(it, k < 0.35 ? 1 + k * 0.9 : (1 - k) * 1.8); }

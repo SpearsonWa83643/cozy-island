@@ -284,7 +284,7 @@ export class Gameplay implements System {
     const g = this.g, p = g.player.position, d = this.save.data;
     this.recordTrail(p);
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
-    this.forage.update(dt);
+    this.forage.update(dt, p);
     this.treasure.update(dt, p);
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action

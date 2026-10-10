@@ -168,6 +168,7 @@ export class Game {
     this.flora.setQuality(high);
     this.fauna.setQuality(high);
     this.particles.setQuality(high);
+    this.play?.forage.setQuality(high);
     this.hud.setQuality(q);
   }
 
