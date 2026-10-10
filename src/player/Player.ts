@@ -56,6 +56,8 @@ export class Player implements System {
   private controller: RAPIER.KinematicCharacterController;
   private vy = 0;
   private grounded = false;
+  private coyote = 0;
+  private jumpBuffer = 0;
   private facing = 0;
   private walkPhase = 0;
   private speedSmoothed = 0;
@@ -111,7 +113,10 @@ export class Player implements System {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.facing += d * Math.min(1, dt * 12);
     }
-    if (this.grounded && this.enabled && this.input.pressed.has(' ')) { this.vy = JUMP; this.grounded = false; }
+    if (this.enabled && this.input.pressed.has(' ')) this.jumpBuffer = 0.15;
+    this.jumpBuffer -= dt;
+    this.coyote = this.grounded ? 0.12 : this.coyote - dt;
+    if (this.jumpBuffer > 0 && this.coyote > 0) { this.vy = JUMP; this.grounded = false; this.coyote = 0; this.jumpBuffer = 0; }
     this.vy += GRAVITY * dt;
     if (this.vy < -30) this.vy = -30;
 

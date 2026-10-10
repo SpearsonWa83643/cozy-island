@@ -28,7 +28,7 @@ export class Game {
   hud!: Hud;
   terrain!: Terrain;
   ready = false;
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
   private elapsed = 0;
 
   async start(container: HTMLElement) {
@@ -42,7 +42,7 @@ export class Game {
     this.sky = createSky();
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight('#cfe9ff', '#e9c995', 1.25);
+    const hemi = new THREE.HemisphereLight('#cfe9ff', '#e9c995', 1.5);
     this.scene.add(hemi);
     this.sun = new THREE.DirectionalLight('#fff0d8', 3.0);
     this.sun.castShadow = true;
@@ -111,9 +111,10 @@ export class Game {
   }
 
   private frame() {
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    this.timer.update();
+    const dt = Math.min(this.timer.getDelta(), 0.1);
     this.step(dt);
     this.renderer.render(this.scene, this.camera);
-    this.hud.tick(dt);
+    this.hud.tick();
   }
 }

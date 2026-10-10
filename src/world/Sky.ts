@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, float, max, mix, normalize, positionLocal, pow, smoothstep, uniform, vec3, dot } from 'three/tsl';
 
-export const SUN_DIR = new THREE.Vector3(-0.55, 0.52, -0.62).normalize();
+export const SUN_DIR = new THREE.Vector3(-0.5, 0.78, -0.6).normalize();
 export const HORIZON = new THREE.Color('#ffe0c2');
 export const FOG_COLOR = new THREE.Color('#cfe3ea');
 

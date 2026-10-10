@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { float, mix, positionLocal, sin, time, uv, vec3 } from 'three/tsl';
-import { mulberry32 } from './noise';
+import { mulberry32, Noise2D } from './noise';
 import { heightAt, slopeAt, terrainColor, ISLAND_RADIUS } from './Terrain';
 import { makeBush, makePine, makeRock, makeRoundTree, mat } from './Models';
 import type { Physics } from '../core/Physics';
@@ -17,17 +17,19 @@ export class Decor {
     const rnd = mulberry32(42);
     const occupied: THREE.Vector3[] = [];
     const free = (x: number, z: number, r: number) =>
-      occupied.every((o) => Math.hypot(o.x - x, o.z - z) > o.y + r) && Math.hypot(x - SPAWN.x, z - SPAWN.y) > 4;
+      occupied.every((o) => Math.hypot(o.x - x, o.z - z) > o.y + r) && Math.hypot(x - SPAWN.x, z - SPAWN.y) > 6.5;
+    const grove = new Noise2D(5);
+    const inGrove = (x: number, z: number) => grove.fbm(x * 0.07, z * 0.07, 3) > -0.02 || Math.hypot(x, z) > ISLAND_RADIUS * 0.8;
 
     const tryPlace = (n: number, minH: number, maxH: number, maxSlope: number, r: number,
-      make: () => THREE.Object3D, collide: 'trunk' | 'ball' | 'none', scaleR: [number, number]) => {
+      make: () => THREE.Object3D, collide: 'trunk' | 'ball' | 'none', scaleR: [number, number], grovesOnly = false) => {
       let placed = 0, attempts = 0;
       while (placed < n && attempts < n * 40) {
         attempts++;
         const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * ISLAND_RADIUS * 1.05;
         const x = Math.cos(a) * d, z = Math.sin(a) * d;
         const h = heightAt(x, z);
-        if (h < minH || h > maxH || slopeAt(x, z) > maxSlope || !free(x, z, r)) continue;
+        if (h < minH || h > maxH || slopeAt(x, z) > maxSlope || !free(x, z, r) || (grovesOnly && !inGrove(x, z))) continue;
         const o = make();
         const s = scaleR[0] + rnd() * (scaleR[1] - scaleR[0]);
         o.scale.multiplyScalar(s);
@@ -41,9 +43,9 @@ export class Decor {
       }
     };
 
-    tryPlace(26, 0.9, 99, 0.6, 1.6, () => makeRoundTree(rnd, rnd() < 0.2), 'trunk', [0.8, 1.25]);
-    tryPlace(14, 1.6, 99, 0.7, 1.4, () => makePine(rnd), 'trunk', [0.8, 1.3]);
-    tryPlace(30, 0.7, 99, 0.6, 0.8, () => makeBush(rnd), 'none', [0.8, 1.4]);
+    tryPlace(20, 0.9, 99, 0.6, 1.8, () => makeRoundTree(rnd, rnd() < 0.25), 'trunk', [0.85, 1.3], true);
+    tryPlace(10, 1.6, 99, 0.7, 1.5, () => makePine(rnd), 'trunk', [0.85, 1.35], true);
+    tryPlace(22, 0.7, 99, 0.6, 0.8, () => makeBush(rnd), 'none', [0.8, 1.4], true);
     tryPlace(18, -0.6, 99, 1, 0.9, () => {
       const r = makeRock(rnd);
       r.scale.set(0.5 + rnd() * 0.7, 0.35 + rnd() * 0.45, 0.5 + rnd() * 0.7);
@@ -51,7 +53,7 @@ export class Decor {
     }, 'ball', [1, 1]);
 
     this.buildFlowers(rnd, free);
-    this.buildGrass(rnd, free);
+    this.buildGrass(rnd, free, grove);
     this.buildClouds(rnd);
   }
 
@@ -88,13 +90,13 @@ export class Decor {
     this.group.add(stems, heads);
   }
 
-  private buildGrass(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
+  private buildGrass(rnd: () => number, free: (x: number, z: number, r: number) => boolean, patch: Noise2D) {
     // Tuft of 3 crossed blades, normals pointing up for soft, uniform stylized lighting.
     const pos: number[] = [], uvs: number[] = [], nrm: number[] = [];
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI + rnd() * 0.4;
       const ca = Math.cos(a), sa = Math.sin(a);
-      const w = 0.06, h = 0.38 + rnd() * 0.2, lean = (rnd() - 0.5) * 0.2;
+      const w = 0.055, h = 0.2 + rnd() * 0.12, lean = (rnd() - 0.5) * 0.12;
       const off = (rnd() - 0.5) * 0.15;
       pos.push(-w * ca + off, 0, -w * sa, w * ca + off, 0, w * sa, lean * sa + off, h, lean * ca);
       uvs.push(0, 0, 1, 0, 0.5, 1);
@@ -107,13 +109,13 @@ export class Decor {
 
     const material = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.9 });
     const tip = uv().y;
-    material.colorNode = mix(vec3(0.62), vec3(1.22), tip);
+    material.colorNode = mix(vec3(0.82), vec3(1.16), tip);
     const pl = positionLocal;
     const sway = sin(time.mul(1.8).add(pl.x.mul(0.35)).add(pl.z.mul(0.25))).mul(0.08)
       .add(sin(time.mul(3.1).add(pl.x.mul(1.3))).mul(0.025));
     material.positionNode = pl.add(vec3(sway, float(0), sway.mul(0.6)).mul(tip.mul(tip)));
 
-    const N = 14000;
+    const N = 12000;
     const grass = new THREE.InstancedMesh(geo, material, N);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     const c = new THREE.Color();
@@ -125,7 +127,8 @@ export class Decor {
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
       const h = heightAt(x, z);
       if (h < 0.75 || slopeAt(x, z) > 0.75 || !free(x, z, 0.05)) continue;
-      const sc = 0.7 + rnd() * 0.8;
+      if (patch.fbm(x * 0.11 + 7, z * 0.11, 3) < -0.12 + rnd() * 0.1) continue; // patchy lawns
+      const sc = 0.8 + rnd() * 0.6;
       p.set(x, h - 0.03, z); q.setFromAxisAngle(up, rnd() * 6.28); s.set(sc, sc * (0.8 + rnd() * 0.5), sc);
       m.compose(p, q, s);
       grass.setMatrixAt(i, m);

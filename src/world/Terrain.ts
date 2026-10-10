@@ -43,6 +43,7 @@ const WET_SAND = new THREE.Color('#d9b77f');
 const GRASS_LIGHT = new THREE.Color('#9ed36a');
 const GRASS = new THREE.Color('#6dbb4f');
 const GRASS_DARK = new THREE.Color('#4f9a43');
+const MEADOW = new THREE.Color('#c4dc6a');
 const ROCK = new THREE.Color('#a49a8c');
 const SEABED = new THREE.Color('#c9b48a');
 
@@ -52,7 +53,9 @@ export function terrainColor(x: number, z: number, h: number, out: THREE.Color) 
   if (h < -0.2) out.copy(SEABED).lerp(WET_SAND, smooth(-2, -0.2, h));
   else if (h < 0.55) out.copy(WET_SAND).lerp(SAND, smooth(-0.2, 0.35, h));
   else {
-    out.copy(GRASS_DARK).lerp(GRASS, v).lerp(GRASS_LIGHT, smooth(0.55, 1, v) * 0.7);
+    out.copy(GRASS_DARK).lerp(GRASS, smooth(0.15, 0.55, v)).lerp(GRASS_LIGHT, smooth(0.5, 0.9, v) * 0.85);
+    const warm = noise.fbm(x * 0.05 - 30, z * 0.05 + 12, 2) * 0.5 + 0.5;
+    out.lerp(MEADOW, smooth(0.6, 0.85, warm) * 0.45);
     out.lerp(SAND, smooth(1.0, 0.55, h)); // soft beach blend
     out.lerp(GRASS_LIGHT, smooth(2.5, 5, h) * 0.4);
   }

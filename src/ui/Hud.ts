@@ -8,7 +8,7 @@ export class Hud {
   private slots: HTMLElement[] = [];
   private qBtns: Record<Quality, HTMLButtonElement>;
   private frames = 0;
-  private acc = 0;
+  private last = performance.now();
   fps = 0;
   onQuality: (q: Quality) => void = () => {};
   onSelect: (i: number) => void = () => {};
@@ -53,12 +53,15 @@ export class Hud {
     this.slots.forEach((s, i) => s.classList.toggle('sel', i === selected));
   }
 
-  tick(dt: number) {
-    this.frames++; this.acc += dt;
-    if (this.acc >= 0.5) {
-      this.fps = this.frames / this.acc;
-      this.fpsEl.textContent = `${this.fps.toFixed(0)} FPS`;
-      this.frames = 0; this.acc = 0;
+  /** Real wall-clock FPS (not the clamped sim dt). */
+  tick() {
+    this.frames++;
+    const now = performance.now();
+    const el = (now - this.last) / 1000;
+    if (el >= 0.5) {
+      this.fps = this.frames / el;
+      this.fpsEl.textContent = `${this.fps < 10 ? this.fps.toFixed(1) : this.fps.toFixed(0)} FPS`;
+      this.frames = 0; this.last = now;
     }
   }
 }
