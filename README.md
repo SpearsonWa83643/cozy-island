@@ -72,3 +72,13 @@ Design notes and research are in [`docs/design-research.md`](docs/design-researc
 | Close overlays | **Esc** | ✕ / swipe the sheet handle down |
 
 `npm run test:loop` runs the scripted full loop (forage, feed, follow, map, dig, open, equip, reload persists) on desktop and in iPad emulation.
+
+## Swimming & the reef
+
+- **Swimming:** walk off any beach into deeper water and you start swimming (head and shoulders above the surface, a gentle bob, kicking feet, a lean into each stroke, wake rings and soft stroke splashes). Swimming is slower than walking; Shift or pushing the joystick to the rim swims faster. The camera always stays above the swell.
+- **Soft limit:** about 12 m past the shoreline a current starts carrying you back. A stamina ring ("Getting tired…", then "The current is carrying you back to shore") appears at the top on desktop and bottom-centre on iPad. It tops out at about 19 m, with no invisible wall. Swim back toward the island and you climb straight out onto the sand.
+- **No more stuck states:** the old "deep water blocks movement" rule is gone. An anti-stuck nudge around the waterline frees the character if it gets wedged.
+- **Reef ecosystem:** a shallow reef shelf about 16 m wide rings the island before a deep drop-off. It has coral clusters (staghorn, brain, fans, tube sponges, table coral, anemones), swaying kelp and rocks, all baked into 18 culled sectors (one draw call each). Its creatures are recycled around you: fish schools (boids that scatter from you), sea turtles that rise to breathe, rays, pulsing jellyfish, and dolphins jumping farther out. The shallows are clearer, with animated caustics on the seabed. Swimming adds reef ambience: muffled surf, a bubbly undertow, rising bubbles.
+- **Sea treasures:** 🐚 conch shells, 💎 sea glass, ⭐ starfish and 🦪 pearls lie on the reef. Swim over one and press **Collect** (E / action button). They respawn over time, and in the Bag you can trade them for 🐚 shells to spend on dyes.
+- **Drifting bottles:** message bottles bob on the reef. They hold the treasure map if you haven't found it yet, otherwise a piece of the **seaside set**: Sailor Cap, Fish Hat, Captain Hat, Coral Crown, Swim Goggles, Snorkel Mask, Kelp Scarf, Shell Necklace, Pearl Necklace, Duck Floatie, Kelp Sprout, Pearl Sprout, Sailor Stripes. The new pieces also drop from chests.
+- Tests: `node tests/swim.mjs`, which swims out to the limit and back, checks the shallows in every direction, collects a sea item, opens two bottles, trades treasures, and runs an iPad Low joystick swim. Screenshots are `screenshots/24-28-*.png`.
