@@ -5,6 +5,7 @@ import type { Input } from '../core/Input';
 import type { System } from '../core/System';
 import { heightAt } from '../world/Terrain';
 import { mat } from '../world/Models';
+import { Outfit, type Sockets } from './Wearables';
 
 const HALF_H = 0.35, RADIUS = 0.32;
 const WALK = 4.2, RUN = 7, JUMP = 7.5, GRAVITY = -20;
@@ -13,7 +14,7 @@ function makeCharacter() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const shirt = mat('#ff8a65', { flat: false, rough: 0.7 });
+  const shirt = new THREE.MeshStandardNodeMaterial({ color: '#ffffff', roughness: 0.7 });
   const skin = mat('#ffd9b8', { flat: false, rough: 0.6 });
   const dark = mat('#3a2f2a', { flat: false, rough: 0.4 });
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.35, 6, 14), shirt);
@@ -29,27 +30,28 @@ function makeCharacter() {
   const blushM = mat('#ff9aa8', { flat: false });
   const bl = new THREE.Mesh(blushGeo, blushM); bl.scale.set(1, 0.5, 0.3); bl.position.set(-0.19, 1.1, 0.27);
   const br = bl.clone(); br.position.x = 0.19;
-  // sprout on head
-  const leafM = mat('#6dcc4f', { flat: false });
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.18, 6), leafM);
-  stem.position.set(0, 1.58, 0);
-  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), leafM);
-  leaf.scale.set(1.6, 0.35, 0.8); leaf.position.set(0.1, 1.67, 0); leaf.rotation.z = 0.4;
+  // wearable sockets
+  const sock = () => new THREE.Group();
+  const hatS = sock(), faceS = sock(), sproutS = sock(), neckS = sock(), backS = sock();
+  for (const s of [hatS, faceS, sproutS]) s.position.y = 1.18;
+  neckS.position.y = 0.9; backS.position.set(0, 0.62, -0.3);
   // feet
   const footGeo = new THREE.SphereGeometry(0.12, 12, 8);
   const footL = new THREE.Mesh(footGeo, dark); footL.scale.set(1, 0.6, 1.4); footL.position.set(-0.14, 0.08, 0.04);
   const footR = footL.clone(); footR.position.x = 0.14;
-  // backpack
-  const pack = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.15, 4, 10), mat('#ffd166', { flat: false }));
-  pack.position.set(0, 0.62, -0.28);
-  body.add(torso, head, hair, eyeL, eyeR, bl, br, stem, leaf, pack);
+  body.add(torso, head, hair, eyeL, eyeR, bl, br, hatS, faceS, sproutS, neckS, backS);
   root.add(footL, footR);
   root.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-  return { root, body, footL, footR };
+  const sockets: Sockets = { hat: hatS, face: faceS, neck: neckS, back: backS, sprout: sproutS, torso, hair };
+  return { root, body, footL, footR, sockets };
 }
 
 export class Player implements System {
   object: THREE.Group;
+  outfit: Outfit;
+  /** when set (wardrobe preview), the character faces this yaw instead of its movement */
+  previewYaw: number | null = null;
+  private t = 0;
   private parts: ReturnType<typeof makeCharacter>;
   private body: RAPIER.RigidBody;
   private collider: RAPIER.Collider;
@@ -73,6 +75,7 @@ export class Player implements System {
     const R = physics.R;
     this.parts = makeCharacter();
     this.object = this.parts.root;
+    this.outfit = new Outfit(this.parts.sockets);
     const y = heightAt(spawn.x, spawn.z) + HALF_H + RADIUS + 0.2;
     this.body = physics.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, y, spawn.z));
     this.collider = physics.world.createCollider(R.ColliderDesc.capsule(HALF_H, RADIUS), this.body);
@@ -83,6 +86,12 @@ export class Player implements System {
     this.controller.setSlideEnabled(true);
     this.facing = Math.PI;
   }
+
+  /** brief squash-and-stretch hop of joy (feeding, chest) */
+  cheer() { this.cheerT = 0.6; }
+  private cheerT = 0;
+  get facingYaw() { return this.facing; }
+  get speed() { return this.speedSmoothed; }
 
   get position() {
     const t = this.body.translation();
@@ -151,7 +160,8 @@ export class Player implements System {
     // Visuals
     const p = this.position;
     this.object.position.copy(p);
-    this.object.rotation.y = this.facing;
+    this.object.rotation.y = this.previewYaw ?? this.facing;
+    this.t += dt; this.outfit.update(this.t);
     const horiz = Math.hypot(mx, mz);
     this.speedSmoothed += (horiz - this.speedSmoothed) * Math.min(1, dt * 10);
     this.walkPhase += dt * (4 + this.speedSmoothed * 2.2);
@@ -168,6 +178,11 @@ export class Player implements System {
     footR.position.y = 0.08 + Math.max(0, -Math.cos(this.walkPhase)) * 0.08 * amt;
     // idle breathing
     const breathe = 1 + Math.sin(performance.now() * 0.003) * 0.015 * (1 - amt);
-    body.scale.set(1, breathe, 1);
+    if (this.cheerT > 0) {
+      this.cheerT -= dt;
+      const k = 1 - this.cheerT / 0.6, j = Math.sin(k * Math.PI);
+      body.position.y += j * 0.35;
+      body.scale.set(1 - j * 0.08, breathe + j * 0.14, 1 - j * 0.08);
+    } else body.scale.set(1, breathe, 1);
   }
 }

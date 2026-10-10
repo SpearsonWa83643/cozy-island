@@ -19,13 +19,14 @@ export class Hud {
     const el = (html: string) => { const d = document.createElement('div'); d.innerHTML = html.trim(); const c = d.firstElementChild as HTMLElement; document.body.appendChild(c); return c; };
     el(`<div class="hud panel title"><h1>🏝️ Cozy Island</h1><div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
-      <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Q</kbd><kbd>E</kbd> rotate<br>
+      <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Z</kbd><kbd>C</kbd> rotate<br>
+      <kbd>E</kbd>/<kbd>Click</kbd> pick · feed · dig &nbsp; <kbd>M</kbd> map &nbsp; <kbd>I</kbd> bag &nbsp; <kbd>O</kbd> wardrobe<br>
       <kbd>B</kbd> build mode &nbsp; <kbd>1</kbd>-<kbd>5</kbd> pick &nbsp; <kbd>R</kbd> rotate piece<br>
-      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove &nbsp; <kbd>M</kbd> mute</div>
+      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove &nbsp; <kbd>U</kbd> mute</div>
       <div class="touch-hint">🕹️ Stick to walk · drag to look · pinch to zoom<br>🔨 Build, then tap the ground to place</div></div>`);
     const stats = el(`<div class="hud panel stats"><div class="fps">-- FPS</div>
       <div><button class="qbtn" data-q="low">Low</button> <button class="qbtn" data-q="high">High</button></div>
-      <div class="audio-row"><button class="qbtn mute" title="Mute (M)">🔊</button>
+      <div class="audio-row"><button class="qbtn mute" title="Mute (U)">🔊</button>
         <label title="Music volume">🎵<input type="range" class="vol music" min="0" max="1" step="0.01"></label>
         <label title="Ambience volume">🌿<input type="range" class="vol amb" min="0" max="1" step="0.01"></label></div>
       <div class="sound-hint">🔈 Tap or press any key for sound</div>
@@ -60,7 +61,7 @@ export class Hud {
     const stop = (e: Event) => e.stopPropagation();
     for (const el of [mute, music, amb]) { el.addEventListener('pointerdown', stop); el.addEventListener('keydown', stop); }
     mute.addEventListener('click', (e) => { e.stopPropagation(); a.unlock(); a.settings.muted = !a.settings.muted; a.save(); sync(); mute.blur(); });
-    window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm' && (e.target as HTMLElement)?.tagName !== 'INPUT') { a.settings.muted = !a.settings.muted; a.save(); sync(); } });
+    window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'u' && (e.target as HTMLElement)?.tagName !== 'INPUT') { a.settings.muted = !a.settings.muted; a.save(); sync(); } });
     music.addEventListener('input', () => { a.settings.music = +music.value; a.save(); });
     amb.addEventListener('input', () => { a.settings.ambience = +amb.value; a.save(); });
     const showHint = () => hint.classList.toggle('hidden', a.started);

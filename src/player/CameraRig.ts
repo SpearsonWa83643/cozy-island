@@ -22,8 +22,8 @@ export class CameraRig implements System {
     const i = this.input;
     this.yaw -= i.dragDX * 0.005 * this.sensitivity;
     this.pitch = THREE.MathUtils.clamp(this.pitch + i.dragDY * 0.004 * this.sensitivity, 0.05, 1.35);
-    if (i.keys.has('q')) this.yaw += dt * 1.8;
-    if (i.keys.has('e')) this.yaw -= dt * 1.8;
+    if (i.keys.has('z')) this.yaw += dt * 1.8;
+    if (i.keys.has('c')) this.yaw -= dt * 1.8;
     this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, 3.5, 28);
     const p = this.player.position.add(new THREE.Vector3(0, 1.1, 0));
     this.target.lerp(p, Math.min(1, dt * 8));

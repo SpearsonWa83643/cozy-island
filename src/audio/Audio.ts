@@ -356,6 +356,32 @@ export class AudioEngine {
     const b = this.noiseHit(t, big ? 0.35 : 0.2, d, 'bandpass', 700, 1, 0.3, 0.005); b.frequency.exponentialRampToValueAtTime(2600, t + 0.2);
     if (big) for (let i = 0; i < 4; i++) this.tone('sine', rand(900, 1800), t + 0.12 + i * rand(0.03, 0.07), 0.05, d, 0.05, 0.003);
   }
+  // ---------- gameplay juice ----------
+  private go() { return this.started ? this.ctx!.currentTime + 0.005 : -1; }
+  /** soft pluck when picking up food */
+  pick() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.8, 0.15); const f = 660 * Math.pow(2, Math.floor(Math.random() * 3) * 2 / 12);
+    const o = this.tone('triangle', f, t, 0.18, d, 0.14, 0.003); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.06); this.tone('sine', f * 2, t + 0.05, 0.2, d, 0.06); }
+  /** munch + rising heart chime */
+  feed(friend: boolean) { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.9, 0.25);
+    for (let i = 0; i < 3; i++) this.noiseHit(t + i * 0.09, 0.05, d, 'bandpass', 1200 + i * 200, 2, 0.08, 0.003, this.pink);
+    const notes = friend ? [0, 4, 7, 12] : [0, 4]; notes.forEach((n, i) => this.tone('sine', 784 * Math.pow(2, n / 12), t + 0.3 + i * 0.09, 0.5, d, 0.09, 0.005)); }
+  /** shovel scrape + thud */
+  dig() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 1, 0.12);
+    const b = this.noiseHit(t, 0.16, d, 'bandpass', 1400, 1.5, 0.12, 0.01); b.frequency.exponentialRampToValueAtTime(500, t + 0.15);
+    const o = this.tone('sine', 120, t + 0.12, 0.2, d, 0.3, 0.004); o.frequency.exponentialRampToValueAtTime(60, t + 0.3); }
+  /** wooden creak + magical arpeggio on chest open */
+  chest(rarity: number) { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 1, 0.45);
+    const o = this.tone('sawtooth', 160, t, 0.25, this.sfx(0, 0.25, 0.1), 0.05, 0.02); o.frequency.exponentialRampToValueAtTime(320, t + 0.22);
+    const scale = [0, 4, 7, 11, 12, 16, 19, 24];
+    const n = 4 + rarity; for (let i = 0; i < n; i++) { this.tone('triangle', 523.25 * Math.pow(2, scale[i] / 12), t + 0.25 + i * 0.075, 0.9, d, 0.1, 0.004); this.tone('sine', 1046.5 * Math.pow(2, scale[i] / 12), t + 0.27 + i * 0.075, 0.6, d, 0.03); }
+    this.noiseHit(t + 0.25, 1.2, d, 'highpass', 6000, 0.5, 0.025, 0.05); }
+  /** warmer/colder ping: closeness 0..1 */
+  warm(closeness: number) { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.5, 0.5);
+    const f = 440 * Math.pow(2, Math.round(closeness * 12) / 12); this.tone('sine', f, t, 0.5, d, 0.05 + closeness * 0.05, 0.01); this.tone('sine', f * 1.5, t + 0.06, 0.4, d, 0.02 + closeness * 0.03, 0.01); }
+  /** paper rustle for the map */
+  paper() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.1); for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.035, 0.05, d, 'bandpass', 2500 + Math.random() * 2500, 1, 0.05, 0.004); }
+  /** little bubbly pop (equip, sheet) */
+  pop(pitch = 1) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 520 * pitch, t, 0.12, this.sfx(0, 0.6, 0.1), 0.12, 0.002); o.frequency.exponentialRampToValueAtTime(980 * pitch, t + 0.08); }
   ui() { if (!this.started) return; const t = this.ctx!.currentTime; this.tone('sine', 1320, t, 0.12, this.sfx(0, 0.5, 0.1), 0.08, 0.003); }
   /** RMS output level (debug / tests) */
   level(): number {

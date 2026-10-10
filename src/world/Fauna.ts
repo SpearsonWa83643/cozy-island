@@ -62,7 +62,19 @@ interface Kind {
   h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle'; homeR: number; pond?: boolean;
   colors?: string[];
 }
-interface Agent { x: number; z: number; y: number; yaw: number; tx: number; tz: number; state: 0 | 1 | 2; timer: number; ph: number; hx: number; hz: number; }
+export interface Agent {
+  x: number; z: number; y: number; yaw: number; tx: number; tz: number; state: 0 | 1 | 2; timer: number; ph: number; hx: number; hz: number;
+  friend: boolean; slot: number; hunger: number; fed: number; ret: boolean; vx: number; vz: number; joy: number; id: number;
+}
+/** Shared per-frame context for befriended followers. */
+export interface FollowCtx {
+  trail: (dist: number, out: THREE.Vector3) => THREE.Vector3;
+  px: number; py: number; pz: number; running: boolean;
+  attract: (species: string) => boolean;
+  friends: { x: number; z: number }[];
+  emote: (kind: 'hungry' | 'bye', x: number, y: number, z: number, species: string) => void;
+}
+let agentIds = 0;
 
 class Herd {
   mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0;
@@ -78,7 +90,7 @@ class Herd {
       else { const a = rnd() * 6.28, d = Math.sqrt(rnd()) * ISLAND_RADIUS * 1.05; x = Math.cos(a) * d; z = Math.sin(a) * d; }
       if (!this.valid(x, z)) continue;
       if (!k.pond) { biomeWeights(x, z, w); let bw = 0; for (const b of k.biomes) bw += w[b]; if (bw < 0.55) continue; }
-      this.agents.push({ x, z, y: 0, yaw: rnd() * 6.28, tx: x, tz: z, state: 0, timer: rnd() * 3, ph: rnd() * 10, hx: x, hz: z });
+      this.agents.push({ x, z, y: 0, yaw: rnd() * 6.28, tx: x, tz: z, state: 0, timer: rnd() * 3, ph: rnd() * 10, hx: x, hz: z, friend: false, slot: 0, hunger: 0, fed: 0, ret: false, vx: 0, vz: 0, joy: 0, id: agentIds++ });
       if (k.colors) this.mesh.setColorAt(this.agents.length - 1, new THREE.Color(k.colors[Math.floor(rnd() * k.colors.length)]));
     }
     this.active = this.agents.length; this.mesh.count = this.active;
@@ -90,24 +102,58 @@ class Herd {
     return slopeAt(x, z) < 0.7;
   }
   setQuality(high: boolean) { this.active = Math.floor(this.agents.length * (high ? 1 : this.k.low)); this.mesh.count = this.active; }
-  update(dt: number, t: number, px: number, pz: number, blockers: (x: number, z: number) => boolean) {
-    const k = this.k;
-    for (let i = 0; i < this.active; i++) {
+  update(dt: number, t: number, c: FollowCtx, blockers: (x: number, z: number) => boolean) {
+    const k = this.k, px = c.px, pz = c.pz;
+    const tmp = new THREE.Vector3();
+    for (let i = 0; i < this.agents.length; i++) {
       const a = this.agents[i];
-      const dp = Math.hypot(a.x - px, a.z - pz);
-      if (dp < k.fleeDist && a.state !== 2) {
-        a.state = 2; a.timer = 2 + this.rnd() * 1.5;
-        const ax = (a.x - px) / (dp || 1), az = (a.z - pz) / (dp || 1);
-        for (let tries = 0; tries < 8; tries++) {
-          const ang = (this.rnd() - 0.5) * 1.6 * (tries / 4 + 0.5), c = Math.cos(ang), s = Math.sin(ang);
-          const tx = a.x + (ax * c - az * s) * 7, tz = a.z + (ax * s + az * c) * 7;
-          if (this.valid(tx, tz)) { a.tx = tx; a.tz = tz; break; }
-        }
-      }
-      a.timer -= dt;
+      if (i >= this.active && !a.friend) continue;
       let moving = false;
-      if (a.state === 0) {
-        if (a.timer <= 0) {
+      if (a.friend) {
+        // ---- follower: breadcrumb trail target + arrival + separation ----
+        a.hunger -= dt;
+        if (a.hunger < 0 && a.hunger + dt >= 0) c.emote('hungry', a.x, a.y + 0.9, a.z, k.name);
+        if (a.hunger < -60) { a.friend = false; a.ret = true; a.state = 1; a.tx = a.hx; a.tz = a.hz; c.emote('bye', a.x, a.y + 0.9, a.z, k.name); continue; }
+        c.trail(1.35 + a.slot * 1.05, tmp);
+        let dx = tmp.x - a.x, dz = tmp.z - a.z;
+        const d = Math.hypot(dx, dz);
+        const maxSp = d > 10 ? 12 : 7.2;
+        const sp = Math.min(maxSp, Math.max(0, d - 0.15) * 3.2);
+        let ux = d > 0.001 ? (dx / d) * sp : 0, uz = d > 0.001 ? (dz / d) * sp : 0;
+        // separation from the player and the other followers
+        const pd = Math.hypot(a.x - px, a.z - pz);
+        if (pd < 1.0) { ux += ((a.x - px) / (pd || 1)) * (1.0 - pd) * 6; uz += ((a.z - pz) / (pd || 1)) * (1.0 - pd) * 6; }
+        for (const f of c.friends) {
+          if (f === (a as unknown)) continue;
+          const fd = Math.hypot(a.x - f.x, a.z - f.z);
+          if (fd > 0.001 && fd < 0.8) { ux += ((a.x - f.x) / fd) * (0.8 - fd) * 5; uz += ((a.z - f.z) / fd) * (0.8 - fd) * 5; }
+        }
+        const sm = Math.min(1, dt * 6);
+        a.vx += (ux - a.vx) * sm; a.vz += (uz - a.vz) * sm;
+        const vl = Math.hypot(a.vx, a.vz);
+        a.x += a.vx * dt; a.z += a.vz * dt;
+        moving = vl > 0.35;
+        const want = moving ? Math.atan2(a.vx, a.vz) : Math.atan2(px - a.x, pz - a.z);
+        let dy = want - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        a.yaw += dy * Math.min(1, dt * (moving ? 10 : 3));
+        if (moving) a.ph += dt * Math.min(16, 6 + vl * 1.6);
+      } else {
+        const dp = Math.hypot(a.x - px, a.z - pz);
+        const curious = c.attract(k.name) && dp < 7;
+        if (!a.ret && curious) {
+          // holding a food it likes: wander over and wait nearby
+          if (dp > 2.0 && a.timer <= 0) { const ang = Math.atan2(a.x - px, a.z - pz); a.tx = px + Math.sin(ang) * 1.7; a.tz = pz + Math.cos(ang) * 1.7; a.state = 1; a.timer = 0.6; }
+        } else if (!a.ret && dp < k.fleeDist * (c.running ? 1.6 : 1) && a.state !== 2) {
+          a.state = 2; a.timer = 2 + this.rnd() * 1.5;
+          const ax = (a.x - px) / (dp || 1), az = (a.z - pz) / (dp || 1);
+          for (let tries = 0; tries < 8; tries++) {
+            const ang = (this.rnd() - 0.5) * 1.6 * (tries / 4 + 0.5), cc = Math.cos(ang), ss = Math.sin(ang);
+            const tx = a.x + (ax * cc - az * ss) * 7, tz = a.z + (ax * ss + az * cc) * 7;
+            if (this.valid(tx, tz)) { a.tx = tx; a.tz = tz; break; }
+          }
+        }
+        a.timer -= dt;
+        if (a.state === 0 && a.timer <= 0) {
           for (let tries = 0; tries < 6; tries++) {
             const ang = this.rnd() * 6.28, r = 1 + this.rnd() * k.homeR;
             const tx = a.hx + Math.cos(ang) * r, tz = a.hz + Math.sin(ang) * r;
@@ -115,32 +161,48 @@ class Herd {
           }
           a.timer = 1 + this.rnd() * 3;
         }
-      }
-      if (a.state >= 1) {
-        const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
-        const sp = a.state === 2 ? k.flee : k.speed;
-        if (d < 0.15 || (a.state === 2 && a.timer <= 0)) { a.state = 0; a.timer = 1.5 + this.rnd() * 4; }
-        else {
-          const step = Math.min(d, sp * dt);
-          const nx = a.x + (dx / d) * step, nz = a.z + (dz / d) * step;
-          if (this.valid(nx, nz) && !blockers(nx, nz)) { a.x = nx; a.z = nz; moving = true; }
-          else { a.state = 0; a.timer = 0.3; }
-          let dy = Math.atan2(dx, dz) - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-          a.yaw += dy * Math.min(1, dt * 8);
+        if (a.state >= 1) {
+          const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
+          const sp = a.state === 2 ? k.flee : a.ret ? k.speed * 1.6 : k.speed;
+          if (d < 0.15 || (a.state === 2 && a.timer <= 0)) { a.state = 0; a.timer = 1.5 + this.rnd() * 4; if (a.ret && d < 2) a.ret = false; }
+          else {
+            const step = Math.min(d, sp * dt);
+            const nx = a.x + (dx / d) * step, nz = a.z + (dz / d) * step;
+            const free = a.ret || curious ? heightAt(nx, nz) > (k.pond ? -3 : 0.05) : this.valid(nx, nz);
+            if (free && !blockers(nx, nz)) { a.x = nx; a.z = nz; moving = true; }
+            else { a.state = 0; a.timer = 0.3; }
+            let dy = Math.atan2(dx, dz) - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+            a.yaw += dy * Math.min(1, dt * 8);
+          }
         }
+        if (moving) a.ph += dt * (a.state === 2 ? 14 : 9);
+        if (curious && !moving) { let dy = Math.atan2(px - a.x, pz - a.z) - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * Math.min(1, dt * 4); }
       }
-      if (moving) a.ph += dt * (a.state === 2 ? 14 : 9);
-      const h = heightAt(a.x, a.z);
-      let y = h, pitch = 0, roll = 0, yaw = a.yaw;
-      if (k.anim === 'hop') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.22 : 0); pitch = moving ? -Math.cos(a.ph) * 0.2 : Math.sin(t * 3 + a.ph) * 0.03; }
-      else if (k.anim === 'walk') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.04 : 0); pitch = moving ? 0 : Math.max(0, Math.sin(t * 0.5 + a.ph)) * 0.35; }
-      else if (k.anim === 'swim') { y = 0.02 + Math.sin(t * 2 + a.ph) * 0.025; roll = Math.sin(t * 1.5 + a.ph) * 0.06; }
-      else if (k.anim === 'scuttle') { y = h; yaw = a.yaw + Math.PI / 2; roll = moving ? Math.sin(a.ph * 2) * 0.1 : 0; }
-      this.v.set(a.x, y, a.z);
-      this.q.setFromEuler(this.e.set(pitch, yaw, roll, 'YXZ'));
-      this.mesh.setMatrixAt(i, this.m.compose(this.v, this.q, this.s));
+      this.pose(i, a, t, moving);
     }
+    this.mesh.count = Math.max(this.active, this.highestFriend() + 1);
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private highestFriend() { let h = -1; this.agents.forEach((a, i) => { if (a.friend) h = i; }); return h; }
+
+  private pose(i: number, a: Agent, t: number, moving: boolean) {
+    const k = this.k;
+    const h = heightAt(a.x, a.z);
+    const inWater = h < 0.02;
+    let y = Math.max(h, k.anim === 'swim' || inWater ? 0.02 : h), pitch = 0, roll = 0, yaw = a.yaw;
+    const anim = k.anim === 'swim' && !inWater ? 'waddle' : k.anim;
+    if (anim === 'hop') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.22 : 0); pitch = moving ? -Math.cos(a.ph) * 0.2 : Math.sin(t * 3 + a.ph) * 0.03; }
+    else if (anim === 'walk') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.04 : 0); pitch = moving ? 0 : a.friend ? 0 : Math.max(0, Math.sin(t * 0.5 + a.ph)) * 0.35; }
+    else if (anim === 'swim') { y = 0.02 + Math.sin(t * 2 + a.ph) * 0.025; roll = Math.sin(t * 1.5 + a.ph) * 0.06; }
+    else if (anim === 'waddle') { y = h; roll = moving ? Math.sin(a.ph * 1.2) * 0.22 : 0; }
+    else if (anim === 'scuttle') { y = h; yaw = a.yaw + Math.PI / 2; roll = moving ? Math.sin(a.ph * 2) * 0.1 : 0; }
+    // happy hop after being fed
+    if (a.joy > 0) { a.joy = Math.max(0, a.joy - 1 / 60); y += Math.abs(Math.sin(a.joy * 14)) * 0.3 * a.joy; }
+    a.y = y;
+    this.v.set(a.x, y, a.z);
+    this.q.setFromEuler(this.e.set(pitch, yaw, roll, 'YXZ'));
+    this.mesh.setMatrixAt(i, this.m.compose(this.v, this.q, this.s));
   }
 }
 
@@ -243,7 +305,7 @@ class Flyers {
   commit() { this.body.instanceMatrix.needsUpdate = this.lw.instanceMatrix.needsUpdate = this.rw.instanceMatrix.needsUpdate = true; }
 }
 
-interface Bird { x: number; y: number; z: number; yaw: number; pitch: number; state: 0 | 1 | 2 | 3; cx: number; cz: number; R: number; alt: number; ang: number; w: number; tx: number; tz: number; timer: number; ph: number; }
+interface Bird { friend: boolean; slot: number; hunger: number; fed: number; joy: number; id: number; ret: boolean; x: number; y: number; z: number; yaw: number; pitch: number; state: 0 | 1 | 2 | 3; cx: number; cz: number; R: number; alt: number; ang: number; w: number; tx: number; tz: number; timer: number; ph: number; }
 interface Fly { x: number; y: number; z: number; yaw: number; hx: number; hy: number; hz: number; ph: number; spook: number; }
 
 export class Fauna {
@@ -256,6 +318,49 @@ export class Fauna {
   private flowerSpots: THREE.Vector3[];
   private high = true;
   blockers: (x: number, z: number) => boolean = () => false;
+  static readonly MAX_FRIENDS = 6;
+
+  /** All befriended animals, in follow order. */
+  friends(): FriendRef[] {
+    const out: FriendRef[] = [];
+    for (const h of this.herds) for (const a of h.agents) if (a.friend) out.push({ species: h.k.name, a });
+    for (const b of this.birdState) if (b.friend) out.push({ species: 'bird', a: b });
+    return out.sort((p, q) => p.a.slot - q.a.slot);
+  }
+  private reslot() { this.friends().forEach((f, i) => { f.a.slot = i; }); }
+
+  /** Nearest animal that could be fed right now (not a happy follower). */
+  nearestFeedable(px: number, pz: number, maxD: number): (FriendRef & { d: number }) | null {
+    let best: (FriendRef & { d: number }) | null = null;
+    const consider = (species: string, a: Agent | Bird) => {
+      if (a.friend && a.hunger > 0) return;
+      const d = Math.hypot(a.x - px, a.z - pz);
+      if (d < maxD && (!best || d < best.d)) best = { species, a, d };
+    };
+    for (const h of this.herds) h.agents.forEach((a, i) => { if (i < h.active || a.friend) consider(h.k.name, a); });
+    for (let i = 0; i < this.birds.active; i++) { const b = this.birdState[i]; if (b.state === 2 || b.friend) consider('bird', b); }
+    return best;
+  }
+
+  /** Feed an animal. Favourite food befriends at once; liked food needs two. */
+  feed(ref: FriendRef, fav: boolean): 'friend' | 'more' | 'refill' {
+    const a = ref.a;
+    a.joy = 1;
+    if (a.friend) { a.hunger = 280 + this.rnd() * 80; return 'refill'; }
+    a.fed += fav ? 1 : 0.5;
+    if (a.fed < 0.99) return 'more';
+    a.friend = true; a.fed = 0; a.ret = false; a.hunger = 280 + this.rnd() * 80; a.slot = 99;
+    if ('vx' in a) { a.vx = 0; a.vz = 0; }
+    this.reslot();
+    return 'friend';
+  }
+  dismiss(ref: FriendRef) {
+    const a = ref.a; a.friend = false; a.ret = true;
+    if ('tx' in a && 'hx' in a) { (a as Agent).state = 1; (a as Agent).tx = (a as Agent).hx; (a as Agent).tz = (a as Agent).hz; }
+    if (ref.species === 'bird') (a as Bird).state = 3;
+    this.reslot();
+  }
+  friendCount() { return this.friends().length; }
 
   constructor(flowerSpots: THREE.Vector3[]) {
     this.flowerSpots = flowerSpots;
@@ -280,7 +385,7 @@ export class Fauna {
     this.group.add(this.birds.body, this.birds.lw, this.birds.rw);
     for (let i = 0; i < 16; i++) {
       const a = rnd() * 6.28, d = rnd() * 30;
-      this.birdState.push({ x: 0, y: 20, z: 0, yaw: 0, pitch: 0, state: 0, cx: Math.cos(a) * d, cz: Math.sin(a) * d, R: 8 + rnd() * 18, alt: 14 + rnd() * 12, ang: rnd() * 6.28, w: (0.25 + rnd() * 0.25) * (rnd() < 0.5 ? 1 : -1), tx: 0, tz: 0, timer: 5 + rnd() * 25, ph: rnd() * 10 });
+      this.birdState.push({ friend: false, slot: 0, hunger: 0, fed: 0, joy: 0, id: agentIds++, ret: false, x: 0, y: 20, z: 0, yaw: 0, pitch: 0, state: 0, cx: Math.cos(a) * d, cz: Math.sin(a) * d, R: 8 + rnd() * 18, alt: 14 + rnd() * 12, ang: rnd() * 6.28, w: (0.25 + rnd() * 0.25) * (rnd() < 0.5 ? 1 : -1), tx: 0, tz: 0, timer: 5 + rnd() * 25, ph: rnd() * 10 });
     }
     // Butterflies
     const flyBody = new Baker().add(new THREE.CapsuleGeometry(0.012, 0.08, 2, 4), '#3a2f2a', [0, 0, 0], [Math.PI / 2, 0, 0]).build();
@@ -314,9 +419,12 @@ export class Fauna {
     }
   }
 
-  update(dt: number, t: number, player: THREE.Vector3) {
-    const px = player.x, pz = player.z;
-    for (const h of this.herds) h.update(dt, t, px, pz, this.blockers);
+  update(dt: number, t: number, ctx: FollowCtx) {
+    const px = ctx.px, pz = ctx.pz;
+    ctx.friends = this.friends().map((f) => f.a);
+    const before = ctx.friends.length;
+    for (const h of this.herds) h.update(dt, t, ctx, this.blockers);
+    const tmp = new THREE.Vector3();
     this.school.update(dt, this.rnd);
     const v = new THREE.Vector3();
 
@@ -325,7 +433,19 @@ export class Fauna {
       const b = this.birdState[i];
       b.ph += dt * 12;
       let flap = Math.sin(b.ph) * 0.9;
-      if (b.state === 0) {
+      if (b.friend) {
+        // befriended bird: flutters along the trail at shoulder height
+        b.hunger -= dt;
+        if (b.hunger < 0 && b.hunger + dt >= 0) ctx.emote('hungry', b.x, b.y + 0.4, b.z, 'bird');
+        if (b.hunger < -60) { b.friend = false; b.state = 3; ctx.emote('bye', b.x, b.y + 0.4, b.z, 'bird'); }
+        ctx.trail(1.2 + b.slot * 1.05, tmp);
+        const ty = heightAt(tmp.x, tmp.z) + 1.7 + Math.sin(t * 2.2 + b.ph * 0.01) * 0.25 + (b.joy > 0 ? (b.joy -= dt, b.joy * 0.6) : 0);
+        const dx = tmp.x - b.x, dz = tmp.z - b.z;
+        b.x += dx * Math.min(1, dt * 3); b.z += dz * Math.min(1, dt * 3); b.y += (ty - b.y) * Math.min(1, dt * 3);
+        const want = Math.hypot(dx, dz) > 0.3 ? Math.atan2(dx, dz) : Math.atan2(px - b.x, pz - b.z);
+        let dy = want - b.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); b.yaw += dy * Math.min(1, dt * 5);
+        b.pitch = 0; flap = Math.sin(b.ph * 1.4) * 1.0;
+      } else if (b.state === 0) {
         b.ang += b.w * dt;
         const tx = b.cx + Math.cos(b.ang) * b.R, tz = b.cz + Math.sin(b.ang) * b.R;
         const ty = b.alt + Math.sin(b.ang * 2) * 1.5;
@@ -362,7 +482,7 @@ export class Fauna {
         b.pitch = Math.sin(t * 3 + i) > 0.7 ? 0.6 : 0; // peck
         flap = -1.25; // wings folded
         b.timer -= dt;
-        if (Math.hypot(b.x - px, b.z - pz) < 6) { b.state = 3; b.timer = 0; }
+        if (Math.hypot(b.x - px, b.z - pz) < (ctx.attract('bird') ? 1.2 : 6)) { b.state = 3; b.timer = 0; }
         else if (b.timer <= 0) b.state = 3;
       } else {
         b.y += dt * 5; b.pitch = -0.5;
@@ -394,5 +514,8 @@ export class Fauna {
       this.flies.set(i, v.set(f.x, f.y, f.z), f.yaw, 0, flap, this.high ? 1 : 1.1, 0.0);
     }
     this.flies.commit();
+    if (this.friends().length !== before) this.reslot();
   }
 }
+
+export interface FriendRef { species: string; a: Agent | Bird; }

@@ -16,6 +16,7 @@ import { BuildMode } from '../build/BuildMode';
 import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
 import { AudioEngine } from '../audio/Audio';
+import { Gameplay } from '../game/Gameplay';
 
 const SPAWN = new THREE.Vector2(0, 6);
 
@@ -39,6 +40,7 @@ export class Game {
   terrain!: Terrain;
   audio = new AudioEngine();
   touch: TouchControls | null = null;
+  play!: Gameplay;
   readonly isTouch = detectTouch();
   /** debug/test helper */
   heightAt = heightAt;
@@ -124,16 +126,18 @@ export class Game {
       this.hud.setBuild(this.build.active, this.build.selected, this.build.count, this.build.removeMode);
       this.touch?.sync();
     };
+    this.play = new Gameplay(this, SPAWN);
+    lap('gameplay');
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
     this.systems.push(this.player, this.rig, this.build, {
       update: (dt, t) => {
         this.flora.update(dt);
-        this.fauna.update(dt, t, this.player.position);
+        this.fauna.update(dt, t, this.play.followCtx);
         this.particles.update(dt, t, this.player.position);
       },
-    });
+    }, this.play);
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();

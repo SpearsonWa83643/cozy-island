@@ -193,6 +193,11 @@ export class BuildMode implements System {
     return true;
   }
 
+  /** placed pieces as plain data (for saving) */
+  serialize() {
+    return this.placed.map((p) => ({ x: +p.obj.position.x.toFixed(3), y: +p.obj.position.y.toFixed(3), z: +p.obj.position.z.toFixed(3), t: BUILDABLES.indexOf(p.def), r: +p.obj.rotation.y.toFixed(4) }));
+  }
+
   removeHovered() {
     if (!this.active) return;
     this.computeTarget();
