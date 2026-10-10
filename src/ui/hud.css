@@ -56,3 +56,12 @@ body.touch .qbtn { padding: 9px 16px; }
 body.touch .hotbar { bottom: max(24px, env(safe-area-inset-bottom)); }
 body.touch .slot { width: 70px; height: 70px; }
 body.touch .mode { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px); }
+
+/* ---------- audio controls ---------- */
+.audio-row { display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+.audio-row label { display: flex; align-items: center; gap: 2px; font-size: 14px; }
+.vol { width: 70px; accent-color: #7cc95b; touch-action: pan-x; pointer-events: auto; }
+body.touch .vol { width: 90px; height: 28px; }
+.sound-hint { font-size: 12px; color: #4c8a3a; font-weight: 700; }
+.sound-hint.hidden { display: none; }
+.biome-name { font-weight: 800; font-size: 13px; color: #4c8a3a; }

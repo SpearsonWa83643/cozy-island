@@ -15,7 +15,9 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   const a1 = p.x.mul(0.35).add(t.mul(1.1));
   const a2 = p.z.mul(0.42).sub(t.mul(0.9));
   const a3 = p.x.add(p.z).mul(0.8).add(t.mul(1.7));
-  const wave = sin(a1).mul(0.06).add(sin(a2).mul(0.05)).add(sin(a3).mul(0.025));
+  // calmer water inland (pond) and in the lagoon, full swell offshore
+  const amp = smoothstep(float(24), float(44), p.xz.length()).mul(0.85).add(0.15);
+  const wave = sin(a1).mul(0.06).add(sin(a2).mul(0.05)).add(sin(a3).mul(0.025)).mul(amp);
 
   const mat = new THREE.MeshStandardNodeMaterial({ transparent: true, roughness: 0.42, metalness: 0.0 });
   mat.positionNode = p.add(vec3(0, wave, 0));

@@ -1,65 +1,174 @@
 import * as THREE from 'three/webgpu';
 import { Noise2D } from './noise';
+import { Biome, BiomeField, BIOME_CENTERS, BIOME_COUNT, POND, biomeWeightsRaw } from './Biomes';
 
-export const WORLD_SIZE = 110; // terrain mesh extent (meters)
-export const ISLAND_RADIUS = 30;
+export const WORLD_SIZE = 170; // terrain mesh extent (meters)
+export const ISLAND_RADIUS = 47;
 export const WATER_LEVEL = 0;
 
 const noise = new Noise2D(7);
 const noiseB = new Noise2D(23);
+const noiseC = new Noise2D(57);
 
-const smooth = (a: number, b: number, x: number) => {
+export const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
 
-/** Analytic island height function (shared by mesh, physics, decor, water). */
-export function heightAt(x: number, z: number): number {
+const wRaw = new Float32Array(BIOME_COUNT);
+
+/** Analytic island height (slow: used to build the cached grid). */
+export function heightRaw(x: number, z: number): number {
   const ang = Math.atan2(z, x);
-  const wobble = 1 + 0.16 * noise.noise(Math.cos(ang) * 1.3 + 3, Math.sin(ang) * 1.3 + 3)
-    + 0.07 * noise.noise(Math.cos(ang) * 3 + 9, Math.sin(ang) * 3 + 9);
+  const wobble = 1 + 0.14 * noise.noise(Math.cos(ang) * 1.3 + 3, Math.sin(ang) * 1.3 + 3)
+    + 0.06 * noise.noise(Math.cos(ang) * 3 + 9, Math.sin(ang) * 3 + 9);
   const r = Math.hypot(x, z) / (ISLAND_RADIUS * wobble);
-  const land = smooth(1.05, 0.62, r); // 1 inland, 0 at sea
-  const hills = (noise.fbm(x * 0.045 + 10, z * 0.045 - 4, 4) * 0.5 + 0.5);
+  const w = biomeWeightsRaw(x, z, wRaw);
+  // tropical side gets a wider, flatter beach
+  const beachW = 0.3 + w[Biome.Tropical] * 0.12 - w[Biome.Alpine] * 0.15;
+  const land = smooth(1.04, 1.04 - beachW, r);
+  const hillMask = smooth(0.98, 0.55, r);
+
+  const hills = noise.fbm(x * 0.045 + 10, z * 0.045 - 4, 4) * 0.5 + 0.5;
   const bumps = noiseB.fbm(x * 0.12, z * 0.12, 3) * 0.25;
-  // gentle plateau + a soft hill cluster to the north-east
-  const hillMask = smooth(0.85, 0.2, r);
-  const bigHill = 3.2 * Math.exp(-((x - 9) ** 2 + (z + 8) ** 2) / 90);
-  let h = land * 1.1 + hillMask * (hills * 2.6 + bumps + bigHill);
+  const meadow = hills * 2.4 + bumps + 2.2 * Math.exp(-((x - 8) ** 2 + (z + 6) ** 2) / 90);
+
+  const [ax, az] = BIOME_CENTERS[Biome.Alpine];
+  const da2 = (x - ax) ** 2 + (z - az) ** 2;
+  const ridge = 1 - Math.abs(noiseC.fbm(x * 0.06, z * 0.06, 4));
+  const alpine = 2 + 12.5 * Math.exp(-da2 / (2 * 10 * 10)) + ridge * ridge * 3.2 * Math.exp(-da2 / 400) + bumps;
+
+  const autumn = 2.2 + (noise.fbm(x * 0.07 + 70, z * 0.07, 4) * 0.5 + 0.5) * 3.2 + bumps;
+
+  const tropical = 0.7 + (noiseB.fbm(x * 0.05 + 5, z * 0.05 + 9, 3) * 0.5 + 0.5) * 1.1;
+
+  // desert: sandstone mesas with terraced sides
+  const mn = noiseC.fbm(x * 0.055 + 31, z * 0.055 - 12, 3);
+  const mesa = smooth(0.02, 0.16, mn) * 3.6 + smooth(0.3, 0.42, mn) * 2.2;
+  const terr = Math.floor(mesa / 0.9) * 0.9;
+  const desert = 1.3 + mesa * 0.35 + terr * 0.65 + (noiseB.fbm(x * 0.09, z * 0.09, 2)) * 0.25;
+
+  // marsh: low and soggy, with a pond and puddles
+  const dp = Math.hypot(x - POND.x, z - POND.z) / POND.r;
+  const puddles = Math.min(0, noiseC.fbm(x * 0.18 + 3, z * 0.18 + 8, 2) + 0.28) * 2.5;
+  const marsh = 0.62 + bumps * 0.5 + puddles - 2.7 * smooth(1.25, 0.3, dp);
+
+  const inland = w[0] * meadow + w[1] * alpine + w[2] * autumn + w[3] * tropical + w[4] * desert + w[5] * marsh;
+  let h = land * 1.1 + hillMask * inland;
   h -= (1 - land) * 3.5; // seabed
   return h;
 }
 
-/** Terrain normal-ish slope (0 flat .. 1 steep). */
+// ---- cached height grid (0.5 m) with bilinear lookup ----
+const GRID_RES = 0.5;
+const GRID_N = Math.ceil(WORLD_SIZE / GRID_RES) + 1;
+let grid: Float32Array | null = null;
+function buildGrid() {
+  grid = new Float32Array(GRID_N * GRID_N);
+  for (let j = 0; j < GRID_N; j++) for (let i = 0; i < GRID_N; i++) {
+    grid[j * GRID_N + i] = heightRaw(i * GRID_RES - WORLD_SIZE / 2, j * GRID_RES - WORLD_SIZE / 2);
+  }
+}
+export function heightAt(x: number, z: number): number {
+  if (!grid) buildGrid();
+  let fx = (x + WORLD_SIZE / 2) / GRID_RES, fz = (z + WORLD_SIZE / 2) / GRID_RES;
+  if (fx < 0 || fz < 0 || fx >= GRID_N - 1 || fz >= GRID_N - 1) return -3.5;
+  const i = Math.floor(fx), j = Math.floor(fz);
+  fx -= i; fz -= j;
+  const g = grid!, a = j * GRID_N + i;
+  return (g[a] * (1 - fx) + g[a + 1] * fx) * (1 - fz) + (g[a + GRID_N] * (1 - fx) + g[a + GRID_N + 1] * fx) * fz;
+}
+
+/** Terrain slope (0 flat .. 1 steep). */
 export function slopeAt(x: number, z: number): number {
-  const e = 0.4;
+  const e = 0.5;
   const dx = heightAt(x + e, z) - heightAt(x - e, z);
   const dz = heightAt(x, z + e) - heightAt(x, z - e);
   return Math.min(1, Math.hypot(dx, dz) / (2 * e));
 }
 
-const SAND = new THREE.Color('#f3d9a4');
-const WET_SAND = new THREE.Color('#d9b77f');
-const GRASS_LIGHT = new THREE.Color('#9ed36a');
-const GRASS = new THREE.Color('#6dbb4f');
-const GRASS_DARK = new THREE.Color('#4f9a43');
-const MEADOW = new THREE.Color('#c4dc6a');
-const ROCK = new THREE.Color('#a49a8c');
-const SEABED = new THREE.Color('#c9b48a');
+export const biomes = new BiomeField(WORLD_SIZE, 1);
+const wS = new Float32Array(BIOME_COUNT);
+export function biomeWeights(x: number, z: number, out: Float32Array = wS) { return biomes.sample(x, z, out); }
+
+/** 0..1 snow cover. */
+export function snowAt(x: number, z: number, h = heightAt(x, z)): number {
+  const w = biomes.sample(x, z, wS)[Biome.Alpine];
+  return smooth(0.35, 0.7, w) * smooth(5.2, 7.4, h + noiseB.noise(x * 0.2, z * 0.2) * 0.9);
+}
+
+export type Surface = 'sand' | 'grass' | 'snow' | 'rock' | 'leaves' | 'mud' | 'water' | 'wood';
+export function surfaceAt(x: number, z: number): Surface {
+  const h = heightAt(x, z);
+  if (h < 0.04) return 'water';
+  if (snowAt(x, z, h) > 0.45) return 'snow';
+  const w = biomes.sample(x, z, wS);
+  if (h < 0.6 + w[Biome.Tropical] * 0.85) return 'sand';
+  if (w[Biome.Desert] > 0.5) return slopeAt(x, z) > 0.5 ? 'rock' : 'sand';
+  if (slopeAt(x, z) > 0.7) return 'rock';
+  if (w[Biome.Marsh] > 0.5) return 'mud';
+  if (w[Biome.Autumn] > 0.5) return 'leaves';
+  if (w[Biome.Alpine] > 0.6 && h > 4) return 'rock';
+  return 'grass';
+}
+
+// ---------- colours ----------
+const C = (h: string) => new THREE.Color(h);
+const SAND = C('#f3d9a4'), WET_SAND = C('#d9b77f'), SEABED = C('#c9b48a');
+const TROP_SAND = C('#fbe9bd'), PEBBLE = C('#bdb6aa'), DES_SAND = C('#ecbd84');
+const ROCK = C('#a49a8c'), SNOW = C('#f5f8fc'), ALP_ROCK = C('#9a9a9e');
+const PAL: Record<number, THREE.Color[]> = {
+  [Biome.Meadow]: [C('#4f9a43'), C('#6dbb4f'), C('#9ed36a'), C('#c4dc6a')],
+  [Biome.Alpine]: [C('#5e8f5a'), C('#77a466'), C('#93b47c'), C('#a8b98e')],
+  [Biome.Autumn]: [C('#9a8a3a'), C('#b9a24a'), C('#d4a24a'), C('#d9823b')],
+  [Biome.Tropical]: [C('#3fb85a'), C('#5fd06a'), C('#8fe070'), C('#b8e86a')],
+  [Biome.Desert]: [C('#d99a5e'), C('#e3a96c'), C('#eec08a'), C('#c98e5a')],
+  [Biome.Marsh]: [C('#4a7a45'), C('#5f8f4a'), C('#7a9a52'), C('#6f7f4a')],
+};
+const MESA_BANDS = [C('#c9734a'), C('#e8b07a'), C('#b85f3c'), C('#dd9a64')];
+const MUD = C('#7a6c4c');
+const tmp = new THREE.Color(), acc = new THREE.Color();
+
+function biomeGround(b: number, x: number, z: number, h: number, slope: number, out: THREE.Color) {
+  const p = PAL[b];
+  const v = noiseB.fbm(x * 0.08 + 50, z * 0.08, 3) * 0.5 + 0.5;
+  const warm = noise.fbm(x * 0.05 - 30, z * 0.05 + 12, 2) * 0.5 + 0.5;
+  out.copy(p[0]).lerp(p[1], smooth(0.15, 0.55, v)).lerp(p[2], smooth(0.5, 0.9, v) * 0.85).lerp(p[3], smooth(0.6, 0.85, warm) * 0.5);
+  if (b === Biome.Desert) {
+    const band = MESA_BANDS[Math.floor(Math.max(0, h) / 0.9) % MESA_BANDS.length];
+    out.lerp(band, smooth(0.25, 0.6, slope) * 0.9);
+  } else if (b === Biome.Alpine) {
+    out.lerp(ALP_ROCK, smooth(3.5, 7, h) * 0.6 + smooth(0.45, 0.8, slope) * 0.4);
+  } else if (b === Biome.Marsh) {
+    out.lerp(MUD, smooth(0.6, 0.2, h) * 0.7);
+  } else {
+    out.lerp(ROCK, smooth(0.6, 0.95, slope) * 0.8);
+  }
+  return out;
+}
+function biomeSand(b: number): THREE.Color {
+  return b === Biome.Tropical ? TROP_SAND : b === Biome.Alpine ? PEBBLE : b === Biome.Desert ? DES_SAND : b === Biome.Marsh ? WET_SAND : SAND;
+}
 
 export function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   const slope = slopeAt(x, z);
-  const v = noiseB.fbm(x * 0.08 + 50, z * 0.08, 3) * 0.5 + 0.5;
-  if (h < -0.2) out.copy(SEABED).lerp(WET_SAND, smooth(-2, -0.2, h));
-  else if (h < 0.55) out.copy(WET_SAND).lerp(SAND, smooth(-0.2, 0.35, h));
-  else {
-    out.copy(GRASS_DARK).lerp(GRASS, smooth(0.15, 0.55, v)).lerp(GRASS_LIGHT, smooth(0.5, 0.9, v) * 0.85);
-    const warm = noise.fbm(x * 0.05 - 30, z * 0.05 + 12, 2) * 0.5 + 0.5;
-    out.lerp(MEADOW, smooth(0.6, 0.85, warm) * 0.45);
-    out.lerp(SAND, smooth(1.0, 0.55, h)); // soft beach blend
-    out.lerp(GRASS_LIGHT, smooth(2.5, 5, h) * 0.4);
+  const w = biomes.sample(x, z, new Float32Array(BIOME_COUNT));
+  acc.setRGB(0, 0, 0);
+  let sandAcc = new THREE.Color(0, 0, 0);
+  for (let b = 0; b < BIOME_COUNT; b++) {
+    if (w[b] < 0.004) continue;
+    biomeGround(b, x, z, h, slope, tmp);
+    acc.r += tmp.r * w[b]; acc.g += tmp.g * w[b]; acc.b += tmp.b * w[b];
+    const s = biomeSand(b);
+    sandAcc.r += s.r * w[b]; sandAcc.g += s.g * w[b]; sandAcc.b += s.b * w[b];
   }
-  if (h > 0.6) out.lerp(ROCK, smooth(0.55, 0.9, slope) * 0.85);
+  const beachTop = 0.55 + w[Biome.Tropical] * 0.85;
+  if (h < -0.2) out.copy(SEABED).lerp(WET_SAND, smooth(-2, -0.2, h));
+  else if (h < beachTop) out.copy(WET_SAND).lerp(sandAcc, smooth(-0.2, 0.3, h));
+  else out.copy(acc).lerp(sandAcc, smooth(beachTop + 0.45, beachTop, h));
+  if (w[Biome.Marsh] > 0.3 && h < 0.5 && h > -0.6) out.lerp(MUD, 0.5 * w[Biome.Marsh]);
+  const snow = snowAt(x, z, h);
+  if (snow > 0) out.lerp(SNOW, snow * (1 - smooth(0.75, 1, slope) * 0.5));
   return out;
 }
 
@@ -70,7 +179,7 @@ export class Terrain {
   indices: Uint32Array;
 
   constructor() {
-    const seg = 180;
+    const seg = 240;
     const geo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -80,7 +189,7 @@ export class Terrain {
       const x = pos.getX(i), z = pos.getZ(i);
       const h = heightAt(x, z);
       pos.setY(i, h);
-      terrainColor(x, z, h, c);
+      if (h < -3.3) c.copy(SEABED); else terrainColor(x, z, h, c);
       colors.set([c.r, c.g, c.b], i * 3);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -95,7 +204,7 @@ export class Terrain {
     this.indices = new Uint32Array(geo.index!.array);
 
     // Height texture used by the water shader for depth tint + shoreline foam.
-    const N = 256;
+    const N = 512;
     const data = new Uint8Array(N * N * 4);
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
@@ -111,5 +220,27 @@ export class Terrain {
     this.heightTexture.minFilter = THREE.LinearFilter;
     this.heightTexture.wrapS = this.heightTexture.wrapT = THREE.ClampToEdgeWrapping;
     this.heightTexture.needsUpdate = true;
+  }
+
+  /** Ray march the height field (much cheaper than mesh raycasting). */
+  raycast(origin: THREE.Vector3, dir: THREE.Vector3, maxDist = 140): THREE.Vector3 | null {
+    let prev = 0, step = 0.35;
+    const p = new THREE.Vector3();
+    for (let t = 0.5; t < maxDist; t += step) {
+      p.copy(origin).addScaledVector(dir, t);
+      if (p.y < heightAt(p.x, p.z)) {
+        let lo = prev, hi = t;
+        for (let k = 0; k < 12; k++) {
+          const m = (lo + hi) / 2;
+          p.copy(origin).addScaledVector(dir, m);
+          if (p.y < heightAt(p.x, p.z)) hi = m; else lo = m;
+        }
+        p.copy(origin).addScaledVector(dir, hi);
+        return p;
+      }
+      prev = t;
+      step = Math.min(1.0, 0.35 + t * 0.01);
+    }
+    return null;
   }
 }

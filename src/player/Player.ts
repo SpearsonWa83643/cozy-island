@@ -63,6 +63,11 @@ export class Player implements System {
   private speedSmoothed = 0;
   cameraYaw = 0; // set by camera rig
   enabled = true;
+  onStep: (pos: THREE.Vector3, run: boolean) => void = () => {};
+  onJump: () => void = () => {};
+  onLand: (pos: THREE.Vector3, impact: number) => void = () => {};
+  private lastStepSign = 1;
+  private airVy = 0;
 
   constructor(physics: Physics, private input: Input, spawn: THREE.Vector3) {
     const R = physics.R;
@@ -124,7 +129,7 @@ export class Player implements System {
     if (this.enabled && this.input.pressed.has(' ')) this.jumpBuffer = 0.15;
     this.jumpBuffer -= dt;
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
-    if (this.jumpBuffer > 0 && this.coyote > 0) { this.vy = JUMP; this.grounded = false; this.coyote = 0; this.jumpBuffer = 0; }
+    if (this.jumpBuffer > 0 && this.coyote > 0) { this.vy = JUMP; this.grounded = false; this.coyote = 0; this.jumpBuffer = 0; this.onJump(); }
     this.vy += GRAVITY * dt;
     if (this.vy < -30) this.vy = -30;
 
@@ -136,7 +141,10 @@ export class Player implements System {
     const desired = { x: mx * dt, y: this.vy * dt, z: mz * dt };
     this.controller.computeColliderMovement(this.collider, desired);
     const mv = this.controller.computedMovement();
+    const wasGrounded = this.grounded;
     this.grounded = this.controller.computedGrounded();
+    if (!wasGrounded && this.grounded && this.airVy < -4) this.onLand(this.position, -this.airVy);
+    if (!this.grounded) this.airVy = this.vy;
     if (this.grounded && this.vy < 0) this.vy = 0;
     this.body.setNextKinematicTranslation({ x: t.x + mv.x, y: t.y + mv.y, z: t.z + mv.z });
 
@@ -148,6 +156,8 @@ export class Player implements System {
     this.speedSmoothed += (horiz - this.speedSmoothed) * Math.min(1, dt * 10);
     this.walkPhase += dt * (4 + this.speedSmoothed * 2.2);
     const amt = Math.min(1, this.speedSmoothed / WALK);
+    const sgn = Math.sin(this.walkPhase) >= 0 ? 1 : -1;
+    if (sgn !== this.lastStepSign) { this.lastStepSign = sgn; if (this.grounded && horiz > 0.8) this.onStep(p, horiz > WALK * 1.2); }
     const { body, footL, footR } = this.parts;
     body.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.08 * amt + (this.grounded ? 0 : 0.05);
     body.rotation.z = Math.sin(this.walkPhase) * 0.06 * amt;

@@ -1,5 +1,6 @@
 import { BUILDABLES } from '../build/BuildMode';
 import type { Quality } from '../render/Renderer';
+import type { AudioEngine } from '../audio/Audio';
 
 export class Hud {
   private fpsEl: HTMLElement;
@@ -10,6 +11,7 @@ export class Hud {
   private frames = 0;
   private last = performance.now();
   fps = 0;
+  private stats!: HTMLElement;
   onQuality: (q: Quality) => void = () => {};
   onSelect: (i: number) => void = () => {};
 
@@ -19,11 +21,17 @@ export class Hud {
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
       <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Q</kbd><kbd>E</kbd> rotate<br>
       <kbd>B</kbd> build mode &nbsp; <kbd>1</kbd>-<kbd>5</kbd> pick &nbsp; <kbd>R</kbd> rotate piece<br>
-      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove</div>
+      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove &nbsp; <kbd>M</kbd> mute</div>
       <div class="touch-hint">🕹️ Stick to walk · drag to look · pinch to zoom<br>🔨 Build, then tap the ground to place</div></div>`);
     const stats = el(`<div class="hud panel stats"><div class="fps">-- FPS</div>
       <div><button class="qbtn" data-q="low">Low</button> <button class="qbtn" data-q="high">High</button></div>
+      <div class="audio-row"><button class="qbtn mute" title="Mute (M)">🔊</button>
+        <label title="Music volume">🎵<input type="range" class="vol music" min="0" max="1" step="0.01"></label>
+        <label title="Ambience volume">🌿<input type="range" class="vol amb" min="0" max="1" step="0.01"></label></div>
+      <div class="sound-hint">🔈 Tap or press any key for sound</div>
+      <div class="biome-name">📍 Meadow</div>
       <div class="backend">Renderer: ${backend}</div></div>`);
+    this.stats = stats;
     this.fpsEl = stats.querySelector('.fps')!;
     this.qBtns = {
       low: stats.querySelector('[data-q=low]') as HTMLButtonElement,
@@ -40,6 +48,30 @@ export class Hud {
       this.hotbar.appendChild(s);
       this.slots.push(s);
     });
+  }
+
+  bindAudio(a: AudioEngine) {
+    const s = this.stats;
+    const mute = s.querySelector('.mute') as HTMLButtonElement;
+    const music = s.querySelector('.music') as HTMLInputElement, amb = s.querySelector('.amb') as HTMLInputElement;
+    const hint = s.querySelector('.sound-hint') as HTMLElement;
+    const sync = () => { mute.textContent = a.settings.muted ? '🔇' : '🔊'; mute.classList.toggle('on', !a.settings.muted); music.value = String(a.settings.music); amb.value = String(a.settings.ambience); };
+    sync();
+    const stop = (e: Event) => e.stopPropagation();
+    for (const el of [mute, music, amb]) { el.addEventListener('pointerdown', stop); el.addEventListener('keydown', stop); }
+    mute.addEventListener('click', (e) => { e.stopPropagation(); a.unlock(); a.settings.muted = !a.settings.muted; a.save(); sync(); mute.blur(); });
+    window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'm' && (e.target as HTMLElement)?.tagName !== 'INPUT') { a.settings.muted = !a.settings.muted; a.save(); sync(); } });
+    music.addEventListener('input', () => { a.settings.music = +music.value; a.save(); });
+    amb.addEventListener('input', () => { a.settings.ambience = +amb.value; a.save(); });
+    const showHint = () => hint.classList.toggle('hidden', a.started);
+    a.onUnlock = () => setTimeout(showHint, 300);
+    showHint();
+  }
+
+  setBiome(name: string) {
+    const el = this.stats.querySelector('.biome-name') as HTMLElement;
+    const txt = `📍 ${name}`;
+    if (el.textContent !== txt) el.textContent = txt;
   }
 
   setQuality(q: Quality) {

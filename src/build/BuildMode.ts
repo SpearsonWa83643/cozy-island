@@ -3,7 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
 import type { System } from '../core/System';
-import { heightAt } from '../world/Terrain';
+import { heightAt, type Terrain } from '../world/Terrain';
 import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree } from '../world/Models';
 import { mulberry32 } from '../world/noise';
 
@@ -50,8 +50,10 @@ export class BuildMode implements System {
   private target = new THREE.Vector3();
   private hoverPlaced: Placed | null = null;
   onChange: () => void = () => {};
+  onPlace: (type: number) => void = () => {};
+  onRemove: () => void = () => {};
 
-  constructor(private scene: THREE.Scene, private camera: THREE.Camera, private terrain: THREE.Mesh,
+  constructor(private scene: THREE.Scene, private camera: THREE.Camera, private terrain: Terrain,
     private physics: Physics, private input: Input, private playerPos: () => THREE.Vector3) {
     scene.add(this.group);
     this.cell.visible = false;
@@ -69,6 +71,12 @@ export class BuildMode implements System {
   }
 
   get count() { return this.placed.length; }
+
+  /** true if a placed piece occupies the cell at (x, z) (used by wandering animals) */
+  occupiedAt(x: number, z: number) {
+    for (const p of this.placed) if (Math.abs(p.obj.position.x - x) < 0.65 && Math.abs(p.obj.position.z - z) < 0.65) return true;
+    return false;
+  }
 
   setRemoveMode(on: boolean) {
     this.removeMode = on;
@@ -116,10 +124,14 @@ export class BuildMode implements System {
   /** Compute the snapped placement target under the mouse. */
   private computeTarget(): boolean {
     this.raycaster.setFromCamera(new THREE.Vector2(this.input.mouse.ndcX, this.input.mouse.ndcY), this.camera);
-    const hits = this.raycaster.intersectObjects([this.terrain, this.group], true);
+    const objHits = this.raycaster.intersectObjects(this.group.children, true);
+    const ground = this.terrain.raycast(this.raycaster.ray.origin, this.raycaster.ray.direction);
+    const gd = ground ? ground.distanceTo(this.raycaster.ray.origin) : Infinity;
     this.hoverPlaced = null;
-    if (!hits.length) return false;
-    const hit = hits[0];
+    let hit: { object: THREE.Object3D; point: THREE.Vector3; face?: THREE.Face | null };
+    if (objHits.length && objHits[0].distance < gd) hit = objHits[0];
+    else if (ground) hit = { object: this.terrain.mesh, point: ground, face: null };
+    else return false;
     const placed = this.findPlaced(hit.object);
     this.hoverPlaced = placed;
     const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
@@ -159,7 +171,9 @@ export class BuildMode implements System {
 
   place(): boolean {
     if (!this.active || !this.ghostValid) return false;
-    return this.placeAt(this.target.x, this.target.z, this.selected, this.rotation, this.target.y);
+    const ok = this.placeAt(this.target.x, this.target.z, this.selected, this.rotation, this.target.y);
+    if (ok) this.onPlace(this.selected);
+    return ok;
   }
 
   placeAt(x: number, z: number, type: number, rot = 0, y?: number): boolean {
@@ -187,6 +201,7 @@ export class BuildMode implements System {
     this.group.remove(p.obj);
     this.physics.remove(p.collider);
     this.placed = this.placed.filter((x) => x !== p);
+    this.onRemove();
     this.onChange();
   }
 
