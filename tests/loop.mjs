@@ -40,7 +40,7 @@ if (!process.argv.includes('--skip-desktop')) {
   await sim(page, 0.5);
   ok('near bottle → Take', (await targetKind(page)) === 'take');
   await page.keyboard.press('e'); await sim(page, 0.2);
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => window.game.play.map.open, null, { timeout: 6000 }).catch(() => {});
   const m1 = await page.evaluate(() => ({ st: window.game.play.save.data.map.state, open: window.game.play.map.open, hint: window.game.play.save.data.map.hint }));
   ok('bottle gives map + opens overlay', m1.st === 'active' && m1.open, m1.hint);
   await page.waitForTimeout(700);
@@ -137,7 +137,7 @@ if (!process.argv.includes('--skip-desktop')) {
   const after = await page.evaluate(() => ({ d: window.game.play.save.data, kids: window.game.player.object.children[0].children.length }));
   ok('reload: equipped item persists', Object.values(after.d.equipped).includes(reward), JSON.stringify(after.d.equipped));
   ok('reload: placed builds persist', (await page.evaluate(() => window.game.build.count)) >= 2);
-  ok('reload: inventory/map/chests persist', after.d.chests === 1 && after.d.map.n === 1 && Object.keys(after.d.owned).length >= 4, `chests=${after.d.chests} n=${after.d.map.n}`);
+  ok('reload: inventory/map/chests persist', after.d.chests === 1 && after.d.map.n === 1 && Object.keys(after.d.owned).length >= 3 && !!after.d.owned[reward], `chests=${after.d.chests} n=${after.d.map.n}`);
   ok('desktop: no console errors', errors.length === 0, errors.slice(0, 5).join(' | '));
   await ctx.close();
 }

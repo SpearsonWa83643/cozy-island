@@ -66,6 +66,9 @@ export class Input {
         try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
         return;
       }
+      // a second finger before the stick woke up → it was a pinch / two-finger gesture, not a stick
+      const sp = this.stickPtr;
+      if (sp && !this.stickUi.active) { this.stickPtr = null; this.stickUi.on = false; this.ptrs.set(sp.id, sp); }
       this.ptrs.set(e.pointerId, np);
       if (this.ptrs.size === 1) this.multiTouched = false;
       if (this.ptrs.size >= 2) { this.multiTouched = true; this.pinchDist = this.twoFingerDist(); }
