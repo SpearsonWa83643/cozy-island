@@ -17,15 +17,17 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   const a3 = p.x.add(p.z).mul(0.8).add(t.mul(1.7));
   const wave = sin(a1).mul(0.06).add(sin(a2).mul(0.05)).add(sin(a3).mul(0.025));
 
-  const mat = new THREE.MeshStandardNodeMaterial({ transparent: true, roughness: 0.32, metalness: 0.0 });
+  const mat = new THREE.MeshStandardNodeMaterial({ transparent: true, roughness: 0.42, metalness: 0.0 });
   mat.positionNode = p.add(vec3(0, wave, 0));
 
   // Analytic normal + high-frequency ripples (fragment only).
   const w = positionWorld;
   const dx = cos(a1).mul(0.021).add(cos(a3).mul(0.02))
-    .add(cos(w.x.mul(2.3).add(w.z.mul(0.7)).add(t.mul(2.4))).mul(0.06));
+    .add(cos(w.x.mul(2.3).add(w.z.mul(0.7)).add(t.mul(2.4))).mul(0.025))
+    .add(mx_noise_float(vec3(w.x.mul(0.6), w.z.mul(0.6), t.mul(0.5))).mul(0.05));
   const dz = cos(a2).mul(0.021).add(cos(a3).mul(0.02))
-    .add(cos(w.z.mul(2.1).sub(w.x.mul(0.9)).sub(t.mul(2.0))).mul(0.06));
+    .add(cos(w.z.mul(2.1).sub(w.x.mul(0.9)).sub(t.mul(2.0))).mul(0.025))
+    .add(mx_noise_float(vec3(w.z.mul(0.6).add(17), w.x.mul(0.6), t.mul(0.5))).mul(0.05));
   const fade = smoothstep(float(90), float(15), cameraPosition.sub(positionWorld).length());
   const nWorld = normalize(vec3(dx.negate().mul(fade.mul(0.7).add(0.3)), float(1), dz.negate().mul(fade.mul(0.7).add(0.3))));
   mat.normalNode = transformNormalToView(nWorld);

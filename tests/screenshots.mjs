@@ -11,7 +11,8 @@ const browser = await chromium.launch({
   headless: true,
   args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: 1 });
+page.setDefaultTimeout(240000);
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
@@ -60,9 +61,9 @@ await page.evaluate(() => {
   P(0, 4, 2); P(-1, 8.0 - 1, 2);
   P(2, 2, 3); P(-2, 4, 4); P(-3, 4, 4); P(-1, 4, 4);
   b.select(0);
-  g.rig.yaw = 0.55; g.rig.pitch = 0.62; g.rig.distance = 12;
+  g.rig.yaw = -0.15; g.rig.pitch = 0.6; g.rig.distance = 11;
   g.rig.target.set(-1.5, g.player.position.y + 0.6, 5);
-  g.input.setMouse(window.innerWidth * 0.40, window.innerHeight * 0.62);
+  g.input.setMouse(window.innerWidth * 0.58, window.innerHeight * 0.6);
 });
 // stack blocks on top
 await page.evaluate(() => { const g = window.game; const c = g.build.group.children; const y = c[0].position.y + 1; g.build.placeAt(-4, 3, 0, 0, y); g.build.placeAt(-3, 3, 0, 0, c[1].position.y + 1); g.build.placeAt(-4, 3, 0, 0, y + 1); });
