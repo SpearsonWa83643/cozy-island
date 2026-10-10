@@ -134,7 +134,9 @@ export class Cave {
     const cb = new Baker(); cb.ao = false;
     for (let i = 0; i < 7; i++) { const s = (i % 2 ? 1 : -1) * (1.1 + rnd() * 0.5), p = at(s, 0.1, 0.2 + rnd() * 0.6); cb.add(new THREE.OctahedronGeometry(0.12 + rnd() * 0.08, 0), CRYSTAL_COLS[i % 2], [p.x, p.y + 0.15, p.z], [rnd() * 0.5, rnd() * 3, rnd() * 0.5], [0.6, 2, 0.6]); }
     const lp = at(2.3, 0, 1.1);
-    cb.add(new THREE.CylinderGeometry(0.06, 0.07, 1.6, 6), '#6b4a2a', [lp.x, 0.8, lp.z]).add(new THREE.BoxGeometry(0.22, 0.26, 0.22), '#ffd27a', [lp.x, 1.7, lp.z]);
+    cb.add(new THREE.BoxGeometry(0.2, 0.24, 0.2), '#ffd27a', [lp.x, 1.7, lp.z]);
+    const post = new THREE.Mesh(new Baker().add(new THREE.CylinderGeometry(0.06, 0.07, 1.6, 6), '#6b4a2a', [lp.x, 0.8, lp.z]).add(new THREE.BoxGeometry(0.3, 0.05, 0.3), '#4a3424', [lp.x, 1.56, lp.z]).build(), rockMat);
+    post.position.copy(M); post.castShadow = true; this.outside.add(post);
     const glowMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.3, flatShading: true }); glowMat.emissive = new THREE.Color('#ffffff'); glowMat.emissiveIntensity = 0.8;
     const glow = new THREE.Mesh(cb.build(), glowMat); glow.position.set(M.x, heightAt(M.x, M.z), M.z);
     glow.position.y = M.y;
@@ -174,12 +176,12 @@ export class Cave {
         const y = ceil ? this.ceilL(lx, lz) : this.floorL(lx, lz);
         pos[k] = lx + O.x; pos[k + 1] = y + O.y; pos[k + 2] = lz + O.z;
         const v = n2.noise(lx * 0.4, lz * 0.4 + (ceil ? 50 : 0)) * 0.5 + 0.5;
-        c.set(ceil ? '#3a3444' : '#4a4452').lerp(new THREE.Color(ceil ? '#4a4256' : '#5a5260'), v);
+        c.set(ceil ? '#2a2634' : '#3a3542').lerp(new THREE.Color(ceil ? '#3a3446' : '#4a4452'), v);
         if (!ceil) { const wet = smooth(POOL.r + 1.5, POOL.r, Math.hypot(lx - POOL.x, lz - POOL.z)); c.lerp(new THREE.Color('#2f3a44'), wet * 0.7); }
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
         g.setRGB(0, 0, 0);
-        for (const L of this.lights) { const d2 = (L.x - lx) ** 2 + (L.y - y) ** 2 + (L.z - lz) ** 2; const f = L.i / (1 + d2 * 0.35); g.r += L.c.r * f; g.g += L.c.g * f; g.b += L.c.b * f; }
-        glow[k] = Math.min(1.2, g.r * 0.32); glow[k + 1] = Math.min(1.2, g.g * 0.32); glow[k + 2] = Math.min(1.2, g.b * 0.32);
+        for (const L of this.lights) { const d2 = (L.x - lx) ** 2 + (L.y - y) ** 2 + (L.z - lz) ** 2; const f = L.i / (1 + d2 * 1.1); g.r += L.c.r * f; g.g += L.c.g * f; g.b += L.c.b * f; }
+        glow[k] = Math.min(0.9, g.r * 0.22); glow[k + 1] = Math.min(0.9, g.g * 0.22); glow[k + 2] = Math.min(0.9, g.b * 0.22);
       }
       const idx: number[] = [];
       for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {

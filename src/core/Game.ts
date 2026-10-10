@@ -23,7 +23,7 @@ import { Gameplay } from '../game/Gameplay';
 
 const SPAWN = new THREE.Vector2(0, 6);
 
-const CAVE_FOG = new THREE.Color('#151020'), CAVE_SUN = new THREE.Color('#ffd9a8'), CAVE_SKY = new THREE.Color('#6a5a9a'), CAVE_GR = new THREE.Color('#1a2a30');
+const CAVE_FOG = new THREE.Color('#0b0912'), CAVE_SUN = new THREE.Color('#ffd9a8'), CAVE_SKY = new THREE.Color('#6a5a9a'), CAVE_GR = new THREE.Color('#1a2a30');
 
 export class Game {
   scene = new THREE.Scene();
@@ -280,10 +280,10 @@ export class Game {
     this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
     const ck = this.caveK;
     if (ck > 0.001) {
-      this.fog.color.lerp(CAVE_FOG, ck); this.fog.near += (4 - this.fog.near) * ck; this.fog.far += (38 - this.fog.far) * ck;
+      this.fog.color.lerp(CAVE_FOG, ck); this.fog.near += (6 - this.fog.near) * ck; this.fog.far += (32 - this.fog.far) * ck;
       skyFog.value.copy(this.fog.color);
       this.sun.color.lerp(CAVE_SUN, ck); this.sun.intensity += (0.45 - this.sun.intensity) * ck;
-      this.hemi.color.lerp(CAVE_SKY, ck); this.hemi.groundColor.lerp(CAVE_GR, ck); this.hemi.intensity += (0.75 - this.hemi.intensity) * ck;
+      this.hemi.color.lerp(CAVE_SKY, ck); this.hemi.groundColor.lerp(CAVE_GR, ck); this.hemi.intensity += (0.55 - this.hemi.intensity) * ck;
     }
     if (this.cave?.inside) { this.hud.setBiome('Crystal Cave'); return; }
     let best = 0; for (let i = 1; i < BIOME_COUNT; i++) if (this.biome[i] > this.biome[best]) best = i;

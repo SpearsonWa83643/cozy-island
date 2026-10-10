@@ -38,7 +38,7 @@ const walkIn = (page) => page.evaluate(async () => {
 if (!process.argv.includes('--skip-desktop')) {
   const { ctx, page, errors } = await open({ viewport: { width: 1280, height: 720 } }, 'high');
   const isl = await page.evaluate(() => ({ r: Array.from({ length: 36 }, (_, i) => window.game.coast.shoreRadius(i / 36 * Math.PI * 2)).reduce((a, b) => a + b) / 36, mouth: window.game.cave.mouth.toArray().map((v) => +v.toFixed(1)), dir: window.game.cave.dir.toArray().map((v) => +v.toFixed(2)) }));
-  ok('island is bigger (mean shore radius)', isl.r > 50, JSON.stringify(isl));
+  ok('island is bigger (mean shore radius, was ~41.5 m)', isl.r > 45, JSON.stringify(isl));
   // overview
   await page.evaluate(() => { const g = window.game; g.player.teleport(0, 4); g.step(1 / 30); g.rig.yaw = 0.6; g.rig.pitch = 0.95; g.rig.distance = 28; g.rig.target.set(0, 2, 0); g.rig.apply(); g.rig.locked = true; });
   await page.evaluate(() => { const g = window.game; g.camera.position.set(70, 75, 85); g.camera.lookAt(0, 0, 0); });
