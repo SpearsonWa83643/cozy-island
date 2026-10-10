@@ -88,9 +88,11 @@ const center = (page, sel) => page.evaluate((sel) => { const r = document.queryS
 
   // Orbit drag on the right side + pinch zoom
   const r0 = await page.evaluate(() => ({ yaw: window.game.rig.yaw, d: window.game.rig.distance }));
+  await page.evaluate(() => { const el = window.game.renderer.renderer.domElement; window.__ev = []; for (const t of ['pointerdown', 'pointerup']) document.addEventListener(t, (e) => window.__ev.push(t[7] + ':' + e.target.tagName + '.' + e.target.className + '@' + Math.round(e.clientX) + ',' + Math.round(e.clientY)), true); });
   await touch('touchStart', [{ x: 790, y: 400 }]);
   for (let i = 1; i <= 5; i++) { await touch('touchMove', [{ x: 790 - i * 30, y: 400 }]); await page.evaluate(() => window.game.step(1 / 30)); }
   await touch('touchEnd', []);
+  console.log('ORBIT', await page.evaluate(() => ({ ev: window.__ev, yaw: window.game.rig.yaw })));
   await frames(page, 2);
   await touch('touchStart', [{ x: 520, y: 400 }, { x: 620, y: 400 }]);
   for (let i = 1; i <= 5; i++) { await touch('touchMove', [{ x: 520 - i * 25, y: 400 }, { x: 620 + i * 25, y: 400 }]); await page.evaluate(() => window.game.step(1 / 30)); }
