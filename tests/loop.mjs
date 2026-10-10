@@ -46,6 +46,17 @@ if (!process.argv.includes('--skip-desktop')) {
   await page.waitForTimeout(700);
   await shot(page, '14-map-overlay');
   await page.keyboard.press('Escape');
+  // 1b. glowing guide trail toward the X
+  const gyaw = await page.evaluate(() => { const g = window.game, s = g.play.treasure.spot, p = g.player.position;
+    const d = Math.hypot(s.x - p.x, s.z - p.z); if (d < 16 || d > 30) { const ux = (p.x - s.x) / d, uz = (p.z - s.z) / d; g.player.teleport(s.x + ux * 20, s.z + uz * 20); }
+    const q = g.player.position; return Math.atan2(q.x - s.x, q.z - s.z); });
+  await sim(page, 1.5);
+  ok('guide trail visible with an active map', await page.evaluate(() => window.game.play.guide.mesh.visible));
+  await frame(page, gyaw + 0.25, 0.5, 8.5);
+  await shot(page, '23-guide-trail');
+  await page.keyboard.press('g'); await sim(page, 2.5);
+  ok('G hides the trail', !(await page.evaluate(() => window.game.play.guide.mesh.visible)));
+  await page.keyboard.press('g'); await sim(page, 0.5);
   // 2. forage: pick 2 carrots/clover (bunny favourites) + an apple
   const picked = [];
   for (const want of ['carrot', 'clover', 'apple', 'berry']) {

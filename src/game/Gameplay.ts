@@ -4,6 +4,7 @@ import type { System } from '../core/System';
 import { Save } from './Save';
 import { Forage, type FoodItem } from './Forage';
 import { Treasure } from './Treasure';
+import { Guide } from './Guide';
 import { DYES, FOODS, RARITY, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import { MapOverlay } from '../ui/MapOverlay';
@@ -20,6 +21,7 @@ export class Gameplay implements System {
   save = new Save();
   forage: Forage;
   treasure: Treasure;
+  guide = new Guide();
   map: MapOverlay;
   juice: Juice;
   panels: Panels;
@@ -44,10 +46,13 @@ export class Gameplay implements System {
     this.forage = new Forage(g.flora, spawn);
     g.scene.add(this.forage.group);
     this.treasure = new Treasure(d, g.flora, spawn);
-    g.scene.add(this.treasure.group);
+    g.scene.add(this.treasure.group, this.guide.mesh);
+    this.guide.enabled = d.guide !== false;
     const root = document.getElementById('hud') ?? document.body;
     this.map = new MapOverlay(document.body, g.flora);
     this.map.onClose = () => g.audio.paper();
+    this.map.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
+    this.map.guideOn = this.guide.enabled;
     this.juice = new Juice(root, g.camera);
     this.juice.onEquipFromReward = () => { const last = this.lastReward; if (last) { this.equip(WEAR_BY_ID.get(last)!.slot, last); } };
     this.panels = new Panels(document.body, {
@@ -73,6 +78,7 @@ export class Gameplay implements System {
       const k = e.key.toLowerCase();
       if (k === 'escape') { this.map.hide(); this.panels.toggle(null); }
       if (k === 'm') { g.audio.unlock(); this.toggleMap(); }
+      if (k === 'g') this.setGuide(!this.guide.enabled);
       if (k === 'i') this.panels.toggle('bag');
       if (k === 'o') this.panels.toggle('wardrobe');
     });
@@ -119,6 +125,12 @@ export class Gameplay implements System {
     const d = this.save.data;
     this.g.audio.paper();
     this.map.toggle({ state: d.map.state, n: d.map.n, x: d.map.x, z: d.map.z, hint: d.map.hint, bottle: { x: this.treasure.bottlePos.x, z: this.treasure.bottlePos.z } });
+  }
+
+  setGuide(on: boolean) {
+    this.guide.enabled = on; this.save.data.guide = on; this.map.guideOn = on; this.save.touch();
+    this.g.audio.pop(on ? 1.3 : 0.8);
+    this.juice.toast(on ? '✨ Treasure trail on' : 'Treasure trail off <small>(G / map to turn back on)</small>', 1600);
   }
 
   // ---------------- food ----------------
@@ -286,6 +298,7 @@ export class Gameplay implements System {
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
     this.forage.update(dt, p);
     this.treasure.update(dt, p);
+    this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy ? this.treasure.spot : null);
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action
     if (g.input.pressed.has('e') && !g.build.active) this.act();

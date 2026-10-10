@@ -19,6 +19,9 @@ export class MapOverlay {
   el: HTMLDivElement;
   open = false;
   onClose: () => void = () => {};
+  onGuide: () => boolean = () => true;
+  private _guide = true;
+  set guideOn(v: boolean) { this._guide = v; const b = this.el?.querySelector('.map-guide'); if (b) { b.textContent = `✨ Trail: ${v ? 'on' : 'off'}`; b.classList.toggle('on', v); } }
   private paper: HTMLDivElement; private canvas: HTMLCanvasElement; private me: HTMLDivElement; private x: HTMLDivElement; private caption: HTMLDivElement;
   private base: HTMLCanvasElement | null = null;
   private drawnKey = '';
@@ -30,13 +33,15 @@ export class MapOverlay {
     this.el = document.createElement('div');
     this.el.className = 'map-overlay';
     this.el.innerHTML = `<div class="map-stage"><div class="map-paper"><canvas></canvas><div class="map-x"></div><div class="map-me"></div></div></div>
-      <div class="map-caption"></div><button class="map-close" aria-label="Close map">✕</button>`;
+      <div class="map-caption"></div><button class="map-guide" aria-label="Toggle treasure trail">✨ Trail: on</button><button class="map-close" aria-label="Close map">✕</button>`;
     parent.appendChild(this.el);
     this.paper = this.el.querySelector('.map-paper')!;
     this.canvas = this.el.querySelector('canvas')!; this.canvas.width = this.canvas.height = N;
     this.me = this.el.querySelector('.map-me')!; this.x = this.el.querySelector('.map-x')!;
     this.caption = this.el.querySelector('.map-caption')!;
     this.el.querySelector('.map-close')!.addEventListener('click', (e) => { e.stopPropagation(); this.hide(); });
+    this.el.querySelector('.map-guide')!.addEventListener('click', (e) => { e.stopPropagation(); this.onGuide(); });
+    this.guideOn = this._guide;
     const stage = this.el.querySelector('.map-stage') as HTMLDivElement;
     stage.addEventListener('pointerdown', (e) => { stage.setPointerCapture(e.pointerId); this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (this.pts.size === 2) { this.pinch0 = this.dist(); this.zoom0 = this.zoom; } });
     stage.addEventListener('pointermove', (e) => {

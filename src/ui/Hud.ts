@@ -20,7 +20,7 @@ export class Hud {
     el(`<div class="hud panel title"><h1>🏝️ Cozy Island</h1><div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
       <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Z</kbd><kbd>C</kbd> rotate<br>
-      <kbd>E</kbd>/<kbd>Click</kbd> pick · feed · dig &nbsp; <kbd>M</kbd> map &nbsp; <kbd>I</kbd> bag &nbsp; <kbd>O</kbd> wardrobe<br>
+      <kbd>E</kbd>/<kbd>Click</kbd> pick · feed · dig &nbsp; <kbd>M</kbd> map &nbsp; <kbd>G</kbd> trail &nbsp; <kbd>I</kbd> bag &nbsp; <kbd>O</kbd> wardrobe<br>
       <kbd>B</kbd> build mode &nbsp; <kbd>1</kbd>-<kbd>5</kbd> pick &nbsp; <kbd>R</kbd> rotate piece<br>
       <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove &nbsp; <kbd>U</kbd> mute</div>
       <div class="touch-hint">🕹️ Stick to walk · drag to look · pinch to zoom<br>🔨 Build, then tap the ground to place</div></div>`);

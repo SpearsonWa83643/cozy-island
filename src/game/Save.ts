@@ -13,6 +13,7 @@ export interface SaveData {
   chests: number;
   builds: { x: number; z: number; t: number; r: number; y: number }[];
   friendsMade: number;
+  guide: boolean;
 }
 
 const KEY = 'cozyIsland.save.v1';
@@ -24,7 +25,7 @@ export function freshSave(): SaveData {
     v: 1, food: {}, shells: 0, owned, seen: [...DEFAULT_OWNED], equipped: { ...DEFAULT_EQUIPPED },
     dyes: ['coral'], dye: 'coral',
     map: { n: 0, seed: Math.floor(Math.random() * 1e9), x: 0, z: 0, biome: 0, state: 'bottle', sincePity: 0, hint: '' },
-    chests: 0, builds: [], friendsMade: 0,
+    chests: 0, builds: [], friendsMade: 0, guide: true,
   };
 }
 

@@ -206,3 +206,7 @@ body.touch .world-prompt { padding: 2px 8px; animation: float 1.6s ease-in-out i
 body.touch .game-bar { top: auto; left: auto; transform: none; right: max(12px, env(safe-area-inset-right)); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 190px); flex-direction: column; gap: 12px; }
 body.touch .gbtn { flex-direction: column; justify-content: center; gap: 0; width: 68px; height: 68px; padding: 0; border-radius: 20px; }
 body.touch .gbtn .gl { display: block; font-size: 11px; }
+.map-guide { min-height: 48px; padding: 0 18px; border: 0; border-radius: 16px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; background: var(--paper); color: #8a6a3a; box-shadow: 0 3px 0 #e3d3bd; opacity: 0; transition: opacity .3s; }
+.map-guide.on { background: #ffe7a3; color: #6a4a1a; box-shadow: 0 3px 0 #e0b84a; }
+.map-overlay.open .map-guide { opacity: 1; }
+.map-overlay:not(.open) .map-guide { pointer-events: none; }
