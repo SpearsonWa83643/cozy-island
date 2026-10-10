@@ -1,6 +1,8 @@
 import { Biome } from '../world/Biomes';
 import type { Surface } from '../world/Terrain';
 import { MusicGen } from './Music';
+/** finite-or-fallback for AudioParam writes (a NaN throws in WebAudio) */
+const F = (v: number, fb: number) => (Number.isFinite(v) ? v : fb);
 
 export interface AudioSettings { muted: boolean; music: number; ambience: number; }
 const KEY = 'cozyIsland.audio.v1';
@@ -125,7 +127,7 @@ export class AudioEngine {
     src.loopStart = 0; src.start(0, Math.random() * buf.duration);
     let node: AudioNode = src;
     const fs: BiquadFilterNode[] = [];
-    for (const [type, f, q] of filters) { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; node.connect(b); node = b; fs.push(b); }
+    for (const [type, f, q] of filters) { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = F(f, 1000); b.Q.value = F(q, 1); node.connect(b); node = b; fs.push(b); }
     const gain = ctx.createGain(); gain.gain.value = 0; node.connect(gain);
     let pan: StereoPannerNode | undefined;
     if (panned && ctx.createStereoPanner) { pan = ctx.createStereoPanner(); gain.connect(pan).connect(this.ambBus); }
@@ -240,7 +242,7 @@ export class AudioEngine {
   private noiseHit(t: number, dur: number, dest: AudioNode, type: BiquadFilterType, f: number, q: number, peak: number, a = 0.004, buf = this.white) {
     const ctx = this.ctx!;
     const s = ctx.createBufferSource(); s.buffer = buf;
-    const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q;
+    const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = F(f, 1000); b.Q.value = F(q, 1);
     const g = ctx.createGain(); this.env(g.gain, t, a, peak, dur);
     s.connect(b).connect(g).connect(dest); s.start(t, Math.random() * 4, a + dur + 0.05);
     return b;
@@ -261,7 +263,7 @@ export class AudioEngine {
     } else if (species === 'trill') {
       const o = this.tone('sine', base, t, 0.6, dest, 0.4, 0.02);
       const lfo = ctx.createOscillator(); lfo.frequency.value = rand(18, 30);
-      const d = ctx.createGain(); d.gain.value = base * 0.12; lfo.connect(d).connect(o.frequency);
+      const d = ctx.createGain(); d.gain.value = F(base * 0.12, 0); lfo.connect(d).connect(o.frequency);
       lfo.start(t); lfo.stop(t + 0.7);
       o.frequency.linearRampToValueAtTime(base * 0.8, t + 0.6);
     } else if (species === 'cuckoo') {

@@ -119,7 +119,7 @@ export function surfaceAt(x: number, z: number): Surface {
 
 // ---------- colours ----------
 const C = (h: string) => new THREE.Color(h);
-const SAND = C('#f3d9a4'), WET_SAND = C('#d9b77f'), SEABED = C('#c9b48a');
+const SAND = C('#f3d9a4'), WET_SAND = C('#d9b77f'), SEABED = C('#b39a70');
 const TROP_SAND = C('#fbe9bd'), PEBBLE = C('#bdb6aa'), DES_SAND = C('#ecbd84');
 const ROCK = C('#a49a8c'), SNOW = C('#f5f8fc'), ALP_ROCK = C('#9a9a9e');
 const PAL: Record<number, THREE.Color[]> = {

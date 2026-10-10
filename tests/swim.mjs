@@ -15,7 +15,7 @@ async function open(ctxOpts, q) {
   page.setDefaultTimeout(300000);
   const errors = [];
   page.on('console', (m) => { if (errFilter(m)) errors.push(`[${m.type()}] ${m.text()}`); });
-  page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
+  page.on('pageerror', (e) => { errors.push(`[pageerror] ${e.message}`); console.log('STACK', e.stack); });
   await page.goto(base + `?webgl&q=${q}`);
   await page.waitForFunction(() => window.game?.ready);
   await page.evaluate(() => localStorage.clear());
@@ -114,7 +114,7 @@ if (!process.argv.includes('--skip-desktop')) {
     for (let k = 0; k < 2; k++) {
       const b = g.reef.bottles[0]; b.active = true; b.x = p.x + 0.8; b.z = p.z; g.step(1 / 30); g.step(1 / 30);
       const t = g.play.target, owned = Object.keys(g.play.save.data.owned).length, st = g.play.save.data.map.state;
-      g.play.act(); g.step(1 / 30);
+      g.play.act(); for (let i = 0; i < 8; i++) g.step(1 / 30);
       r.push({ key: t?.key, label: t?.label, stateBefore: st, state: g.play.save.data.map.state, owned: Object.keys(g.play.save.data.owned).length - owned });
     }
     return r;
@@ -129,8 +129,8 @@ if (!process.argv.includes('--skip-desktop')) {
   ok('reef sectors drawn near the player', rv.sectorsVisible > 0 && rv.coral > 50, JSON.stringify(rv));
   await frame(page, Math.atan2(Math.cos(ang), Math.sin(ang)) + 0.6, 0.62, 9);
   await shot(page, '26-reef');
-  await page.evaluate(() => { const g = window.game, d = g.reef.dolphins[0], p = g.player.position; d.th = Math.atan2(p.z, p.x) + 0.08; d.jumpT = 0.45; for (let i = 0; i < 2; i++) g.step(1 / 30); });
-  await frame(page, Math.atan2(-Math.cos(ang), -Math.sin(ang)) + Math.PI, 0.18, 11);
+  const dyaw = await page.evaluate(() => { const g = window.game, d = g.reef.dolphins[0], p = g.player.position; d.th = Math.atan2(p.z, p.x) + 0.05; d.off = 20; d.jumpT = 0.4; for (let i = 0; i < 2; i++) g.step(1 / 30); return Math.atan2(p.x - d.x, p.z - d.z); });
+  await frame(page, dyaw, 0.12, 6);
   await shot(page, '27-dolphins');
   ok('desktop: no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await ctx.close();

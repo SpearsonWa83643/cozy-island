@@ -56,8 +56,8 @@ function kelpGeo(rnd: () => number): THREE.BufferGeometry {
   const b = new Baker(); b.ao = false;
   const n = 2 + Math.floor(rnd() * 3);
   for (let i = 0; i < n; i++) {
-    const h = 0.8 + rnd() * 0.9, a = rnd() * TAU, g = new THREE.PlaneGeometry(0.12, h, 1, 4);
-    const col = i % 2 ? '#3f9a4a' : '#5fae3a';
+    const h = 0.7 + rnd() * 0.3, a = rnd() * TAU, g = new THREE.PlaneGeometry(0.075, h, 1, 4);
+    const col = i % 2 ? '#4f8a2a' : '#7aa83a';
     b.add(g, col, [Math.cos(a) * 0.1, h / 2, Math.sin(a) * 0.1], [0, a, 0], 1, (y) => Math.pow(Math.max(0, y) / h, 1.5));
   }
   return b.build();
@@ -169,7 +169,7 @@ export class Reef {
       const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - 0.5) * tilt, rnd() * TAU, (rnd() - 0.5) * tilt)), new THREE.Vector3(sc, sc, sc));
       parts[si].push({ g, m });
     };
-    for (let i = 0; i < 2600; i++) {
+    for (let i = 0; i < 1500; i++) {
       const th = rnd() * TAU, off = 1.5 + Math.pow(rnd(), 0.8) * 15;
       atOffshore(th, off, pt);
       const h = heightAt(pt.x, pt.z);
@@ -179,16 +179,22 @@ export class Reef {
       const warm = 0.35 + w[Biome.Tropical] * 0.65 + w[Biome.Desert] * 0.3 - w[Biome.Alpine] * 0.25;
       const patch = Math.sin(pt.x * 0.35 + Math.cos(pt.z * 0.21) * 2) * Math.cos(pt.z * 0.3 - pt.x * 0.1);
       const r = rnd();
-      if (r < 0.3 * warm && patch > -0.3) { // coral cluster
-        const kind = Math.floor(rnd() * kinds);
-        place(protos[kind][Math.floor(rnd() * variants)], pt.x, h - 0.05, pt.z, 0.7 + rnd() * 0.8, kind === 2 ? 0.4 : 0.15); this.stats.coral++;
-      } else if (r < 0.48) { place(kelps[Math.floor(rnd() * 3)], pt.x, h - 0.05, pt.z, 0.8 + rnd() * 0.7, 0); this.stats.kelp++; }
-      else if (r < 0.53) place(rocks[Math.floor(rnd() * 2)], pt.x, h, pt.z, 0.6 + rnd() * 1.2, 1);
+      if (r < 0.62 * warm && patch > -0.45) { // coral clusters: a few heads around each point
+        const kind = Math.floor(rnd() * kinds), n = 1 + Math.floor(rnd() * 3);
+        for (let c = 0; c < n; c++) {
+          const k2 = c ? Math.floor(rnd() * kinds) : kind, cx = pt.x + (rnd() - 0.5) * 1.4 * c, cz = pt.z + (rnd() - 0.5) * 1.4 * c, ch = heightAt(cx, cz);
+          const room = -0.45 - ch; if (room < 0.4) continue;
+          place(protos[k2][Math.floor(rnd() * variants)], cx, ch - 0.05, cz, Math.min(room * 0.9, 0.8 + rnd() * 0.9), k2 === 2 ? 0.4 : 0.15); this.stats.coral++;
+        }
+      } else if (r < 0.74 && patch < 0.4) {
+        // kelp tops stay well under the surface
+        const room = -0.5 - h; if (room > 0.5) { place(kelps[Math.floor(rnd() * 3)], pt.x, h - 0.05, pt.z, Math.min(room, 0.7 + rnd() * 0.9), 0); this.stats.kelp++; }
+      } else if (r < 0.8) place(rocks[Math.floor(rnd() * 2)], pt.x, h, pt.z, 0.6 + rnd() * 1.2, 1);
     }
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });
     const sway = attribute('sway', 'float'), p = positionLocal;
     mat.positionNode = p.add(vec3(sin(time.mul(1.25).add(p.x.mul(0.55)).add(p.z.mul(0.35))), float(0), cos(time.mul(1.05).add(p.z.mul(0.5)).sub(p.x.mul(0.2)))).mul(sway.mul(0.16)));
-    mat.emissiveNode = vertexColor().mul(0.14);
+    mat.emissiveNode = vertexColor().mul(0.22);
     for (let i = 0; i < SECT; i++) {
       if (!parts[i].length) continue;
       const mesh = new THREE.Mesh(concat(parts[i]), mat);

@@ -1,4 +1,6 @@
 import { Biome } from '../world/Biomes';
+/** finite-or-fallback for AudioParam writes (a NaN throws in WebAudio) */
+const F = (v: number, fb: number) => (Number.isFinite(v) ? v : fb);
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -103,8 +105,8 @@ export class MusicGen {
     g.gain.linearRampToValueAtTime(0.0001, at + dur);
     g.connect(this.padBus);
     for (const [type, det, lvl] of [['sine', -5, 1], ['triangle', 6, 0.45], ['sine', 1200 + 3, 0.12]] as [OscillatorType, number, number][]) {
-      const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det;
-      const og = ctx.createGain(); og.gain.value = lvl;
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = F(f, 220); o.detune.value = F(det, 0);
+      const og = ctx.createGain(); og.gain.value = F(lvl, 0);
       // slow vibrato for life
       const v = ctx.createOscillator(); v.frequency.value = rand(0.1, 0.25); const vd = ctx.createGain(); vd.gain.value = rand(2, 5);
       v.connect(vd).connect(o.detune); v.start(at); v.stop(at + dur + 0.1);
@@ -155,7 +157,7 @@ export class MusicGen {
       : [[1, 0.06, 1.3], [2, 0.022, 0.6], [3, 0.008, 0.3]];
     for (const [ratio, amp, dec] of partials) {
       const o = ctx.createOscillator(); o.type = this.instrument === 'pluck' && ratio === 1 ? 'triangle' : 'sine';
-      o.frequency.value = f * ratio;
+      o.frequency.value = F(f * ratio, 440);
       const og = ctx.createGain();
       og.gain.setValueAtTime(0.0001, at); og.gain.exponentialRampToValueAtTime(amp * vel, at + 0.006); og.gain.exponentialRampToValueAtTime(0.0001, at + dec);
       o.connect(og).connect(g); o.start(at); o.stop(at + dec + 0.05);
