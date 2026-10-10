@@ -31,11 +31,14 @@ interface Placed { obj: THREE.Object3D; collider: RAPIER.Collider; def: Buildabl
 
 export class BuildMode implements System {
   active = false;
+  /** touch: taps remove instead of place */
+  removeMode = false;
   selected = 0;
   rotation = 0;
   group = new THREE.Group();
   private ghost: THREE.Object3D | null = null;
   private ghostValid = false;
+  private ghostMatState = true;
   private cell = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
     new THREE.MeshBasicNodeMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }),
@@ -56,15 +59,31 @@ export class BuildMode implements System {
     scene.add(this.cell);
     input.onClick.push((e, drag) => {
       if (!this.active || drag) return;
-      if (e.button === 0) this.place();
-      else if (e.button === 2) this.removeHovered();
+      if (e.button === 0) {
+        // taps carry no hover history: aim at the tap point first
+        this.input.setMouse(e.clientX, e.clientY);
+        if (this.removeMode) this.removeHovered();
+        else { this.refreshTarget(); this.place(); }
+      } else if (e.button === 2) this.removeHovered();
     });
   }
 
   get count() { return this.placed.length; }
 
+  setRemoveMode(on: boolean) {
+    this.removeMode = on;
+    if (this.ghost) this.ghost.visible = !on;
+    this.onChange();
+  }
+
+  private refreshTarget() {
+    const ok = this.computeTarget();
+    this.ghostValid = ok && this.isValid();
+  }
+
   toggle(on = !this.active) {
     this.active = on;
+    if (!on) this.removeMode = false;
     this.cell.visible = on;
     if (!on && this.ghost) { this.scene.remove(this.ghost); this.ghost = null; }
     if (on) this.rebuildGhost();
@@ -84,6 +103,7 @@ export class BuildMode implements System {
     this.ghost = g;
     this.scene.add(g);
     this.ghostValid = true;
+    this.ghostMatState = true;
     this.applyGhostMat(true);
   }
 
@@ -190,15 +210,17 @@ export class BuildMode implements System {
 
     const ok = this.computeTarget();
     if (this.ghost) {
-      this.ghost.visible = ok;
+      this.ghost.visible = ok && !this.removeMode;
       this.ghost.position.copy(this.target);
       this.ghost.rotation.y = this.rotation;
       const valid = ok && this.isValid();
-      if (valid !== this.ghostValid) { this.ghostValid = valid; this.applyGhostMat(valid); }
+      this.ghostValid = valid;
+      if (valid !== this.ghostMatState) { this.ghostMatState = valid; this.applyGhostMat(valid); }
       const bob = 1 + Math.sin(performance.now() * 0.006) * 0.02;
       this.ghost.scale.setScalar(bob);
     }
     this.cell.visible = ok;
+    (this.cell.material as THREE.MeshBasicNodeMaterial).color.set(this.removeMode ? '#ff6b6b' : '#ffffff');
     this.cell.position.set(this.target.x, this.target.y + 0.03, this.target.z);
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { Physics } from './Physics';
-import { Input } from './Input';
+import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
 import { Terrain } from '../world/Terrain';
@@ -11,6 +11,7 @@ import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { BuildMode } from '../build/BuildMode';
 import { Hud } from '../ui/Hud';
+import { TouchControls } from '../ui/TouchControls';
 
 export class Game {
   scene = new THREE.Scene();
@@ -26,6 +27,8 @@ export class Game {
   build!: BuildMode;
   decor!: Decor;
   hud!: Hud;
+  touch: TouchControls | null = null;
+  readonly isTouch = detectTouch();
   terrain!: Terrain;
   ready = false;
   private timer = new THREE.Timer();
@@ -71,8 +74,17 @@ export class Game {
     this.hud = new Hud(this.renderer.backendName);
     this.hud.onQuality = (q) => this.setQuality(q);
     this.hud.onSelect = (i) => { if (!this.build.active) this.build.toggle(true); this.build.select(i); };
-    this.build.onChange = () => this.hud.setBuild(this.build.active, this.build.selected, this.build.count);
-    this.setQuality(params.get('q') === 'low' ? 'low' : 'high');
+    if (this.isTouch) {
+      this.touch = new TouchControls(this.input, this.build);
+      this.rig.sensitivity = 1.4;
+    }
+    this.build.onChange = () => {
+      this.hud.setBuild(this.build.active, this.build.selected, this.build.count, this.build.removeMode);
+      this.touch?.sync();
+    };
+    // touch devices (iPad) default to Low; ?q= overrides
+    const q = params.get('q');
+    this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
     this.systems.push(this.player, this.rig, this.build, { update: (dt) => this.decor.update(dt) });
     window.addEventListener('resize', () => {

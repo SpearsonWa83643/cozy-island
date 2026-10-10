@@ -10,6 +10,7 @@ export class CameraRig implements System {
   pitch = 0.42;
   distance = 9;
   target = new THREE.Vector3();
+  sensitivity = 1;
   locked = false; // when true, screenshot/debug code drives the camera
 
   constructor(public camera: THREE.PerspectiveCamera, private input: Input, private player: Player) {
@@ -19,11 +20,11 @@ export class CameraRig implements System {
   update(dt: number) {
     if (this.locked) return;
     const i = this.input;
-    this.yaw -= i.dragDX * 0.005;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + i.dragDY * 0.004, 0.05, 1.35);
+    this.yaw -= i.dragDX * 0.005 * this.sensitivity;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + i.dragDY * 0.004 * this.sensitivity, 0.05, 1.35);
     if (i.keys.has('q')) this.yaw += dt * 1.8;
     if (i.keys.has('e')) this.yaw -= dt * 1.8;
-    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1), 3.5, 28);
+    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, 3.5, 28);
     const p = this.player.position.add(new THREE.Vector3(0, 1.1, 0));
     this.target.lerp(p, Math.min(1, dt * 8));
     this.apply();

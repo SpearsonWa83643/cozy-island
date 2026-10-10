@@ -100,8 +100,16 @@ export class Player implements System {
       if (k.has('a') || k.has('arrowleft')) fx -= 1;
       if (k.has('d') || k.has('arrowright')) fx += 1;
     }
+    // analog virtual joystick (touch): pushing to the rim breaks into a jog
+    let analog = 1;
+    const st = this.input.stick;
+    const sm = Math.hypot(st.x, st.y);
+    if (this.enabled && sm > 0.08 && fx === 0 && fz === 0) {
+      fx = st.x; fz = st.y;
+      analog = Math.min(1, sm) < 0.9 ? Math.min(1, sm / 0.9) : 1 + (RUN / WALK - 1) * 0.8;
+    }
     const len = Math.hypot(fx, fz);
-    const speed = k.has('shift') ? RUN : WALK;
+    const speed = (k.has('shift') ? RUN : WALK) * analog;
     let mx = 0, mz = 0;
     if (len > 0) {
       fx /= len; fz /= len;

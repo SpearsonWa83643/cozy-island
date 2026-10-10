@@ -19,7 +19,8 @@ export class Hud {
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
       <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Q</kbd><kbd>E</kbd> rotate<br>
       <kbd>B</kbd> build mode &nbsp; <kbd>1</kbd>-<kbd>5</kbd> pick &nbsp; <kbd>R</kbd> rotate piece<br>
-      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove</div></div>`);
+      <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove</div>
+      <div class="touch-hint">🕹️ Stick to walk · drag to look · pinch to zoom<br>🔨 Build, then tap the ground to place</div></div>`);
     const stats = el(`<div class="hud panel stats"><div class="fps">-- FPS</div>
       <div><button class="qbtn" data-q="low">Low</button> <button class="qbtn" data-q="high">High</button></div>
       <div class="backend">Renderer: ${backend}</div></div>`);
@@ -46,10 +47,13 @@ export class Hud {
     this.qBtns.high.classList.toggle('on', q === 'high');
   }
 
-  setBuild(active: boolean, selected: number, count: number) {
+  setBuild(active: boolean, selected: number, count: number, removing = false) {
     this.hotbar.classList.toggle('off', !active);
     this.modeEl.classList.toggle('off', !active);
-    this.modeEl.textContent = `🔨 Build mode · ${BUILDABLES[selected].label} · ${count} placed`;
+    this.modeEl.style.background = removing ? '#ff7b7b' : '';
+    this.modeEl.textContent = removing
+      ? `✖ Remove mode · tap a piece to remove · ${count} placed`
+      : `🔨 Build mode · ${BUILDABLES[selected].label} · ${count} placed`;
     this.slots.forEach((s, i) => s.classList.toggle('sel', i === selected));
   }
 
