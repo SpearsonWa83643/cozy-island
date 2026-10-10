@@ -107,7 +107,7 @@ class Herd {
     const tmp = new THREE.Vector3();
     for (let i = 0; i < this.agents.length; i++) {
       const a = this.agents[i];
-      if (i >= this.active && !a.friend) continue;
+      if (i >= this.active && !a.friend) { this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0)); continue; }
       let moving = false;
       if (a.friend) {
         // ---- follower: breadcrumb trail target + arrival + separation ----

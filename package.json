@@ -12,7 +12,8 @@
     "test:touch": "node tests/touch.mjs",
     "test:audio": "node tests/audio.mjs",
     "shots:biomes": "node tests/biomes.mjs",
-    "perf": "node tests/perf.mjs"
+    "perf": "node tests/perf.mjs",
+    "test:loop": "node tests/loop.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

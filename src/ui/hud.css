@@ -199,3 +199,10 @@ body.touch .world-prompt { padding: 2px 8px; animation: float 1.6s ease-in-out i
   font-family: 'Segoe Print', 'Bradley Hand', 'Chalkboard SE', 'Comic Sans MS', cursive; opacity: 0; transform: translateY(20px); transition: all .4s var(--spring) .1s; }
 .map-overlay.open .map-caption { opacity: 1; transform: none; }
 .map-close { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: 52px; height: 52px; border-radius: 50%; border: 0; font-size: 20px; cursor: pointer; background: var(--paper); color: #4a3b2f; box-shadow: 0 3px 0 #e3d3bd; }
+
+.map-overlay:not(.open) .map-close { opacity: 0; pointer-events: none; }
+.map-close { transition: opacity .25s; }
+/* iPad: game buttons stack on the right edge, under the stats panel, away from the joystick and title */
+body.touch .game-bar { top: auto; left: auto; transform: none; right: max(12px, env(safe-area-inset-right)); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 190px); flex-direction: column; gap: 12px; }
+body.touch .gbtn { flex-direction: column; justify-content: center; gap: 0; width: 68px; height: 68px; padding: 0; border-radius: 20px; }
+body.touch .gbtn .gl { display: block; font-size: 11px; }

@@ -50,3 +50,25 @@ lily pads, reeds, willows, ducks, ground mist, fireflies). Biome weights are dom
 
 Tests: `npm run shots:biomes` (screenshots/07-13), `npm run test:audio`, `npm run test:touch`,
 `npm run perf -- <urlA> <urlB> --rounds=2` (A/B frame-time probe on Low).
+
+## Treasure, wardrobe, foraging & friends
+
+Design notes and research are in [`docs/design-research.md`](docs/design-research.md).
+
+- **Treasure maps.** A message bottle on the beach near spawn holds the first map. The map is a parchment overlay drawn from the real island heightfield, with the treasure area torn out as a fragment, a red X, a compass and a handwritten clue. Clues get stronger as you get close: a "warmer" chime, a sparkle column and a star-shaped crack in the ground. **Dig** to raise a chest, then **Open** it. The lid pops, confetti flies, and you get a wearable plus the next map. Chest spots are procedural, rotate through the six biomes, and never run out. Rarer items get a little more likely over time, and you are guaranteed a Rare or better at least every 4th chest.
+- **Wardrobe.** 51 procedural low-poly wearables across hats, face, neck, back, outfit patterns and sprouts, in 5 rarities. Opening the wardrobe swings the camera round to your character as a live 3D preview (drag to spin). Duplicates turn into 🐚 shells, which buy outfit dyes.
+- **Foraging.** About a dozen foods grow on or around the plants of each biome (apples, cherries, berries, acorns, mushrooms, pinecones, coconuts, cactus fruit, seeds, clover, wild carrots, reed grain). They pop into your bag and grow back after a few minutes.
+- **Friends.** Animals that see you carrying a food they like stop fleeing and come over to look. Feeding them their favourite (♥) wins them over right away. A food they merely like takes two. Friends follow you in a little parade (breadcrumb trail plus spacing, up to 6). They get hungry after about 5 minutes and wander home if you don't feed them. Wave one goodbye from the Bag.
+- **Saving.** Inventory, wardrobe, dyes, map progress and placed builds are saved to `localStorage`.
+
+| Action | Desktop | iPad |
+|---|---|---|
+| Pick / Feed / Dig / Open / Take | **E**, or click the item | big orange context button (or tap the item) |
+| Map | **M** (wheel to zoom) | 🗺️ button (pinch / drag inside the map) |
+| Bag (food, friends) | **I** | 🎒 button (bottom sheet) |
+| Wardrobe | **O** | 👕 button (bottom sheet, drag the view to spin) |
+| Rotate camera | **Z / C** | drag right side |
+| Mute | **U** | 🔊 button |
+| Close overlays | **Esc** | ✕ / swipe the sheet handle down |
+
+`npm run test:loop` runs the scripted full loop (forage, feed, follow, map, dig, open, equip, reload persists) on desktop and in iPad emulation.

@@ -32,6 +32,12 @@ export class Gameplay implements System {
   private camFrom = new THREE.Vector3(); private camLook = new THREE.Vector3();
   private ctx: FollowCtx;
   private lockMove = 0;
+  /** ms between the lid popping and the reward card (tests stretch it to capture the burst) */
+  rewardDelay = 750;
+  private pendingReward: (() => void) | null = null;
+  private rewardTimer = 0;
+  /** show a pending reward card immediately (tests) */
+  showRewardNow() { clearTimeout(this.rewardTimer); this.pendingReward?.(); }
 
   constructor(private g: Game, spawn: THREE.Vector2) {
     const d = this.save.data;
@@ -220,7 +226,8 @@ export class Gameplay implements System {
     // a new map was tucked inside the chest
     d.map.n++; d.map.state = 'opened';
     this.save.touch();
-    setTimeout(() => {
+    this.pendingReward = () => {
+      this.pendingReward = null;
       const card = this.juice.reward(item.icon, item.name, r.name, r.color, extra, () => {
         this.treasure.finish();
         this.treasure.newSpot();
@@ -230,7 +237,8 @@ export class Gameplay implements System {
         this.panels.setMapPulse(true, true);
       });
       card.classList.add('r' + item.rarity);
-    }, 750);
+    };
+    this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), this.rewardDelay);
   }
 
   // ---------------- wardrobe preview camera ----------------
@@ -254,9 +262,13 @@ export class Gameplay implements System {
     const yaw = this.previewYaw;
     const fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-    const camPos = p.clone().addScaledVector(fwd, 3.3).add(new THREE.Vector3(0, 1.25, 0));
-    const look = p.clone().add(new THREE.Vector3(0, 0.85, 0));
-    if (narrow) look.y -= 0.85; else look.addScaledVector(right, 0.95);
+    // frame the character in the part of the screen the sheet leaves free
+    const D = narrow ? 5.4 : 4.0;
+    const tanV = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)), tanH = tanV * cam.aspect;
+    const camPos = p.clone().addScaledVector(fwd, D).add(new THREE.Vector3(0, 1.3, 0));
+    const look = p.clone().add(new THREE.Vector3(0, 0.8, 0));
+    if (narrow) { const sheetH = Math.min(innerHeight * 0.56, 520) / innerHeight; const ndcY = sheetH; look.y -= ndcY * D * tanV; }
+    else { const freeW = innerWidth - 452; const ndcX = (freeW / 2) / innerWidth * 2 - 1; look.addScaledVector(right, -ndcX * D * tanH * 1.0); }
     const k = easeInOut(this.preview);
     const rigPos = cam.position.clone(); // what the orbit rig computed this frame
     const rigLook = this.g.rig.target.clone();
