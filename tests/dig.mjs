@@ -91,8 +91,8 @@ if (!process.argv.includes('--skip-ipad')) {
   await standAt(page, 3, 8);
   const btn = await page.locator('.tbtn.dig').boundingBox();
   ok('iPad: Dig button shown', !!btn && btn.width >= 60);
-  await page.touchscreen.tap(btn.x + btn.width / 2, btn.y + btn.height / 2); await wait(page, 900);
-  const r = await page.evaluate(() => ({ holes: window.game.play.digger.liveHoles, held: window.game.input.keys.has('f') }));
+  await page.touchscreen.tap(btn.x + btn.width / 2, btn.y + btn.height / 2); await page.waitForFunction(() => window.game.play.digger.liveHoles > 0, null, { timeout: 5000 }).catch(() => {});
+  const r = await page.evaluate(() => ({ holes: window.game.play.digger.liveHoles, held: window.game.input.keys.has('f'), digs: window.game.play.save.data.digs ?? 0 }));
   ok('iPad: Dig button digs (and releases)', r.holes === 1 && !r.held, JSON.stringify(r));
   await shot(page, '35-ipad-dig');
   ok('iPad: no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
