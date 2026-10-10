@@ -47,7 +47,7 @@ export class Game {
   readonly isTouch = detectTouch();
   /** debug/test helper */
   heightAt = heightAt;
-  shore = { offshore, atOffshore, shoreRadius };
+  coast = { offshore, atOffshore, shoreRadius };
   ready = false;
   /** blended biome weights around the player (smoothed) */
   biome = new Float32Array(BIOME_COUNT);

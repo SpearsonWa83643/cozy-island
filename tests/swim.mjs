@@ -38,18 +38,18 @@ const SWIM_FN = `window.__swim = (ang, dir, sec, stick) => {
     g.step(1 / 30);
     const p = g.player.position;
     path += Math.hypot(p.x - last.x, p.z - last.z); last.copy(p);
-    maxOff = Math.max(maxOff, g.shore.offshore(p.x, p.z)); swam ||= g.player.swimming;
+    maxOff = Math.max(maxOff, g.coast.offshore(p.x, p.z)); swam ||= g.player.swimming;
   }
   k.delete('w'); g.input.stick.x = 0; g.input.stick.y = 0;
   for (let i = 0; i < 10; i++) g.step(1 / 30);
   const p = g.player.position;
-  return { maxOff: +maxOff.toFixed(2), swam, swimming: g.player.swimming, off: +g.shore.offshore(p.x, p.z).toFixed(2), depth: +g.player.depth.toFixed(2), y: +p.y.toFixed(2), path: +path.toFixed(1), unstuck: g.player.unstuckCount, current: +g.player.current.toFixed(2) };
+  return { maxOff: +maxOff.toFixed(2), swam, swimming: g.player.swimming, off: +g.coast.offshore(p.x, p.z).toFixed(2), depth: +g.player.depth.toFixed(2), y: +p.y.toFixed(2), path: +path.toFixed(1), unstuck: g.player.unstuckCount, current: +g.player.current.toFixed(2) };
 };`;
 
 // pick a beach angle: wide sandy slope (tropical side), found in-page
 const BEACH_FN = `window.__beach = () => {
   const g = window.game; let best = 0, bs = -1;
-  for (let i = 0; i < 72; i++) { const a = i / 72 * Math.PI * 2; const p = g.shore.atOffshore(a, -3); const h = g.heightAt(p.x, p.z); const q = g.shore.atOffshore(a, 6); const d = -g.heightAt(q.x, q.z);
+  for (let i = 0; i < 72; i++) { const a = i / 72 * Math.PI * 2; const p = g.coast.atOffshore(a, -3); const h = g.heightAt(p.x, p.z); const q = g.coast.atOffshore(a, 6); const d = -g.heightAt(q.x, q.z);
     const s = (h > 0.05 && h < 0.8 ? 1 : 0) + (d > 1.2 && d < 2.6 ? 1 : 0) - Math.abs(h - 0.35); if (s > bs) { bs = s; best = a; } }
   return best;
 };`;
@@ -58,7 +58,7 @@ if (!process.argv.includes('--skip-desktop')) {
   const { ctx, page, errors } = await open({ viewport: { width: 1280, height: 720 } }, 'high');
   await page.evaluate(SWIM_FN + BEACH_FN);
   const ang = await page.evaluate(() => window.__beach());
-  await page.evaluate((a) => { const g = window.game, p = g.shore.atOffshore(a, -3); g.player.teleport(p.x, p.z); for (let i = 0; i < 20; i++) g.step(1 / 30); }, ang);
+  await page.evaluate((a) => { const g = window.game, p = g.coast.atOffshore(a, -3); g.player.teleport(p.x, p.z); for (let i = 0; i < 20; i++) g.step(1 / 30); }, ang);
   // 1. swim out
   const out = await page.evaluate((a) => window.__swim(a, 1, 26), ang);
   ok('swims out from the beach', out.swam && out.swimming, JSON.stringify(out));
@@ -76,7 +76,7 @@ if (!process.argv.includes('--skip-desktop')) {
   const moves = await page.evaluate((a) => {
     const g = window.game, res = [];
     for (const off of [0.5, 1.5, 3]) for (let d = 0; d < 4; d++) {
-      const p = g.shore.atOffshore(a, off); g.player.teleport(p.x, p.z);
+      const p = g.coast.atOffshore(a, off); g.player.teleport(p.x, p.z);
       for (let i = 0; i < 6; i++) g.step(1 / 30);
       const s = g.player.position.clone(), yaw = d * Math.PI / 2;
       for (let t = 0; t < 1.6; t += 1 / 30) { g.rig.yaw = yaw; g.input.keys.add('w'); g.step(1 / 30); }
@@ -88,7 +88,7 @@ if (!process.argv.includes('--skip-desktop')) {
   ok('never stuck in the shallows (moves ≥1.5 m every direction)', moves.every((m) => m > 1.5), JSON.stringify(moves));
   // also from a "trapped" spot: deep-ish water start where the old code froze the player
   const trapped = await page.evaluate((a) => {
-    const g = window.game; const p = g.shore.atOffshore(a, 1.0);
+    const g = window.game; const p = g.coast.atOffshore(a, 1.0);
     g.player.teleport(p.x, p.z); for (let i = 0; i < 4; i++) g.step(1 / 30);
     return window.__swim(a, -1, 4);
   }, ang);
@@ -125,7 +125,7 @@ if (!process.argv.includes('--skip-desktop')) {
   const trade = await page.evaluate(() => { const g = window.game, d = g.play.save.data; d.food.pearl = 2; const s0 = d.shells; g.play.panels.toggle('bag'); const b = document.querySelector('.trade[data-id="pearl"]'); b?.click(); const r = { had: !!b, gained: d.shells - s0, left: d.food.pearl }; g.play.panels.toggle(null); return r; });
   ok('bag trades sea treasures for shells', trade.had && trade.gained === 12 && trade.left === 0, JSON.stringify(trade));
   // 7. reef views
-  const rv = await page.evaluate((a) => { const g = window.game, p = g.shore.atOffshore(a, 6); g.player.teleport(p.x, p.z); for (let i = 0; i < 60; i++) g.step(1 / 30); return { sectorsVisible: g.reef.group.children.filter((c) => c.name === 'reef-sector' && c.visible).length, ...g.reef.stats }; }, ang);
+  const rv = await page.evaluate((a) => { const g = window.game, p = g.coast.atOffshore(a, 6); g.player.teleport(p.x, p.z); for (let i = 0; i < 60; i++) g.step(1 / 30); return { sectorsVisible: g.reef.group.children.filter((c) => c.name === 'reef-sector' && c.visible).length, ...g.reef.stats }; }, ang);
   ok('reef sectors drawn near the player', rv.sectorsVisible > 0 && rv.coral > 50, JSON.stringify(rv));
   await frame(page, Math.atan2(Math.cos(ang), Math.sin(ang)) + 0.6, 0.62, 9);
   await shot(page, '26-reef');
@@ -140,7 +140,7 @@ if (!process.argv.includes('--skip-ipad')) {
   const { ctx, page, errors } = await open({ ...devices['iPad Pro 11'], hasTouch: true }, 'low');
   await page.evaluate(SWIM_FN + BEACH_FN);
   const ang = await page.evaluate(() => window.__beach());
-  await page.evaluate((a) => { const g = window.game, p = g.shore.atOffshore(a, -3); g.player.teleport(p.x, p.z); for (let i = 0; i < 20; i++) g.step(1 / 30); }, ang);
+  await page.evaluate((a) => { const g = window.game, p = g.coast.atOffshore(a, -3); g.player.teleport(p.x, p.z); for (let i = 0; i < 20; i++) g.step(1 / 30); }, ang);
   const out = await page.evaluate((a) => window.__swim(a, 1, 12, true), ang);
   ok('iPad: joystick swims out', out.swam && out.swimming, JSON.stringify(out));
   await frame(page, Math.atan2(-Math.cos(ang), -Math.sin(ang)) + Math.PI + 0.4, 0.4, 8);
