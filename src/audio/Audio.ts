@@ -25,6 +25,9 @@ const pickW = <T,>(items: [T, number][]): T => { let s = 0; for (const [, w] of 
  * (birds, crickets, frogs, gulls), footsteps per surface, and build SFX.
  * Starts on the first user gesture (iOS Safari unlock).
  */
+/** clamp a pan to [-1,1]; NaN (sound exactly at the listener) → centre */
+const fin = (v: number) => (Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0);
+
 export class AudioEngine {
   ctx: Ctx | null = null;
   settings: AudioSettings = { muted: false, music: 0.55, ambience: 0.75 };
@@ -207,11 +210,11 @@ export class AudioEngine {
   // ---------------- voices ----------------
   private out(pan: number, gain: number, wet = 0.25) {
     const ctx = this.ctx!;
-    const g = ctx.createGain(); g.gain.value = gain;
+    const g = ctx.createGain(); g.gain.value = Number.isFinite(gain) ? gain : 0;
     let last: AudioNode = g;
-    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); last = p; }
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = fin(pan); g.connect(p); last = p; }
     last.connect(this.ambBus);
-    if (wet > 0) { const s = ctx.createGain(); s.gain.value = wet; last.connect(s).connect(this.reverbIn); }
+    if (wet > 0) { const s = ctx.createGain(); s.gain.value = Number.isFinite(wet) ? wet : 0; last.connect(s).connect(this.reverbIn); }
     return g;
   }
   private env(g: AudioParam, t: number, a: number, peak: number, d: number) {
@@ -305,11 +308,11 @@ export class AudioEngine {
   // ---------------- gameplay SFX ----------------
   private sfx(pan = 0, gain = 0.5, wet = 0.08) {
     const ctx = this.ctx!;
-    const g = ctx.createGain(); g.gain.value = gain;
+    const g = ctx.createGain(); g.gain.value = Number.isFinite(gain) ? gain : 0;
     let last: AudioNode = g;
-    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); last = p; }
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = fin(pan); g.connect(p); last = p; }
     last.connect(this.sfxBus);
-    if (wet > 0) { const s = ctx.createGain(); s.gain.value = wet; last.connect(s).connect(this.reverbIn); }
+    if (wet > 0) { const s = ctx.createGain(); s.gain.value = Number.isFinite(wet) ? wet : 0; last.connect(s).connect(this.reverbIn); }
     return g;
   }
 

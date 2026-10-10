@@ -187,9 +187,9 @@ export class Gameplay implements System {
     this.g.audio.pick();
     const pos = new THREE.Vector3(it.x, it.y + 0.2, it.z);
     this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.3, 0)), '+1', 'plus', 0.9, 40);
-    this.juice.fly(pos, FOODS[it.id].icon, this.panels.bagBtn, () => {
-      const f = this.save.data.food; f[it.id] = (f[it.id] ?? 0) + 1; this.save.touch(); this.panels.refreshBadges();
-    });
+    // count immediately (never lost if the page closes mid-flight); the badge updates when the icon lands
+    const f = this.save.data.food; f[it.id] = (f[it.id] ?? 0) + 1; this.save.touch();
+    this.juice.fly(pos, FOODS[it.id].icon, this.panels.bagBtn, () => this.panels.refreshBadges());
   }
 
   private feed(an: FriendRef, food: FoodId, fav: boolean) {
