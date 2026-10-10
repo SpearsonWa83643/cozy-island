@@ -6,6 +6,8 @@ export interface SaveData {
   food: Partial<Record<FoodId, number>>;
   /** has been swimming (first-time tip) */
   swum?: boolean;
+  /** holes dug */
+  digs?: number;
   shells: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)
   seen: string[];                      // wearable ids the player has looked at (no NEW badge)

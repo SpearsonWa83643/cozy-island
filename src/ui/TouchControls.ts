@@ -24,6 +24,7 @@ export class TouchControls {
       <div class="tbtns">
         <button class="tbtn rotate" aria-label="Rotate piece">⟳<span>Rotate</span></button>
         <button class="tbtn remove" aria-label="Remove mode">✖<span>Remove</span></button>
+        <button class="tbtn dig" aria-label="Dig (hold to keep digging)">🪏<span>Dig</span></button>
         <button class="tbtn build" aria-label="Build mode">🔨<span>Build</span></button>
         <button class="tbtn jump big" aria-label="Jump">⤒<span>Jump</span></button>
       </div>`;
@@ -64,6 +65,10 @@ export class TouchControls {
     }
     tap(this.root.querySelector('.jump')!, () => this.input.pressed.add(' '));
     tap(this.buildBtn, () => this.input.pressed.add('b'));
+    // Dig: hold to keep digging
+    const dig = this.root.querySelector<HTMLElement>('.dig')!;
+    tap(dig, () => { this.input.pressed.add('f'); this.input.keys.add('f'); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dig.addEventListener(ev, () => this.input.keys.delete('f'));
     tap(this.rotateBtn, () => this.input.pressed.add('r'));
     tap(this.removeBtn, () => this.build.setRemoveMode(!this.build.removeMode));
     this.sync();

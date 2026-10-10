@@ -109,12 +109,12 @@ export class Panels {
   renderBag() {
     const s = this.api.save();
     this.bag.querySelector('.sheet-meta')!.innerHTML = `<span class="shells">🐚 ${s.shells}</span>`;
-    const foods = FOOD_ORDER.filter((id) => !FOODS[id].sea).map((id) => {
+    const foods = FOOD_ORDER.filter((id) => !FOODS[id].trade).map((id) => {
       const n = s.food[id] ?? 0, f = FOODS[id];
       const fans = (Object.keys(TASTES) as Species[]).filter((sp) => TASTES[sp].fav.includes(id) || TASTES[sp].likes.includes(id)).map((sp) => TASTES[sp].icon + (TASTES[sp].fav.includes(id) ? '<b>♥</b>' : '')).join(' ');
       return `<div class="food-card ${n ? '' : 'empty'}"><div class="fi">${f.icon}</div><div class="fn">${esc(f.name)}</div><div class="fc">×${n}</div><div class="ff">${fans}</div></div>`;
     }).join('');
-    const sea = FOOD_ORDER.filter((id) => FOODS[id].sea).map((id) => {
+    const sea = FOOD_ORDER.filter((id) => FOODS[id].trade).map((id) => {
       const n = s.food[id] ?? 0, f = FOODS[id];
       return `<div class="food-card sea ${n ? '' : 'empty'}"><div class="fi">${f.icon}</div><div class="fn">${esc(f.name)}</div><div class="fc">×${n}</div>${n ? `<button class="trade" data-id="${id}">→ 🐚 ${n * (f.trade ?? 1)}</button>` : `<div class="ff">🐚 ${f.trade} each</div>`}</div>`;
     }).join('');
@@ -125,7 +125,7 @@ export class Panels {
       return `<div class="friend-row"><span class="fri">${t.icon}</span><span class="frn">${t.name}${f.hunger <= 0 ? ' <i>is hungry!</i>' : ''}</span>
         <span class="hb"><span style="width:${pct * 100}%"></span></span><button class="bye" data-i="${i}">👋 Bye</button></div>`;
     }).join('') : `<div class="hint">No followers yet. Carry a food an animal likes, walk up gently and press <b>Feed</b>. Favourite foods (♥) win them over right away.</div>`;
-    this.bag.querySelector('.sheet-body')!.innerHTML = `<div class="food-grid">${foods}</div><h3>Sea treasures <small>swim out to the reef</small></h3><div class="food-grid">${sea}</div><h3>Friends <small>${fr.length}/6</small></h3><div class="friends">${friends}</div>`;
+    this.bag.querySelector('.sheet-body')!.innerHTML = `<div class="food-grid">${foods}</div><h3>Treasures <small>from the reef and the shovel</small></h3><div class="food-grid">${sea}</div><h3>Friends <small>${fr.length}/6</small></h3><div class="friends">${friends}</div>`;
     this.bag.querySelectorAll('.trade').forEach((b) => b.addEventListener('click', () => { this.api.trade((b as HTMLElement).dataset.id as FoodId); this.renderBag(); }));
     this.bag.querySelectorAll('.bye').forEach((b) => b.addEventListener('click', () => { this.api.dismiss(Number((b as HTMLElement).dataset.i)); this.renderBag(); }));
   }

@@ -242,3 +242,5 @@ body[data-hand="right"] .stick { left: auto; right: max(28px, env(safe-area-inse
 .hand-row { display: none; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; }
 body.touch .hand-row { display: flex; }
 .hand-row .qbtn { padding: 6px 10px; }
+.touch-ui:not(.building) .tbtn.jump { grid-column: 2; }
+.touch-ui.building .tbtn.dig { display: none; }

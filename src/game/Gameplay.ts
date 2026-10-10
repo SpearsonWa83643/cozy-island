@@ -6,6 +6,8 @@ import { Forage, type FoodItem } from './Forage';
 import { Treasure } from './Treasure';
 import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
+import { Dig } from './Dig';
+import { WEARABLES } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
@@ -25,6 +27,8 @@ export class Gameplay implements System {
   treasure: Treasure;
   guide = new Guide();
   walk: TapWalk;
+  digger = new Dig();
+  private digCool = 0; private digMsgT = 0;
   private ray = new THREE.Raycaster();
   map: MapOverlay;
   juice: Juice;
@@ -54,7 +58,7 @@ export class Gameplay implements System {
     this.treasure = new Treasure(d, g.flora, spawn);
     g.scene.add(this.treasure.group, this.guide.mesh);
     this.walk = new TapWalk(g.player);
-    g.scene.add(this.walk.marker);
+    g.scene.add(this.walk.marker, this.digger.group);
     this.walk.onGiveUp = () => this.juice.pop(g.player.position.add(new THREE.Vector3(0, 1.9, 0)), '🤔', 'emote', 1.2, 20);
     g.input.onStickStart.push(() => this.walk.cancel());
     // build mode: far pieces in remove mode → walk over, then remove
@@ -77,7 +81,7 @@ export class Gameplay implements System {
       sheet: (k) => { this.setPreview(k === 'wardrobe'); this.save.touch(); if (!k) this.panels.refreshBadges(); },
       map: () => this.toggleMap(),
       ui: () => this.g.audio.ui(),
-      trade: (id) => { const n = d.food[id] ?? 0, f = FOODS[id]; if (!n || !f.sea) return; const got = n * (f.trade ?? 1); d.food[id] = 0; d.shells += got; this.g.audio.pop(1.6); this.juice.toast(`Traded ${n} ${f.icon} for <b>+${got} 🐚</b>`); this.save.touch(); this.panels.refreshBadges(); },
+      trade: (id) => { const n = d.food[id] ?? 0, f = FOODS[id]; if (!n || !f.trade) return; const got = n * (f.trade ?? 1); d.food[id] = 0; d.shells += got; this.g.audio.pop(1.6); this.juice.toast(`Traded ${n} ${f.icon} for <b>+${got} 🐚</b>`); this.save.touch(); this.panels.refreshBadges(); },
     }, g.isTouch);
     // swim stamina / current ring (shown when you're far out)
     this.swimUi = document.createElement('div');
@@ -92,7 +96,7 @@ export class Gameplay implements System {
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
-        if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 90 : 110)) { this.walk.cancel(false); this.act(); return; }
+        if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 64 : 56)) { this.walk.cancel(false); this.act(); return; }
       }
       this.tapAt(e.clientX, e.clientY);
     });
@@ -321,6 +325,67 @@ export class Gameplay implements System {
     this.save.touch(); this.panels.refreshBadges();
   }
 
+  /** shovel: dig right in front of you. At the map's X it digs up the chest; elsewhere a hole and maybe a find. */
+  shovel() {
+    const g = this.g, d = this.save.data, pl = g.player;
+    if (this.lockMove > 0 || this.previewOn || g.build.active || this.digCool > 0 || pl.swimming) return false;
+    this.walk.cancel(false);
+    const p = pl.position, f = pl.facingYaw;
+    const x = p.x + Math.sin(f) * 0.75, z = p.z + Math.cos(f) * 0.75;
+    const tr = this.treasure;
+    if (tr.state === 'active' && !tr.busy && Math.hypot(tr.spot.x - x, tr.spot.z - z) < 1.9) { this.dig(); this.digCool = 1.2; return true; }
+    const c = this.digger.check(x, z, (bx, bz) => g.build.occupiedAt(bx, bz));
+    if (!c.ok) {
+      this.digCool = 0.5;
+      g.audio.pop(0.55);
+      if (this.digMsgT <= 0) { this.juice.toast(c.why, 1300); this.digMsgT = 2; }
+      return false;
+    }
+    this.digCool = 0.95; this.lockMove = 0.75;
+    pl.cheer();
+    g.audio.dig(); setTimeout(() => g.audio.dig(), 300);
+    const surface = c.surface;
+    setTimeout(() => {
+      this.digger.hole(x, z, surface, f + Math.PI / 2);
+      d.digs = (d.digs ?? 0) + 1;
+      const owned = WEARABLES.filter((w) => d.owned[w.id]).length;
+      const find = this.digger.roll(x, z, surface, owned, WEARABLES.length);
+      const at = new THREE.Vector3(x, heightAt0(this.g, x, z) + 0.35, z);
+      if (find.kind === 'item') {
+        const fd = FOODS[find.id];
+        d.food[find.id] = (d.food[find.id] ?? 0) + find.n;
+        this.juice.pop(at.clone().add(new THREE.Vector3(0, 0.4, 0)), `+${find.n}`, 'plus', 0.9, 40);
+        this.juice.fly(at, fd.icon, this.panels.bagBtn, () => this.panels.refreshBadges());
+        g.audio.pick();
+        this.juice.toast(`🪏 Dug up ${find.n > 1 ? find.n + '× ' : 'a '}${fd.icon} <b>${fd.name}</b>!`, 1700);
+        this.lastFind = find.id;
+      } else if (find.kind === 'coins') {
+        d.shells += find.n;
+        this.juice.pop(at, `+${find.n} 🐚`, 'plus', 1.1, 40);
+        g.audio.chest(0);
+        this.juice.toast(`🪏 Buried shells! <b>+${find.n} 🐚</b>`, 1500);
+        this.lastFind = 'coins';
+      } else if (find.kind === 'wearable') {
+        const pool = WEARABLES.filter((w) => !d.owned[w.id] && w.rarity <= 1);
+        const item = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+        if (item) {
+          d.owned[item.id] = 1; this.lastReward = item.id;
+          this.juice.pop(at.clone().add(new THREE.Vector3(0, 0.3, 0)), item.icon, 'emote big', 1.8, 60);
+          g.audio.chest(2); pl.cheer();
+          this.juice.toast(`🪏 Something buried! <b style="color:${RARITY[item.rarity].color}">${item.name}</b> added to your wardrobe`, 3000);
+          this.lastFind = item.id;
+        }
+      } else {
+        this.juice.pop(at, '…', 'emote', 1, 15);
+        this.lastFind = 'nothing';
+      }
+      this.save.touch(); this.panels.refreshBadges();
+    }, 480);
+    return true;
+  }
+  /** last free-dig result (tests) */
+  lastFind: string | null = null;
+
   private dig() {
     this.treasure.startDig();
     this.lockMove = 1.1;
@@ -408,6 +473,10 @@ export class Gameplay implements System {
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action
     if (g.input.pressed.has('e') && !g.build.active) this.act();
+    // shovel: F / Dig button, hold to keep digging
+    this.digCool -= dt; this.digMsgT -= dt;
+    if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build.active) this.shovel();
+    this.digger.update(dt);
     // contextual target
     this.targetT -= dt;
     if (this.targetT <= 0) this.target = g.build.active || this.previewOn ? null : this.findTarget(p);
@@ -443,3 +512,5 @@ export class Gameplay implements System {
     this.juice.update(dt);
   }
 }
+
+function heightAt0(g: Game, x: number, z: number) { return g.heightAt(x, z); }

@@ -1,7 +1,8 @@
 /** Static game data: foods, wearables, rarities, dyes, animal tastes. */
 
 export type FoodId = 'apple' | 'cherry' | 'berry' | 'blueberry' | 'acorn' | 'mushroom' | 'pinecone' | 'coconut' | 'cactusfruit' | 'seeds' | 'clover' | 'carrot' | 'reed'
-  | 'conch' | 'seaglass' | 'starfish' | 'pearl';
+  | 'conch' | 'seaglass' | 'starfish' | 'pearl'
+  | 'worm' | 'bug' | 'fossil' | 'gem';
 /** sea items are treasures, not food: they show in the bag and trade for shells */
 export interface FoodDef { id: FoodId; name: string; icon: string; sea?: boolean; trade?: number; }
 export const FOODS: Record<FoodId, FoodDef> = {
@@ -22,6 +23,11 @@ export const FOODS: Record<FoodId, FoodDef> = {
   seaglass: { id: 'seaglass', name: 'Sea glass', icon: '💎', sea: true, trade: 3 },
   starfish: { id: 'starfish', name: 'Starfish', icon: '⭐', sea: true, trade: 2 },
   pearl: { id: 'pearl', name: 'Pearl', icon: '🦪', sea: true, trade: 6 },
+  // dug up with the shovel
+  worm: { id: 'worm', name: 'Wriggly worm', icon: '🪱' },
+  bug: { id: 'bug', name: 'Beetle', icon: '🐞' },
+  fossil: { id: 'fossil', name: 'Fossil', icon: '🦴', trade: 5 },
+  gem: { id: 'gem', name: 'Raw gem', icon: '💠', trade: 7 },
 };
 export const FOOD_ORDER = Object.keys(FOODS) as FoodId[];
 
@@ -29,9 +35,9 @@ export type Species = 'bunny' | 'deer' | 'duck' | 'crab' | 'bird';
 export const TASTES: Record<Species, { fav: FoodId[]; likes: FoodId[]; name: string; icon: string }> = {
   bunny: { name: 'Bunny', icon: '🐰', fav: ['carrot', 'clover'], likes: ['berry', 'blueberry', 'cherry'] },
   deer: { name: 'Deer', icon: '🦌', fav: ['apple'], likes: ['acorn', 'cherry', 'mushroom', 'pinecone'] },
-  duck: { name: 'Duck', icon: '🦆', fav: ['seeds'], likes: ['reed', 'clover', 'berry'] },
+  duck: { name: 'Duck', icon: '🦆', fav: ['seeds'], likes: ['reed', 'clover', 'berry', 'worm'] },
   crab: { name: 'Crab', icon: '🦀', fav: ['coconut'], likes: ['cactusfruit', 'apple', 'seeds'] },
-  bird: { name: 'Bird', icon: '🐦', fav: ['berry', 'blueberry'], likes: ['seeds', 'cherry', 'pinecone'] },
+  bird: { name: 'Bird', icon: '🐦', fav: ['worm', 'bug', 'berry', 'blueberry'], likes: ['seeds', 'cherry', 'pinecone'] },
 };
 
 export type Rarity = 0 | 1 | 2 | 3 | 4;
