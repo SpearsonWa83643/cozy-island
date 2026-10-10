@@ -373,7 +373,7 @@ export class AudioEngine {
   chest(rarity: number) { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 1, 0.45);
     const o = this.tone('sawtooth', 160, t, 0.25, this.sfx(0, 0.25, 0.1), 0.05, 0.02); o.frequency.exponentialRampToValueAtTime(320, t + 0.22);
     const scale = [0, 4, 7, 11, 12, 16, 19, 24];
-    const n = 4 + rarity; for (let i = 0; i < n; i++) { this.tone('triangle', 523.25 * Math.pow(2, scale[i] / 12), t + 0.25 + i * 0.075, 0.9, d, 0.1, 0.004); this.tone('sine', 1046.5 * Math.pow(2, scale[i] / 12), t + 0.27 + i * 0.075, 0.6, d, 0.03); }
+    const n = Math.min(scale.length, 4 + Math.max(0, rarity | 0)); for (let i = 0; i < n; i++) { this.tone('triangle', 523.25 * Math.pow(2, scale[i] / 12), t + 0.25 + i * 0.075, 0.9, d, 0.1, 0.004); this.tone('sine', 1046.5 * Math.pow(2, scale[i] / 12), t + 0.27 + i * 0.075, 0.6, d, 0.03); }
     this.noiseHit(t + 0.25, 1.2, d, 'highpass', 6000, 0.5, 0.025, 0.05); }
   /** warmer/colder ping: closeness 0..1 */
   warm(closeness: number) { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.5, 0.5);
