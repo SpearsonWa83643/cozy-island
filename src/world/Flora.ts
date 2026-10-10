@@ -221,7 +221,7 @@ export class Flora {
     stems.receiveShadow = heads.receiveShadow = true;
     stems.frustumCulled = heads.frustumCulled = false;
     this.group.add(stems, heads);
-    this.scalable.push({ mesh: stems, max: i, low: 0.5 }, { mesh: heads, max: i, low: 0.5 });
+    this.scalable.push({ mesh: stems, max: i, low: 0.35 }, { mesh: heads, max: i, low: 0.35 });
   }
 
   private buildGrass(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
@@ -330,7 +330,7 @@ export class Flora {
   }
 
   setQuality(high: boolean) {
-    this.grass.count = Math.floor(this.grassMax * (high ? 1 : 0.35));
+    this.grass.count = Math.floor(this.grassMax * (high ? 1 : 0.3));
     for (const s of this.scalable) s.mesh.count = Math.floor(s.max * (high ? 1 : s.low));
   }
 

@@ -179,7 +179,7 @@ export class Terrain {
   indices: Uint32Array;
 
   constructor() {
-    const seg = 240;
+    const seg = 200;
     const geo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, seg, seg);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;

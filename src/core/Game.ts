@@ -153,6 +153,13 @@ export class Game {
   setQuality(q: Quality) {
     this.renderer.setQuality(q);
     const high = q === 'high';
+    const size = high ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== size) {
+      this.sun.shadow.mapSize.set(size, size);
+      this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
+    }
+    const ext = high ? 34 : 26, sc = this.sun.shadow.camera;
+    sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix();
     this.flora.setQuality(high);
     this.fauna.setQuality(high);
     this.particles.setQuality(high);

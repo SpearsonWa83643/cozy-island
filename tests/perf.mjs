@@ -1,30 +1,28 @@
-// Rough frame-time probe (software rendering on the box: compare runs, not absolute numbers).
-// Usage: node tests/perf.mjs [baseUrl]
+// Rough frame-time probe on Low (software rendering on the box: compare runs back-to-back, not absolute numbers).
+// Usage: node tests/perf.mjs [baseUrl ...]   (several URLs are measured alternately for A/B)
 import { chromium, devices } from 'playwright';
-const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
+const urls = process.argv.filter((a) => a.startsWith('http'));
+if (!urls.length) urls.push('http://localhost:4181/cozy-island/');
+const rounds = +(process.argv.find((a) => a.startsWith('--rounds='))?.slice(9) ?? 1);
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const out = {};
-for (const [name, opts, q] of [
-  ['ipad-low', { ...devices['iPad Pro 11 landscape'], deviceScaleFactor: 1 }, 'low'],
-  ['desktop-low', { viewport: { width: 1440, height: 810 } }, 'low'],
-]) {
-  const ctx = await browser.newContext(opts);
+for (let r = 0; r < rounds; r++) for (const base of urls) {
+  const ctx = await browser.newContext({ ...devices['iPad Pro 11 landscape'], deviceScaleFactor: 1 });
   const page = await ctx.newPage();
-  page.setDefaultTimeout(240000);
-  await page.goto(`${base}?webgl&q=${q}`);
+  page.setDefaultTimeout(300000);
+  await page.goto(`${base}?webgl&q=low`);
   await page.waitForFunction(() => window.game?.ready);
-  const ms = await page.evaluate(async () => {
+  const res = await page.evaluate(async () => {
     const g = window.game;
     g.player.teleport(0, 6, Math.PI); g.rig.yaw = 0.3; g.rig.pitch = 0.35; g.rig.distance = 9;
-    const frames = (n) => new Promise((res) => { let k = 0; const f = () => (++k >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
-    await frames(5);
-    const t0 = performance.now(); await frames(12); const raf = (performance.now() - t0) / 12;
-    // CPU-side sim cost
+    const frames = (n) => new Promise((res) => { const ts = []; let k = 0; const f = (t) => { ts.push(t); (++k >= n ? res(ts) : requestAnimationFrame(f)); }; requestAnimationFrame(f); });
+    await frames(30);
+    const ts = await frames(25);
+    const d = ts.slice(1).map((t, i) => t - ts[i]).sort((a, b) => a - b);
     const t1 = performance.now(); for (let i = 0; i < 120; i++) g.step(1 / 60); const sim = (performance.now() - t1) / 120;
-    return { frameMs: +raf.toFixed(1), simMs: +sim.toFixed(2), calls: g.renderer.renderer.info.render.drawCalls ?? g.renderer.renderer.info.render.calls };
+    const info = g.renderer.renderer.info.render;
+    return { medianFrameMs: +d[Math.floor(d.length / 2)].toFixed(1), simMs: +sim.toFixed(2), drawCalls: info.drawCalls ?? info.calls, triangles: info.triangles };
   });
-  out[name] = ms;
-  console.log(name, ms);
+  console.log(base, res);
   await ctx.close();
 }
 await browser.close();

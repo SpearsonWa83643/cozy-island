@@ -9,7 +9,10 @@
     "preview": "vite preview --port 4180 --strictPort --host",
     "shots": "node tests/screenshots.mjs",
     "serve:subpath": "node tests/subpath-server.mjs",
-    "test:touch": "node tests/touch.mjs"
+    "test:touch": "node tests/touch.mjs",
+    "test:audio": "node tests/audio.mjs",
+    "shots:biomes": "node tests/biomes.mjs",
+    "perf": "node tests/perf.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

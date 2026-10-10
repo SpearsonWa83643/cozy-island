@@ -33,6 +33,7 @@ export class AudioEngine {
   private white!: AudioBuffer; private pink!: AudioBuffer; private brown!: AudioBuffer;
   private beds: Record<string, { gain: GainNode; pan?: StereoPannerNode; filter?: BiquadFilterNode; filter2?: BiquadFilterNode; level: number }> = {};
   private music: MusicGen | null = null;
+  private analyser: AnalyserNode | null = null;
   private timer = 0;
   private listen: Listen | null = null;
   private eventClock = 0;
@@ -57,8 +58,8 @@ export class AudioEngine {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.settings.muted ? 0 : 0.9, t, 0.08);
-    this.musicBus.gain.setTargetAtTime(this.settings.music * this.settings.music * 0.9, t, 0.1);
-    this.ambBus.gain.setTargetAtTime(this.settings.ambience * this.settings.ambience, t, 0.1);
+    this.musicBus.gain.setTargetAtTime(this.settings.music * this.settings.music * 2.2, t, 0.1);
+    this.ambBus.gain.setTargetAtTime(this.settings.ambience * this.settings.ambience * 1.25, t, 0.1);
     this.sfxBus.gain.setTargetAtTime(0.35 + this.settings.ambience * 0.65, t, 0.1);
   }
 
@@ -83,6 +84,7 @@ export class AudioEngine {
     comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.4;
     this.master = ctx.createGain(); this.master.gain.value = 0;
     this.master.connect(comp).connect(ctx.destination);
+    this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 1024; comp.connect(this.analyser);
     this.musicBus = ctx.createGain(); this.ambBus = ctx.createGain(); this.sfxBus = ctx.createGain();
     this.musicBus.connect(this.master); this.ambBus.connect(this.master); this.sfxBus.connect(this.master);
     this.reverb = ctx.createConvolver(); this.reverb.buffer = this.impulse(ctx, 3.4, 2.6);
@@ -355,5 +357,11 @@ export class AudioEngine {
     if (big) for (let i = 0; i < 4; i++) this.tone('sine', rand(900, 1800), t + 0.12 + i * rand(0.03, 0.07), 0.05, d, 0.05, 0.003);
   }
   ui() { if (!this.started) return; const t = this.ctx!.currentTime; this.tone('sine', 1320, t, 0.12, this.sfx(0, 0.5, 0.1), 0.08, 0.003); }
+  /** RMS output level (debug / tests) */
+  level(): number {
+    if (!this.analyser) return 0;
+    const d = new Float32Array(this.analyser.fftSize); this.analyser.getFloatTimeDomainData(d);
+    let s = 0; for (const v of d) s += v * v; return Math.sqrt(s / d.length);
+  }
   dispose() { clearInterval(this.timer); this.ctx?.close(); }
 }
