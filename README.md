@@ -82,3 +82,31 @@ Design notes and research are in [`docs/design-research.md`](docs/design-researc
 - **Sea treasures:** 🐚 conch shells, 💎 sea glass, ⭐ starfish and 🦪 pearls lie on the reef. Swim over one and press **Collect** (E / action button). They respawn over time, and in the Bag you can trade them for 🐚 shells to spend on dyes.
 - **Drifting bottles:** message bottles bob on the reef. They hold the treasure map if you haven't found it yet, otherwise a piece of the **seaside set**: Sailor Cap, Fish Hat, Captain Hat, Coral Crown, Swim Goggles, Snorkel Mask, Kelp Scarf, Shell Necklace, Pearl Necklace, Duck Floatie, Kelp Sprout, Pearl Sprout, Sailor Stripes. The new pieces also drop from chests.
 - Tests: `node tests/swim.mjs`, which swims out to the limit and back, checks the shallows in every direction, collects a sea item, opens two bottles, trades treasures, and runs an iPad Low joystick swim. Screenshots are `screenshots/24-28-*.png`.
+
+## Moving on iPad, digging, and the Crystal Cave
+
+**Floating joystick.** Put your thumb down and drag: a joystick appears right under it, and its base follows your thumb if you drag past the rim. It feels like the 2D game's stick (wakes after 12 px, 62 px radius). In the HUD, **🕹️ Auto / Left / Right** picks which side it lives on, and the choice is saved:
+- **Left** or **Right**: that half of the screen is the stick; a drag on the other half orbits the camera.
+- **Auto**: the stick can start from either side in the lower 60% of the screen; drag up high (or with a second finger) to look around.
+
+Putting two fingers down together is always a pinch.
+
+**Tap / click to walk.** A quick tap on the ground walks you there, steering around small obstacles, with a soft ring marking the spot. Tap something you can use (food, sea treasure, bottle, chest, dig spot, an animal you have food for, the mole, or a far build piece in Remove mode) and you walk over and use it when you arrive. Touching the joystick or WASD cancels the walk. On desktop a click does the same; a drag still orbits, and build mode still places pieces.
+
+**Digging.** Press **F** on desktop, or tap/hold **🪏 Dig** on iPad, to dig in front of you. It works on grass, sand, dirt, leaves and snow, but not rock or water. Each dig leaves a hole with a mound and flying dirt, and the hole heals over in about 95 s. What you find depends on the biome: worms 🪱 and beetles 🐞 (birds and the mole love them), seeds, buried shells, fossils 🦴, raw gems 💠, conches on the beach, and now and then a wearable. Digging at the map's X digs up the chest.
+
+**A bigger island.** It's about 15% bigger in each direction (area ×1.32), with flora density scaled to match.
+
+**The Crystal Cave.** Find the rocky arch on the hillside between the Alpine Peak and the Desert; bats circle above it. Walk in, and the view fades into a cavern far underground:
+- glowing crystals and glowcap mushrooms, with their light baked into the rock
+- stalactites and stalagmites, and a glowing pool with cave fish
+- bats that flutter when you get close, beetles, and a shy **mole** that pops up to see you
+- dripping echoes in the audio
+
+Underground, the camera pulls in and never goes through the ceiling or walls.
+- **Finds:** cave crystals 🔮, glowcaps 🍄, geodes 🪨 and ancient relics 🏺.
+- **Cave set:** Miner Helmet with a lamp beam, Crystal Crown, Bat Wings, Crystal Pendant, Glowcap Sprout. The first geode always holds a piece of it; the mole gives the Miner Helmet for your first worm.
+
+Only one side is drawn at a time (island or cave).
+
+Tests: `node tests/move.mjs`, `node tests/dig.mjs`, `node tests/cave.mjs` (screenshots 29–41).
