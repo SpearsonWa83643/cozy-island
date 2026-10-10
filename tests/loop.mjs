@@ -168,7 +168,7 @@ if (!process.argv.includes('--skip-ipad')) {
   for (const want of ['cherry', 'apple', 'carrot']) {
     const info = await page.evaluate((want) => {
       const g = window.game, p = g.player.position;
-      const it = g.play.forage.items.filter((i) => i.id === want && i.active).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
+      const it = g.play.forage.items.filter((i) => i.id === want && i.active && !g.fauna.nearestFeedable(i.x, i.z, 3.5)).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
       if (!it) return null;
       g.player.teleport(it.x + 0.8, it.z, -Math.PI / 2);
       for (let i = 0; i < 6; i++) g.step(1 / 30);
