@@ -83,6 +83,7 @@ export class Game {
     this.scene.add(createWater(this.terrain.heightTexture));
     lap('water');
     this.flora = new Flora(this.physics, SPAWN);
+    this.terrain.bakeAO(this.flora.aoPoints);
     lap('flora');
     this.scene.add(this.flora.group);
     this.particles = new Particles();

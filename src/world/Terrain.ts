@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { attribute, cameraPosition, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
 import { Noise2D } from './noise';
 import { Biome, BiomeField, BIOME_CENTERS, BIOME_COUNT, POND, biomeWeightsRaw } from './Biomes';
 
@@ -176,6 +177,7 @@ export class Terrain {
   mesh: THREE.Mesh;
   heightTexture: THREE.DataTexture;
   vertices: Float32Array;
+  private seg = 200;
   indices: Uint32Array;
 
   constructor() {
@@ -184,6 +186,7 @@ export class Terrain {
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     const colors = new Float32Array(pos.count * 3);
+    const mask = new Float32Array(pos.count * 4);
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
@@ -191,11 +194,33 @@ export class Terrain {
       pos.setY(i, h);
       if (h < -3.3) c.copy(SEABED); else terrainColor(x, z, h, c);
       colors.set([c.r, c.g, c.b], i * 3);
+      // detail masks for the shader: sand, snow, rock(slope), grass
+      const w = biomes.sample(x, z, wS);
+      const sandTop = 0.55 + w[Biome.Tropical] * 0.85;
+      const sand = Math.max(smooth(sandTop + 0.4, sandTop, h), w[Biome.Desert] * 0.8);
+      const snow = snowAt(x, z, h);
+      const rock = smooth(0.45, 0.85, slopeAt(x, z));
+      mask.set([sand, snow, rock, Math.max(0, 1 - sand - snow - rock)], i * 4);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('mask', new THREE.BufferAttribute(mask, 4));
+    this.seg = seg;
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+    // Procedural detail layer (no textures): grass clumps, sand ripples, rock strata, snow/sand glints.
+    const mk = attribute('mask', 'vec4');
+    const pw = positionWorld;
+    const n1 = mx_noise_float(pw.xz.mul(1.7)), n2 = mx_noise_float(pw.xz.mul(0.33));
+    const grassD = n1.mul(0.11).add(n2.mul(0.09));
+    const ripple = sin(pw.x.mul(2.4).add(pw.z.mul(1.3)).add(n2.mul(3.5))).mul(0.05).add(n1.mul(0.03));
+    const strata = sin(pw.y.mul(6.5).add(n1.mul(1.6))).mul(0.08);
+    const detail = float(1).add(grassD.mul(mk.w)).add(ripple.mul(mk.x)).add(strata.mul(mk.z)).add(n1.mul(0.025).mul(mk.y));
+    mat.colorNode = vec3(detail);
+    const cell = floor(pw.mul(13));
+    const hsh = fract(sin(dot(cell.xz.add(cell.y).add(floor(cameraPosition.xz.mul(1.5))), vec2(12.9898, 78.233))).mul(43758.5453));
+    const glint = step(0.99, hsh).mul(mk.y.mul(0.8).add(mk.x.mul(0.12)));
+    mat.emissiveNode = vec3(glint).mul(smoothstep(float(60), float(10), pw.sub(cameraPosition).length()));
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.receiveShadow = true;
     this.mesh.name = 'terrain';
@@ -220,6 +245,26 @@ export class Terrain {
     this.heightTexture.minFilter = THREE.LinearFilter;
     this.heightTexture.wrapS = this.heightTexture.wrapT = THREE.ClampToEdgeWrapping;
     this.heightTexture.needsUpdate = true;
+  }
+
+  /** Darken the ground under trees/bushes (cheap baked contact AO). */
+  bakeAO(points: { x: number; z: number; r: number }[]) {
+    const col = this.mesh.geometry.attributes.color as THREE.BufferAttribute;
+    const n = this.seg + 1, step = WORLD_SIZE / this.seg;
+    for (const p of points) {
+      const R = p.r * 1.7;
+      const i0 = Math.max(0, Math.floor((p.x - R + WORLD_SIZE / 2) / step)), i1 = Math.min(n - 1, Math.ceil((p.x + R + WORLD_SIZE / 2) / step));
+      const j0 = Math.max(0, Math.floor((p.z - R + WORLD_SIZE / 2) / step)), j1 = Math.min(n - 1, Math.ceil((p.z + R + WORLD_SIZE / 2) / step));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const x = i * step - WORLD_SIZE / 2, z = j * step - WORLD_SIZE / 2;
+        const d = Math.hypot(x - p.x, z - p.z);
+        if (d > R) continue;
+        const f = 1 - 0.24 * smooth(R, p.r * 0.25, d);
+        const k = j * n + i;
+        col.setXYZ(k, col.getX(k) * f, col.getY(k) * f, col.getZ(k) * f);
+      }
+    }
+    col.needsUpdate = true;
   }
 
   /** Ray march the height field (much cheaper than mesh raycasting). */

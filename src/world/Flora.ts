@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import {
   attribute, bool, clamp, cos, dot, float, floor, fract, length, mix, positionLocal, positionWorld,
   screenCoordinate, sin, smoothstep, time, uniform, uv, vec2, vec3,
+  mx_noise_float, normalize, cameraPosition, pow, normalView, positionViewDirection, vertexColor,
 } from 'three/tsl';
 import { mulberry32 } from './noise';
 import { Biome, BIOME_COUNT, POND } from './Biomes';
@@ -13,6 +14,7 @@ import type { Physics } from '../core/Physics';
 export const fadeCam = uniform(new THREE.Vector3(0, 50, 50));
 export const fadeTarget = uniform(new THREE.Vector3());
 export const windStrength = uniform(1);
+export const sunDirU = uniform(new THREE.Vector3(-0.5, 0.78, -0.6).normalize());
 
 /** Vertex-coloured, flat-shaded, wind-swaying material that dithers out when it blocks the camera. */
 export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) {
@@ -26,6 +28,15 @@ export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) 
     cos(t.mul(1.1).add(pl.z.mul(0.3))).mul(0.7),
   ).mul(0.055).mul(sway).mul(windStrength);
   m.positionNode = pl.add(wv);
+  // subtle world-space grain (bark / leaf / rock variation) instead of textures
+  const pw = positionWorld;
+  const grain = mx_noise_float(pw.mul(3.2)).mul(0.07).add(mx_noise_float(pw.mul(0.7)).mul(0.06)).add(1);
+  m.colorNode = vec3(grain);
+  // rim light + fake foliage translucency (canopy glows when looking toward the sun)
+  const vdir = normalize(pw.sub(cameraPosition));
+  const rim = pow(float(1).sub(clamp(dot(normalView, positionViewDirection), 0, 1)), 3);
+  const back = pow(clamp(dot(vdir, sunDirU), 0, 1), 3).mul(sway.min(1));
+  m.emissiveNode = vertexColor().mul(rim.mul(0.16).add(back.mul(0.45)));
   m.maskNode = occlusionMask();
   m.maskShadowNode = bool(true); // shadows stay solid
   return m;
@@ -36,7 +47,8 @@ export function occlusionMask() {
   const ct = tg.sub(c);
   const tt = clamp(dot(p.sub(c), ct).div(dot(ct, ct).max(0.001)), 0, 1);
   const d = length(p.sub(c.add(ct.mul(tt))));
-  const fade = smoothstep(float(1.9), float(1.0), d).mul(smoothstep(float(0.93), float(0.78), tt));
+  const rad = mix(float(0.8), float(1.9), tt);
+  const fade = smoothstep(rad, rad.mul(0.5), d).mul(smoothstep(float(0.93), float(0.78), tt));
   // interleaved gradient noise: even, low-clump dither
   const hash = fract(fract(dot(floor(screenCoordinate.xy), vec2(0.06711056, 0.00583715))).mul(52.9829189));
   return hash.greaterThan(fade.mul(0.92));
@@ -99,12 +111,14 @@ export class Flora {
   group = new THREE.Group();
   private scalable: { mesh: THREE.InstancedMesh; max: number; low: number }[] = [];
   grass!: THREE.InstancedMesh;
-  private grassMax = 0;
   leafLitter!: THREE.InstancedMesh;
   clouds: THREE.Group[] = [];
   /** tree positions (for birds landing / audio density) */
   trees: THREE.Vector3[] = [];
   flowerSpots: THREE.Vector3[] = [];
+  /** every placed plant (used for foraging spots) */
+  aoPoints: { x: number; z: number; r: number }[] = [];
+  spots: { name: string; x: number; z: number; h: number; sc: number }[] = [];
 
   constructor(physics: Physics, spawn: THREE.Vector2) {
     const rnd = mulberry32(42);
@@ -157,9 +171,11 @@ export class Flora {
           const br = 0.88 + rnd() * 0.24;
           im.setColorAt(placed, tint.setRGB(br, br, br * (0.95 + rnd() * 0.1)));
           if (spec.collide === 'trunk') { physics.addCylinder(x, h + 1, z, 1, 0.28 * sc); this.trees.push(new THREE.Vector3(x, h, z)); }
+          if (spec.shadow !== false && !spec.water) this.aoPoints.push({ x, z, r: (spec.collide === 'trunk' ? 1.4 : 0.6) * sc });
           if (spec.collide === 'cactus') physics.addCylinder(x, h + 1.2, z, 1.2, 0.35 * sc);
           if (spec.collide === 'ball') physics.addBall(x, h + 0.2, z, 0.75 * sc);
           if (spec.name === 'sunflower' || spec.name === 'lupine' || spec.name === 'hibiscus') this.flowerSpots.push(new THREE.Vector3(x, h, z));
+          this.spots.push({ name: spec.name, x, z, h, sc });
           placed++;
         }
         im.count = placed;
@@ -174,7 +190,47 @@ export class Flora {
     this.buildFlowers(rnd, free);
     this.buildGrass(rnd, free);
     this.buildLeafLitter(rnd);
+    this.chunkAll();
     this.buildClouds(rnd);
+  }
+
+  /**
+   * Split every island-wide InstancedMesh into 3x3 regional chunks so the
+   * renderer can frustum-cull them (main camera and the sun's shadow camera).
+   */
+  private chunkAll() {
+    const N = 3, size = 108, cell = size / N;
+    const lowOf = new Map<THREE.InstancedMesh, number>();
+    for (const s of this.scalable) lowOf.set(s.mesh, s.low);
+    lowOf.set(this.grass, 0.3);
+    const next: { mesh: THREE.InstancedMesh; max: number; low: number }[] = [];
+    const m = new THREE.Matrix4(), c = new THREE.Color(), p = new THREE.Vector3();
+    for (const im of [...this.group.children] as THREE.InstancedMesh[]) {
+      if (!im.isInstancedMesh) continue;
+      const buckets: number[][] = Array.from({ length: N * N }, () => []);
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, m); p.setFromMatrixPosition(m);
+        const cx = Math.min(N - 1, Math.max(0, Math.floor((p.x + size / 2) / cell)));
+        const cz = Math.min(N - 1, Math.max(0, Math.floor((p.z + size / 2) / cell)));
+        buckets[cz * N + cx].push(i);
+      }
+      this.group.remove(im);
+      for (const b of buckets) {
+        if (!b.length) continue;
+        const ch = new THREE.InstancedMesh(im.geometry, im.material, b.length);
+        b.forEach((src, k) => {
+          im.getMatrixAt(src, m); ch.setMatrixAt(k, m);
+          if (im.instanceColor) { im.getColorAt(src, c); ch.setColorAt(k, c); }
+        });
+        ch.castShadow = im.castShadow; ch.receiveShadow = im.receiveShadow; ch.name = im.name;
+        ch.computeBoundingSphere();
+        ch.frustumCulled = true;
+        this.group.add(ch);
+        const low = lowOf.get(im);
+        if (low !== undefined) next.push({ mesh: ch, max: b.length, low });
+      }
+    }
+    this.scalable = next;
   }
 
   private buildFlowers(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
@@ -272,7 +328,7 @@ export class Flora {
       grass.setColorAt(i, c);
       i++;
     }
-    grass.count = i; this.grassMax = i;
+    grass.count = i;
     grass.receiveShadow = true; grass.castShadow = false; grass.frustumCulled = false;
     this.grass = grass;
     this.group.add(grass);
@@ -330,7 +386,6 @@ export class Flora {
   }
 
   setQuality(high: boolean) {
-    this.grass.count = Math.floor(this.grassMax * (high ? 1 : 0.3));
     for (const s of this.scalable) s.mesh.count = Math.floor(s.max * (high ? 1 : s.low));
   }
 

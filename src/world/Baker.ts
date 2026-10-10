@@ -6,6 +6,8 @@ import * as THREE from 'three/webgpu';
  * geometry = one InstancedMesh = one draw call for any number of plants/creatures.
  */
 export class Baker {
+  /** bake ambient occlusion into vertex colours */
+  ao = true;
   private parts: { g: THREE.BufferGeometry; c: THREE.Color; sway: number | ((y: number) => number) }[] = [];
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -27,11 +29,19 @@ export class Baker {
     for (const p of this.parts) n += p.g.attributes.position.count;
     const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), sw = new Float32Array(n);
     let o = 0;
+    let topY = 0.05;
+    for (const p of this.parts) { p.g.computeBoundingBox(); topY = Math.max(topY, p.g.boundingBox!.max.y); }
+    const aoH = Math.min(0.7, topY * 0.5);
     for (const p of this.parts) {
       const a = p.g.attributes.position as THREE.BufferAttribute;
+      p.g.computeBoundingBox();
+      const bb = p.g.boundingBox!, cy = (bb.min.y + bb.max.y) / 2, hy = Math.max(0.05, (bb.max.y - bb.min.y) / 2);
       for (let i = 0; i < a.count; i++) {
         pos[(o + i) * 3] = a.getX(i); pos[(o + i) * 3 + 1] = a.getY(i); pos[(o + i) * 3 + 2] = a.getZ(i);
-        col[(o + i) * 3] = p.c.r; col[(o + i) * 3 + 1] = p.c.g; col[(o + i) * 3 + 2] = p.c.b;
+        // baked AO: darker near the ground and on the underside of each blob
+        const y = a.getY(i);
+        const ao = this.ao ? (0.7 + 0.3 * Math.min(1, Math.max(0, y / aoH))) * (0.86 + 0.14 * Math.min(1, Math.max(0, (y - cy) / hy * 0.5 + 0.5))) : 1;
+        col[(o + i) * 3] = p.c.r * ao; col[(o + i) * 3 + 1] = p.c.g * ao; col[(o + i) * 3 + 2] = p.c.b * ao;
         sw[o + i] = typeof p.sway === 'function' ? p.sway(a.getY(i)) : p.sway;
       }
       o += a.count;
