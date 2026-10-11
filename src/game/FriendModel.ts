@@ -20,6 +20,8 @@ export interface Rig {
   dirtSpots: { p: THREE.Vector3; n: THREE.Vector3; r: number }[];
   dirtParent: THREE.Group;
   height: number;
+  /** widest extent seen from the front-ish camera (framing) */
+  width: number;
   pickables: THREE.Object3D[];
 }
 
@@ -68,7 +70,7 @@ function spotsOnEllipsoid(center: THREE.Vector3, rad: THREE.Vector3, n: number, 
 }
 function base(): Rig {
   const root = new THREE.Group(), body = pivot(root, [0, 0, 0]);
-  return { root, body, head: new THREE.Group(), eyes: [], ears: [], tail: null, wings: [], claws: [], nose: null, mouth: new THREE.Vector3(), dirtSpots: [], dirtParent: body, height: 1, pickables: [] };
+  return { root, body, head: new THREE.Group(), eyes: [], ears: [], tail: null, wings: [], claws: [], nose: null, mouth: new THREE.Vector3(), dirtSpots: [], dirtParent: body, height: 1, width: 1.1, pickables: [] };
 }
 
 function bunny(col: string): Rig {
@@ -101,7 +103,7 @@ function deer(): Rig {
   for (let i = 0; i < 6; i++) b.add(m(S(0.05), cream, [(i % 2 ? -1 : 1) * 0.17, 1.28 + (i % 3) * 0.04, -0.35 + i * 0.12], [0, 0, 0], [1, 0.5, 1]));
   for (const [x, z] of [[-0.18, 0.38], [0.18, 0.38], [-0.18, -0.45], [0.18, -0.45]]) { b.add(m(C(0.06, 0.05, 0.85), d, [x, 0.45, z])); b.add(m(S(0.065), '#4a3426', [x, 0.04, z], [0, 0, 0], [1, 0.6, 1.2])); }
   r.tail = pivot(b, [0, 1.15, -0.62], [-0.6, 0, 0]); r.tail.add(m(S(0.1), '#ffffff', [0, 0.06, 0], [0, 0, 0], [0.8, 1.3, 0.7]));
-  const neck = pivot(b, [0, 1.25, 0.42], [-0.45, 0, 0]); neck.add(m(C(0.13, 0.17, 0.55), c, [0, 0.25, 0]));
+  const neck = pivot(b, [0, 1.2, 0.4], [0.42, 0, 0]); neck.add(m(C(0.12, 0.17, 0.62), c, [0, 0.28, 0]));
   r.head = pivot(b, [0, 1.72, 0.62]);
   const h = r.head;
   h.add(m(S(0.24), c, [0, 0, 0], [0, 0, 0], [1, 0.95, 1.1]));
@@ -118,7 +120,7 @@ function deer(): Rig {
   }
   r.mouth.set(0, -0.15, 0.4);
   r.dirtSpots = spotsOnEllipsoid(new THREE.Vector3(0, 1.05, -0.05), new THREE.Vector3(0.34, 0.34, 0.7), 10, 0.1, (n) => Math.abs(n.z) < 0.85);
-  r.height = 2.05;
+  r.height = 2.05; r.width = 1.5;
   return r;
 }
 function duck(): Rig {
@@ -169,7 +171,7 @@ function crab(): Rig {
   }
   r.mouth.set(0, -0.12, 0.25);
   r.dirtSpots = spotsOnEllipsoid(new THREE.Vector3(0, 0.36, 0), new THREE.Vector3(0.56, 0.26, 0.42), 8, 0.1, (n) => n.y > 0.1);
-  r.height = 1.15;
+  r.height = 1.1; r.width = 1.9;
   return r;
 }
 function bird(col: string): Rig {

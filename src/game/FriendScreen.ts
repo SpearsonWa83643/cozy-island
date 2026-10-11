@@ -227,11 +227,11 @@ export class FriendScreen {
 
   /** frame the camera on the creature, leaving room for the card (top) and the tool bar (bottom) */
   frame() {
-    const cam = this.g.camera, h = this.rig?.height ?? 1.4;
-    const fov = THREE.MathUtils.degToRad(cam.fov), asp = cam.aspect;
-    let dist = (h / 0.5) / (2 * Math.tan(fov / 2));
-    if (asp < 1.05) dist /= Math.max(0.55, asp * 0.95);
-    const look = new THREE.Vector3(0, h * 0.42, 0).add(STUDIO);
+    const cam = this.g.camera, h = this.rig?.height ?? 1.4, wd = this.rig?.width ?? 1.1;
+    const fov = THREE.MathUtils.degToRad(cam.fov), asp = cam.aspect, tn = 2 * Math.tan(fov / 2);
+    // fit the height into ~46% of the view (room for the card and tool bar) and the width into ~60%
+    const dist = Math.max((h / 0.46) / tn, (wd / 0.6) / (tn * asp));
+    const look = new THREE.Vector3(0, h * 0.47, 0).add(STUDIO);
     cam.position.set(STUDIO.x + dist * 0.22, STUDIO.y + h * 0.62 + dist * 0.12, STUDIO.z + dist);
     cam.lookAt(look);
     cam.updateMatrixWorld();

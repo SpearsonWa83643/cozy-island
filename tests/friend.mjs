@@ -33,7 +33,7 @@ const befriend = (page) => page.evaluate(() => {
   const p = g.player.position;
   g.fauna.befriend(ref, 300, p.x + 1.2, p.z - 0.6);
   d.food = { carrot: 3, coconut: 2, berry: 1 };
-  for (let i = 0; i < 4; i++) g.step(1 / 30);
+  for (let i = 0; i < 90; i++) g.step(1 / 30); // let it settle into its follow slot
   return g.fauna.keyOf(ref);
 });
 // THREE isn't global: project manually
@@ -130,13 +130,16 @@ async function flow(page, inp, label, full) {
   const food = await page.evaluate(() => ({ ...window.game.play.save.data.food }));
   ok(`${label}: feed tray; disliked food → head shake (kept); favourite → chomp, fuller`, tray[0] === 'carrot' && s.stats.dislike >= 1 && afterBad === 2 && s.stats.eat >= 1 && food.carrot === 2 && s.full > 0.8, JSON.stringify({ tray, dislike: s.stats.dislike, coconut: afterBad, eat: s.stats.eat, carrot: food.carrot, full: +s.full.toFixed(2) }));
   // ---- friendship level up → trick, then use it
-  await page.evaluate(() => { const f = window.game.play.friend; f.pet.love = 7.9; f.setMode ? 0 : 0; });
+  const lv0 = await page.evaluate(() => { const f = window.game.play.friend, l = f.pet.lvl; f.pet.love = 4 * (l + 1) * l - 0.15; return f.stats.levelUp; });
   await inp.click('.fs-tool[data-mode="pet"]');
   w = await where(page);
   await inp.down(w.body.x - 30, w.body.y);
-  for (let i = 0; i < 16; i++) { await inp.move(w.body.x - 30 + (i % 8) * 8, w.body.y); await page.evaluate(() => { const f = window.game.play.friend; for (let k = 0; k < 2; k++) f.update(1 / 30); }); }
+  for (let i = 0; i < 30; i++) {
+    await inp.move(w.body.x - 30 + (i % 8) * 8, w.body.y);
+    const up = await page.evaluate(() => { const f = window.game.play.friend; for (let k = 0; k < 2; k++) f.update(1 / 30); return f.stats.levelUp; });
+    if (up > lv0) { await inp.up(w.body.x, w.body.y); if (full) { await page.waitForTimeout(350); await page.screenshot({ path: outDir + '46-friend-levelup.png' }); console.log('saved 46-friend-levelup'); } break; }
+  }
   await inp.up(w.body.x, w.body.y);
-  if (full) await shot(page, '46-friend-levelup');
   await inp.click('.fs-tool.trick');
   await steps(page, 4);
   s = await fst(page);
@@ -194,8 +197,9 @@ if (!process.argv.includes('--skip-ipad')) {
   const key = await befriend(page);
   const sp = await friendScreenPos(page);
   await inp.tap(sp.x, sp.y);
-  await page.evaluate(() => { window.game.rig.locked = false; });
   let s = await fst(page);
+  for (let k = 0; k < 2 && !s.open; k++) { const p2 = await friendScreenPos(page); await inp.tap(p2.x, p2.y); s = await fst(page); }
+  await page.evaluate(() => { window.game.rig.locked = false; });
   ok('iPad: tap a follower opens the friend screen', s.open);
   if (s.open) {
     await page.evaluate(() => { const f = window.game.play.friend; f.pet.clean = 0.4; f.hide(); f.show(window.game.fauna.friends()[0]); });
