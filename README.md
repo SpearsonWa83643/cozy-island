@@ -110,3 +110,21 @@ Underground, the camera pulls in and never goes through the ceiling or walls.
 Only one side is drawn at a time (island or cave).
 
 Tests: `node tests/move.mjs`, `node tests/dig.mjs`, `node tests/cave.mjs` (screenshots 29–41).
+
+## Free look button (iPad)
+
+An **👁️ eye button** sits above the action button. Press it and drag anywhere to look around: the orbit is smooth and eased, and letting go ends it. Your other thumb can keep using the floating joystick at the same time, and pinch still zooms. With **Right** handedness the eye moves to the left side so it stays under your free thumb. Dragging on open ground still orbits like before.
+
+## Friend close-up
+
+**Tap or click a follower** (or **💗 Visit** in the Bag) to open its friend screen. The world pauses and your friend sits in a cozy little studio with a soft, out-of-focus backdrop.
+
+- **Card:** an auto-generated name (tap ✏️ to rename), species, friendship level, and 💗 friendship, 🍎 tummy and 🫧 cleanliness meters.
+- **🤚 Pet:** drag on the creature. It leans into your hand, closes its eyes happily, purrs, and hearts float up. Rub fast back and forth to tickle it (giggles and wiggles). Keep petting and it gets sleepy 💤. A quick tap says hi with its species quirk.
+- **🧽 Clean:** animals get dusty over time, faster in the marsh, when you dig near them, or while they wait for you to swim. Scrub with the sponge to wash off the mud spots (bubbles and sparkles), then it does a little shake-off.
+- **🍎 Feed:** pick a snack from your bag (♥ marks favourites). Liked food gets chomped and fills its tummy. Food it dislikes gets a head shake and goes back in your bag.
+- **Always lively:** it blinks, follows your finger or cursor with its eyes, wiggles its ears and tail, and hops. Each species has a quirk: bunny nose twitch, duck quack and wing flap, deer ear flick, crab claw clicks, bird chirp hop.
+- **Friendship levels** bring rewards: Lv 2 teaches a 🌀 Spin trick (✨ Trick button), Lv 3 gives a species gift wearable, Lv 4 teaches a 💃 Happy Dance, and later levels find you shells.
+- Names, meters, friendship and tricks are saved, and **your followers come back with you** when you reload.
+
+Test: `node tests/friend.mjs` (desktop + iPad). Screenshots: `screenshots/43-friend-pet.png`, `44-friend-clean.png`, `45-friend-feed.png`, `46-friend-levelup.png`, `47-ipad-friend.png`.

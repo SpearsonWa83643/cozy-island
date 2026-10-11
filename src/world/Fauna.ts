@@ -361,6 +361,30 @@ export class Fauna {
     this.reslot();
   }
   friendCount() { return this.friends().length; }
+  /** stable id for saving (agent ids are deterministic: seeded spawn order) */
+  keyOf(ref: FriendRef) { return `${ref.species}:${ref.a.id}`; }
+  byKey(key: string): FriendRef | null {
+    const [sp, idS] = key.split(':'); const id = +idS;
+    if (sp === 'bird') { const b = this.birdState.find((q) => q.id === id); return b ? { species: 'bird', a: b } : null; }
+    for (const h of this.herds) if (h.k.name === sp) { const a = h.agents.find((q) => q.id === id); if (a) return { species: sp, a }; }
+    return null;
+  }
+  /** coat colour of this animal (instanced colour), if it has one */
+  colorOf(ref: FriendRef): string | null {
+    const c = new THREE.Color();
+    if (ref.species === 'bird') { const i = this.birdState.indexOf(ref.a as Bird); if (i < 0 || !this.birds.lw.instanceColor) return null; this.birds.lw.getColorAt(i, c); return '#' + c.getHexString(); }
+    for (const h of this.herds) if (h.k.name === ref.species) { const i = h.agents.indexOf(ref.a as Agent); if (i < 0 || !h.mesh.instanceColor) return null; h.mesh.getColorAt(i, c); return '#' + c.getHexString(); }
+    return null;
+  }
+  /** restore a saved follower next to the player */
+  befriend(ref: FriendRef, hunger: number, x: number, z: number) {
+    const a = ref.a;
+    if (a.friend || this.friendCount() >= Fauna.MAX_FRIENDS) return;
+    a.friend = true; a.fed = 0; a.ret = false; a.hunger = hunger; a.slot = 99; a.x = x; a.z = z;
+    if ('vx' in a) { a.vx = 0; a.vz = 0; (a as Agent).tx = x; (a as Agent).tz = z; }
+    if (ref.species === 'bird') { (a as Bird).state = 2; (a as Bird).y = heightAt(x, z) + 2; }
+    this.reslot();
+  }
 
   constructor(flowerSpots: THREE.Vector3[]) {
     this.flowerSpots = flowerSpots;

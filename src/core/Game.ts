@@ -293,6 +293,8 @@ export class Game {
   /** Advance simulation by dt (also used by tests to step deterministically). */
   step(dt: number) {
     this.elapsed += dt;
+    // friend close-up: the world is paused; only the studio animates
+    if (this.play?.friend.open) { this.play.friend.update(dt); this.input.endFrame(); return; }
     if (this.input.pressed.has('b') && !this.cave.inside) this.build.toggle();
     for (const s of this.systems) s.update(dt, this.elapsed);
     this.physics.step(dt);

@@ -1,6 +1,9 @@
 import type { FoodId, Slot } from './Items';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from './Items';
 
+/** a befriended animal's close-up profile */
+export interface PetData { name: string; sp: string; love: number; lvl: number; clean: number; tricks: string[]; hunger?: number; lastGift?: string }
+
 export interface SaveData {
   v: 1;
   food: Partial<Record<FoodId, number>>;
@@ -22,6 +25,10 @@ export interface SaveData {
   builds: { x: number; z: number; t: number; r: number; y: number }[];
   friendsMade: number;
   guide: boolean;
+  /** friend profiles by animal key (species:id) */
+  pets?: Record<string, PetData>;
+  /** current followers (restored on load) */
+  followers?: string[];
 }
 
 const KEY = 'cozyIsland.save.v1';

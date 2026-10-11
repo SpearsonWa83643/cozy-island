@@ -7,6 +7,7 @@ import { Treasure } from './Treasure';
 import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
 import { Dig } from './Dig';
+import { FriendScreen, ensurePet } from './FriendScreen';
 import { WEARABLES, CAVE_WEAR } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
@@ -42,6 +43,8 @@ export class Gameplay implements System {
   private camFrom = new THREE.Vector3(); private camLook = new THREE.Vector3();
   private ctx: FollowCtx;
   private lockMove = 0;
+  friend!: FriendScreen;
+  private careT = 0;
   private swimUi: HTMLDivElement;
   private swimTip = false;
   /** ms between the lid popping and the reward card (tests stretch it to capture the burst) */
@@ -76,7 +79,8 @@ export class Gameplay implements System {
       equip: (slot, id) => this.equip(slot, id),
       buyDye: (id) => { const dy = DYES.find((x) => x.id === id)!; if (d.shells < dy.cost) { this.juice.toast(`Need 🐚 ${dy.cost} shells for ${dy.name}`); return false; } d.shells -= dy.cost; d.dyes.push(id); this.g.audio.pop(1.5); this.save.touch(); return true; },
       setDye: (id) => { d.dye = id; this.applyOutfit(); this.g.audio.pop(1.2); this.save.touch(); },
-      friends: () => this.g.fauna.friends().map((f) => ({ species: f.species, hunger: f.a.hunger })),
+      friends: () => this.g.fauna.friends().map((f) => ({ species: f.species, hunger: f.a.hunger, name: ensurePet(d, this.g.fauna.keyOf(f), f.species).name })),
+      visit: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.panels.toggle(null); this.friend.show(f); } },
       dismiss: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.g.fauna.dismiss(f); this.juice.pop(new THREE.Vector3(f.a.x, f.a.y + 0.9, f.a.z), '👋', 'emote', 1.6, 40); } },
       sheet: (k) => { this.setPreview(k === 'wardrobe'); this.save.touch(); if (!k) this.panels.refreshBadges(); },
       map: () => this.toggleMap(),
@@ -89,10 +93,31 @@ export class Gameplay implements System {
     this.swimUi.innerHTML = '<div class="ring"><span>🏊</span></div><div class="lbl"></div>';
     root.appendChild(this.swimUi);
     this.panels.onAction = () => this.act();
+    // friend close-up screen
+    this.friend = new FriendScreen(g, {
+      save: () => this.save.data,
+      touch: () => { this.syncFollowers(); this.save.touch(); },
+      toast: (h) => this.juice.toast(h),
+      grantWear: (id) => {
+        const w = WEAR_BY_ID.get(id)!;
+        if (d.owned[id]) { d.owned[id]++; d.shells += RARITY[w.rarity].shells; this.save.touch(); return false; }
+        d.owned[id] = 1; this.lastReward = id; this.save.touch(); this.panels.refreshBadges(); return true;
+      },
+      refreshBadges: () => this.panels.refreshBadges(),
+    });
+    // restore followers from the last session, gathered around you
+    (d.followers ?? []).forEach((k, i) => {
+      const ref = g.fauna.byKey(k); if (!ref) return;
+      const pet = ensurePet(d, k, ref.species), p0 = g.player.position, an = i * 1.1 + 2.4;
+      g.fauna.befriend(ref, Math.max(60, pet.hunger ?? 300), p0.x + Math.cos(an) * (1.6 + i * 0.4), p0.z + Math.sin(an) * (1.6 + i * 0.4));
+    });
     // contextual action from a tap/click near the target
     g.input.onClick.push((e, drag) => {
-      if (drag || g.build.active || e.button !== 0 || this.previewOn || this.lockMove > 0) return;
+      if (drag || g.build.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend.open) return;
       g.audio.unlock();
+      // tapping a follower opens its close-up friend screen
+      const fr = this.friendAt(e.clientX, e.clientY);
+      if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
@@ -103,6 +128,7 @@ export class Gameplay implements System {
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       const k = e.key.toLowerCase();
+      if (this.friend?.open) return;
       if (k === 'escape') { this.map.hide(); this.panels.toggle(null); }
       if (k === 'm') { g.audio.unlock(); this.toggleMap(); }
       if (k === 'g') this.setGuide(!this.guide.enabled);
@@ -126,11 +152,32 @@ export class Gameplay implements System {
         else { this.juice.pop(new THREE.Vector3(x, y, z), '👋', 'emote', 2, 40); this.juice.toast(`${t.icon} ${t.name} got hungry and wandered home`); }
       },
     };
-    window.addEventListener('beforeunload', () => this.save.flush());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.save.flush(); });
+    window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
   }
 
   get followCtx() { return this.ctx; }
+
+  /** remember who follows you (restored on reload) */
+  syncFollowers() {
+    const g = this.g, d = this.save.data;
+    const keys = g.fauna.friends().map((f) => g.fauna.keyOf(f));
+    for (const f of g.fauna.friends()) ensurePet(d, g.fauna.keyOf(f), f.species).hunger = f.a.hunger;
+    if (keys.join() !== (d.followers ?? []).join()) { d.followers = keys; this.save.touch(); }
+  }
+
+  /** follower under a screen point (generous radius), nearest first */
+  friendAt(cx: number, cy: number): FriendRef | null {
+    const lim = this.g.isTouch ? 72 : 56, v = new THREE.Vector3();
+    const up: Record<string, number> = { bunny: 0.3, deer: 0.9, duck: 0.22, crab: 0.12, bird: 0 };
+    let best: FriendRef | null = null, bd = lim;
+    for (const f of this.g.fauna.friends()) {
+      const s = this.juice.project(v.set(f.a.x, f.a.y + (up[f.species] ?? 0.3), f.a.z));
+      const dd = Math.hypot(s.x - cx, s.y - cy);
+      if (dd < bd) { bd = dd; best = f; }
+    }
+    return best;
+  }
 
   // ---------------- outfit ----------------
   private lastReward: string | null = null;
@@ -364,6 +411,7 @@ export class Gameplay implements System {
     const t = TASTES[an.species as Species];
     this.g.audio.feed(res === 'friend');
     this.juice.hearts(pos, res === 'friend' ? 7 : res === 'refill' ? 4 : 2);
+    if (res === 'friend') this.syncFollowers();
     if (res === 'friend') { d.friendsMade++; this.g.player.cheer(); this.juice.toast(`${t.icon} <b>${t.name}</b> is following you! <small>(${this.g.fauna.friendCount()}/${Fauna.MAX_FRIENDS})</small>`); }
     else if (res === 'more') this.juice.toast(`${t.icon} ${t.name} liked that! One more…${fav ? '' : ` <small>(favourite: ${t.fav.map((f) => FOODS[f].icon).join(' ')})</small>`}`);
     else this.juice.toast(`${t.icon} ${t.name} is full and happy`);
@@ -434,6 +482,7 @@ export class Gameplay implements System {
     const surface = c.surface;
     setTimeout(() => {
       this.digger.hole(x, z, surface, f + Math.PI / 2);
+      this.friend.dirtyNear(x, z, 0.08);
       d.digs = (d.digs ?? 0) + 1;
       const owned = WEARABLES.filter((w) => d.owned[w.id]).length;
       const find = this.digger.roll(x, z, surface, owned, WEARABLES.length);
@@ -554,6 +603,14 @@ export class Gameplay implements System {
     if (!g.cave.inside) this.recordTrail(p);
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
     this.walk.update(dt);
+    // friends get dusty / hungry over time; remember who follows you
+    this.careT += dt;
+    if (this.careT >= 1) {
+      const fr = g.fauna.friends();
+      this.friend.care(this.careT, fr, g.player.swimming);
+      this.syncFollowers();
+      this.careT = 0; this.save.touch();
+    }
     // cave doors
     this.caveCool -= dt;
     { const c = g.cave;

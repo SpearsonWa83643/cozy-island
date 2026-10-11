@@ -6,7 +6,8 @@ export interface PanelApi {
   equip: (slot: Slot, id: string | null) => void;
   buyDye: (id: string) => boolean;
   setDye: (id: string) => void;
-  friends: () => { species: string; hunger: number }[];
+  friends: () => { species: string; hunger: number; name: string }[];
+  visit: (i: number) => void;
   dismiss: (i: number) => void;
   sheet: (kind: 'bag' | 'wardrobe' | null) => void;
   map: () => void;
@@ -122,11 +123,12 @@ export class Panels {
     const friends = fr.length ? fr.map((f, i) => {
       const t = TASTES[f.species as Species];
       const pct = Math.max(0, Math.min(1, f.hunger / 300));
-      return `<div class="friend-row"><span class="fri">${t.icon}</span><span class="frn">${t.name}${f.hunger <= 0 ? ' <i>is hungry!</i>' : ''}</span>
-        <span class="hb"><span style="width:${pct * 100}%"></span></span><button class="bye" data-i="${i}">👋 Bye</button></div>`;
+      return `<div class="friend-row"><span class="fri">${t.icon}</span><span class="frn"><b>${esc(f.name)}</b> <small>${t.name}</small>${f.hunger <= 0 ? ' <i>is hungry!</i>' : ''}</span>
+        <span class="hb"><span style="width:${pct * 100}%"></span></span><button class="visit" data-i="${i}">💗 Visit</button><button class="bye" data-i="${i}">👋 Bye</button></div>`;
     }).join('') : `<div class="hint">No followers yet. Carry a food an animal likes, walk up gently and press <b>Feed</b>. Favourite foods (♥) win them over right away.</div>`;
     this.bag.querySelector('.sheet-body')!.innerHTML = `<div class="food-grid">${foods}</div><h3>Treasures <small>from the reef and the shovel</small></h3><div class="food-grid">${sea}</div><h3>Friends <small>${fr.length}/6</small></h3><div class="friends">${friends}</div>`;
     this.bag.querySelectorAll('.trade').forEach((b) => b.addEventListener('click', () => { this.api.trade((b as HTMLElement).dataset.id as FoodId); this.renderBag(); }));
+    this.bag.querySelectorAll('.visit').forEach((b) => b.addEventListener('click', () => this.api.visit(Number((b as HTMLElement).dataset.i))));
     this.bag.querySelectorAll('.bye').forEach((b) => b.addEventListener('click', () => { this.api.dismiss(Number((b as HTMLElement).dataset.i)); this.renderBag(); }));
   }
 

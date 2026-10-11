@@ -437,6 +437,62 @@ export class AudioEngine {
   paper() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.1); for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.035, 0.05, d, 'bandpass', 2500 + Math.random() * 2500, 1, 0.05, 0.004); }
   /** little bubbly pop (equip, sheet) */
   pop(pitch = 1) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 520 * pitch, t, 0.12, this.sfx(0, 0.6, 0.1), 0.12, 0.002); o.frequency.exponentialRampToValueAtTime(980 * pitch, t + 0.08); }
+  // ---------- friend close-up ----------
+  /** soft purr / happy hum, call repeatedly while petting (amount 0..1) */
+  purr(amount: number) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.18 + amount * 0.25, 0.05);
+    const lp = this.ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.connect(d);
+    for (let i = 0; i < 3; i++) this.noiseHit(t + i * 0.11, 0.09, lp, 'lowpass', 180 + Math.random() * 60, 1.2, 0.6, 0.03, this.brown);
+    this.tone('sine', 92 + Math.random() * 8, t, 0.3, lp, 0.08, 0.06);
+  }
+  /** tickled giggle: quick bouncy rising chirps */
+  giggle(pitch = 1) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.5, 0.15);
+    for (let i = 0; i < 4; i++) { const f = (900 + i * 90 + Math.random() * 60) * pitch; const o = this.tone('triangle', f, t + i * 0.085, 0.06, d, 0.18, 0.004); o.frequency.exponentialRampToValueAtTime(f * 1.35, t + i * 0.085 + 0.05); }
+  }
+  chomp() {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.8, 0.06);
+    for (let i = 0; i < 3; i++) this.noiseHit(t + i * 0.16, 0.06, d, 'bandpass', 900 + Math.random() * 500, 2, 0.5, 0.003, this.pink);
+  }
+  /** "nuh-uh": two low falling boops */
+  dislike() {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.5, 0.1);
+    for (let i = 0; i < 2; i++) { const o = this.tone('triangle', 330 - i * 40, t + i * 0.16, 0.12, d, 0.16, 0.01); o.frequency.exponentialRampToValueAtTime(240 - i * 30, t + i * 0.16 + 0.11); }
+  }
+  /** scrub: a short foamy brush burst */
+  scrub() { const t = this.go(); if (t < 0) return; this.noiseHit(t, 0.12, this.sfx((Math.random() - 0.5) * 0.4, 0.35, 0.08), 'bandpass', 2600 + Math.random() * 1600, 1.4, 0.4, 0.02, this.white); }
+  /** a wet shake-off: fluttery noise sweep */
+  shake() {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.6, 0.2);
+    for (let i = 0; i < 7; i++) this.noiseHit(t + i * 0.05, 0.05, d, 'bandpass', 1500 + (i % 2) * 900, 2, 0.4, 0.004, this.pink);
+    this.pop(1.6);
+  }
+  /** species voice */
+  voice(species: string) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.55, 0.15);
+    if (species === 'duck') {
+      const bp = this.ctx!.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 2; bp.connect(d);
+      for (let i = 0; i < 2; i++) { const o = this.tone('sawtooth', 420, t + i * 0.2, 0.13, bp, 0.35, 0.01); o.frequency.exponentialRampToValueAtTime(330, t + i * 0.2 + 0.12); }
+    } else if (species === 'bird') {
+      for (let i = 0; i < 3; i++) { const o = this.tone('sine', 2600, t + i * 0.1, 0.06, d, 0.25, 0.006); o.frequency.exponentialRampToValueAtTime(3600, t + i * 0.1 + 0.05); }
+    } else if (species === 'crab') {
+      for (let i = 0; i < 4; i++) this.noiseHit(t + i * 0.07, 0.02, d, 'bandpass', 3200, 6, 0.8, 0.001);
+    } else if (species === 'deer') {
+      const o = this.tone('triangle', 520, t, 0.28, d, 0.15, 0.03); o.frequency.exponentialRampToValueAtTime(700, t + 0.12); o.frequency.exponentialRampToValueAtTime(480, t + 0.28);
+    } else {
+      // bunny: tiny sniff-squeak
+      for (let i = 0; i < 3; i++) this.noiseHit(t + i * 0.06, 0.03, d, 'highpass', 3000, 1, 0.25, 0.003);
+      const o = this.tone('sine', 1500, t + 0.2, 0.07, d, 0.12, 0.004); o.frequency.exponentialRampToValueAtTime(2100, t + 0.26);
+    }
+  }
+  /** friendship level up: a warm rising arpeggio */
+  levelUp() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.4); [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone('sine', f, t + i * 0.09, 0.4, d, 0.16, 0.006)); }
   ui() { if (!this.started) return; const t = this.ctx!.currentTime; this.tone('sine', 1320, t, 0.12, this.sfx(0, 0.5, 0.1), 0.08, 0.003); }
   /** RMS output level (debug / tests) */
   level(): number {
