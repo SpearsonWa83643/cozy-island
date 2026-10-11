@@ -15,6 +15,8 @@ export class CameraRig implements System {
   distance = 9;
   target = new THREE.Vector3();
   sensitivity = 1;
+  private pendYaw = 0;
+  private pendPitch = 0;
   locked = false; // when true, screenshot/debug code drives the camera
 
   constructor(public camera: THREE.PerspectiveCamera, private input: Input, private player: Player) {
@@ -24,8 +26,15 @@ export class CameraRig implements System {
   update(dt: number) {
     if (this.locked) return;
     const i = this.input;
-    this.yaw -= i.dragDX * 0.005 * this.sensitivity;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + i.dragDY * 0.004 * this.sensitivity, 0.05, 1.35);
+    // eased orbit: drags feed a pending amount that the camera glides through (no jitter from uneven touch events)
+    this.pendYaw -= i.dragDX * 0.005 * this.sensitivity;
+    this.pendPitch += i.dragDY * 0.004 * this.sensitivity;
+    const k = 1 - Math.exp(-dt * 22);
+    const sy = this.pendYaw * k, sp = this.pendPitch * k;
+    this.pendYaw -= sy; this.pendPitch -= sp;
+    this.yaw += sy;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + sp, 0.05, 1.35);
+    if (this.pitch <= 0.05 || this.pitch >= 1.35) this.pendPitch = 0;
     if (i.keys.has('z')) this.yaw += dt * 1.8;
     if (i.keys.has('c')) this.yaw -= dt * 1.8;
     this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, 3.5, 28);

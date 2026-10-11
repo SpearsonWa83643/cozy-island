@@ -248,3 +248,20 @@ body.touch .hand-row { display: flex; }
 /* ---------- cave fade ---------- */
 .cave-fade { position: fixed; inset: 0; background: #06050a; opacity: 0; pointer-events: none; z-index: 40; transition: opacity .38s cubic-bezier(.4,0,.2,1); }
 .cave-fade.on { opacity: 1; }
+
+/* ---------- eye (free look) button, iPad ---------- */
+.eye-btn { position: absolute; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab;
+  right: calc(max(24px, env(safe-area-inset-right)) + 222px); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 120px);
+  width: 68px; height: 68px; border-radius: 50%; border: 0; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,250,240,.88); box-shadow: 0 4px 0 rgba(160,120,80,.35), 0 8px 16px rgba(80,50,20,.16);
+  transition: transform .18s var(--spring, ease), box-shadow .18s ease, background .18s ease; }
+.eye-btn::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; } /* bigger hit target */
+.eye-ball { position: relative; width: 40px; height: 26px; border-radius: 50% / 50%; background: #fff; border: 3px solid #4a3b2f; overflow: hidden; }
+.eye-pupil { position: absolute; left: 50%; top: 50%; width: 15px; height: 15px; border-radius: 50%; background: #4a3b2f; transform: translate(-50%, -50%);
+  box-shadow: inset 3px -3px 0 rgba(255,255,255,.0); transition: transform .12s ease-out; }
+.eye-pupil::after { content: ''; position: absolute; left: 3px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: #fff; }
+.eye-btn.down { transform: scale(1.12); background: #ffd166; box-shadow: 0 2px 0 rgba(160,120,80,.35), 0 0 0 6px rgba(255,209,102,.35); cursor: grabbing; }
+.eye-btn.down .eye-pupil { transition: none; }
+/* mirror for right-handed play (joystick on the right): the look thumb is the left one */
+body[data-hand="right"] .eye-btn { right: auto; left: calc(max(24px, env(safe-area-inset-left)) + 40px); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 150px); }
+.touch-ui.building .eye-btn { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 120px); }

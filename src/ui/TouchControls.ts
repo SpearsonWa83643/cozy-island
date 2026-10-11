@@ -21,6 +21,7 @@ export class TouchControls {
     this.root.className = 'touch-ui';
     this.root.innerHTML = `
       <div class="stick"><div class="knob"></div></div>
+      <button class="eye-btn" aria-label="Look around (hold and drag)"><span class="eye-ball"><span class="eye-pupil"></span></span></button>
       <div class="tbtns">
         <button class="tbtn rotate" aria-label="Rotate piece">⟳<span>Rotate</span></button>
         <button class="tbtn remove" aria-label="Remove mode">✖<span>Remove</span></button>
@@ -52,6 +53,37 @@ export class TouchControls {
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
+
+    // Eye (free look): press the eye, then drag anywhere to orbit the camera; release ends it.
+    // It owns its own pointer (captured), so it works alongside the joystick thumb and never becomes a tap/pinch.
+    const eye = this.root.querySelector<HTMLElement>('.eye-btn')!;
+    const pupil = eye.querySelector<HTMLElement>('.eye-pupil')!;
+    let eyeId = -1, ex = 0, ey = 0, sx = 0, sy = 0;
+    const EYE_GAIN = 1.25;
+    eye.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (eyeId !== -1) return;
+      eyeId = e.pointerId; ex = sx = e.clientX; ey = sy = e.clientY;
+      try { eye.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      eye.classList.add('down');
+      this.input.eyeLook = true;
+    });
+    eye.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== eyeId) return;
+      e.preventDefault();
+      this.input.dragDX += (e.clientX - ex) * EYE_GAIN;
+      this.input.dragDY += (e.clientY - ey) * EYE_GAIN;
+      ex = e.clientX; ey = e.clientY;
+      // the pupil glances the way you're looking
+      const dx = e.clientX - sx, dy = e.clientY - sy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 40) * 7;
+      pupil.style.transform = `translate(calc(-50% + ${(dx / d) * k}px), calc(-50% + ${(dy / d) * k}px))`;
+    });
+    const eyeUp = (e: PointerEvent) => {
+      if (e.pointerId !== eyeId) return;
+      eyeId = -1; eye.classList.remove('down'); this.input.eyeLook = false;
+      pupil.style.transform = '';
+    };
+    eye.addEventListener('pointerup', eyeUp); eye.addEventListener('pointercancel', eyeUp); eye.addEventListener('lostpointercapture', eyeUp);
 
     // Buttons fire on pointerdown for responsiveness.
     const tap = (el: HTMLElement, fn: () => void) => el.addEventListener('pointerdown', (e) => {

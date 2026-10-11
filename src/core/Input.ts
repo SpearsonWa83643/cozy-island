@@ -38,6 +38,8 @@ export class Input {
   hand: Handedness = 'auto';
   /** touch-first: canvas touches can become the floating joystick */
   floatingStick = false;
+  /** the on-screen eye (free look) button is held */
+  eyeLook = false;
   private stickPtr: Ptr | null = null;
   private ptrs = new Map<number, Ptr>();
   private pinchDist = 0;
@@ -45,6 +47,7 @@ export class Input {
 
   constructor(private el: HTMLElement) {
     try { const h = localStorage.getItem(HAND_KEY); if (h === 'left' || h === 'right' || h === 'auto') this.hand = h; } catch { /* private mode */ }
+    document.body.dataset.hand = this.hand;
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       const k = e.key.toLowerCase();
@@ -122,7 +125,7 @@ export class Input {
     if (this.hand === 'right') return x >= w * 0.5;
     return y > h * 0.4;
   }
-  setHand(h: Handedness) { this.hand = h; try { localStorage.setItem(HAND_KEY, h); } catch { /* ignore */ } }
+  setHand(h: Handedness) { this.hand = h; document.body.dataset.hand = h; try { localStorage.setItem(HAND_KEY, h); } catch { /* ignore */ } }
   private moveStick(sp: Ptr, x: number, y: number) {
     const u = this.stickUi;
     sp.moved += Math.abs(x - sp.x) + Math.abs(y - sp.y); sp.x = x; sp.y = y;
