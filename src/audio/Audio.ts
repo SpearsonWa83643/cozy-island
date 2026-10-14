@@ -41,6 +41,19 @@ export class AudioEngine {
   private white!: AudioBuffer; private pink!: AudioBuffer; private brown!: AudioBuffer;
   private beds: Record<string, { gain: GainNode; pan?: StereoPannerNode; filter?: BiquadFilterNode; filter2?: BiquadFilterNode; level: number }> = {};
   private music: MusicGen | null = null;
+  /** theme ambience: owl hoots + extra wind */
+  private owls = 0; private windBoost = 0; private nextOwl = 0; private musicMode: 'classic' | 'spooky' = 'classic';
+  setThemeAudio(music: 'classic' | 'spooky', owls: number, wind: number) { this.musicMode = music; this.owls = owls; this.windBoost = wind; this.music?.setMode(music); }
+  /** a soft, friendly "hoo-hoo" from somewhere in the trees */
+  owl() {
+    const t = this.go(); if (t < 0) return;
+    const pan = Math.random() * 1.6 - 0.8, f = 330 + Math.random() * 40;
+    for (const [dt, len, ff] of [[0, 0.28, 1], [0.42, 0.55, 0.94]] as const) {
+      const d = this.sfx(pan, 0.22, 0.6);
+      const o = this.tone('sine', f * ff, t + dt, len, d, 0.18, 0.06);
+      o.frequency.setValueAtTime(f * ff * 1.04, t + dt); o.frequency.exponentialRampToValueAtTime(f * ff * 0.9, t + dt + len);
+    }
+  }
   private analyser: AnalyserNode | null = null;
   private timer = 0;
   private listen: Listen | null = null;
@@ -123,6 +136,7 @@ export class AudioEngine {
     cic.gain.disconnect(); cic.gain.connect(am).connect(this.ambBus); lfo.start();
 
     this.music = new MusicGen(ctx, this.musicBus, this.reverbIn);
+    this.music.setMode(this.musicMode);
   }
 
   private bed(name: string, buf: AudioBuffer, filters: [BiquadFilterType, number, number][], panned = false) {
@@ -207,7 +221,8 @@ export class AudioEngine {
     // wind in grass; high alpine howl
     const gust = 0.6 + 0.4 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 2);
     const alt = Math.min(1, Math.max(0, (l.altitude - 3) / 8));
-    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12) * gust * (1 - (l.swim ?? 0) * 0.6), 0.5);
+    if (this.owls && (l.cave ?? 0) < 0.5 && t > this.nextOwl) { if (this.nextOwl) this.owl(); this.nextOwl = t + 14 + Math.random() * 22 / this.owls; }
+    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12 + this.windBoost * 0.09) * gust * (1 - (l.swim ?? 0) * 0.6), 0.5);
     this.beds.wind.filter!.frequency.setTargetAtTime(420 + gust * 500, t, 0.6);
     this.setBed('howl', w[Biome.Alpine] * (0.04 + alt * 0.2) * gust, 0.7);
     this.beds.howl.filter!.frequency.setTargetAtTime(380 + Math.sin(t * 0.21) * 160 + alt * 200, t, 0.8);

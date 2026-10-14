@@ -1,10 +1,14 @@
 import * as THREE from 'three/webgpu';
-import { pass, uv, vec3, vec4, float, smoothstep, length, mix, dot } from 'three/tsl';
+import { pass, uv, vec3, vec4, float, smoothstep, length, mix, dot, uniform } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
 export type Quality = 'low' | 'high';
 
 /** WebGPU renderer (auto WebGL2 fallback) + bloom/grade post pipeline + quality presets. */
+/** live colour grade (theme system sets these) */
+export const gradeU = { tint: uniform(new THREE.Color('#ffffff')), sat: uniform(1.12), vignette: uniform(new THREE.Color(1.0, 0.93, 0.86)) };
+export function applyGrade(g: { tint: string; sat: number; vignette: string }) { gradeU.tint.value.set(g.tint); gradeU.sat.value = g.sat; gradeU.vignette.value.set(g.vignette); }
+
 export class Renderer {
   renderer: THREE.WebGPURenderer;
   pipeline!: THREE.RenderPipeline;
@@ -34,10 +38,10 @@ export class Renderer {
     // gentle grade: saturation lift + warm vignette
     const c = color.add(glow).rgb;
     const lum = dot(c, vec3(0.299, 0.587, 0.114));
-    const sat = mix(vec3(lum), c, float(1.12));
+    const sat = mix(vec3(lum), c, gradeU.sat).mul(gradeU.tint);
     const d = length(uv().sub(0.5));
     const vig = smoothstep(float(0.85), float(0.35), d).mul(0.22).add(0.78);
-    const graded = sat.mul(mix(vec3(1.0, 0.93, 0.86), vec3(1), vig)).mul(vig.mul(0.15).add(0.85));
+    const graded = sat.mul(mix(gradeU.vignette, vec3(1), vig)).mul(vig.mul(0.15).add(0.85));
     this.pipeline.outputNode = vec4(graded, float(1));
   }
 

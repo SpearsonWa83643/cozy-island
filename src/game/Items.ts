@@ -111,4 +111,10 @@ export const DYES = [
 export const SEA_WEAR = ['sailor', 'fishhat', 'captain', 'coralcrown', 'goggles', 'snorkel', 'kelpscarf', 'shellneck', 'pearls', 'floatie', 'kelpsprout', 'pearlsprout', 'stripes'];
 
 /** the cave set: only from the cave (geodes, the mole's thanks, the old miner's crate) */
+export const HALLOWEEN_SET: WearDef[] = [
+  W('witchhat', 'hat', 'Witch Hat', 2, '🧙'), W('pumpkinhead', 'hat', 'Pumpkin Head', 3, '🎃'), W('ghostsheet', 'hat', 'Ghost Sheet', 2, '👻'),
+  W('catears', 'hat', 'Cat Ears', 1, '🐱'), W('vampirecape', 'back', 'Vampire Cape', 3, '🧛'), W('nightwings', 'back', 'Night Bat Wings', 4, '🦇'),
+];
+WEARABLES.push(...HALLOWEEN_SET);
+for (const w of HALLOWEEN_SET) WEAR_BY_ID.set(w.id, w);
 export const CAVE_WEAR = ['minerhelmet', 'crystalcrown', 'batwings', 'crystalneck', 'glowsprout'];

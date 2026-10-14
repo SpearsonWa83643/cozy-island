@@ -6,6 +6,7 @@ import type { System } from '../core/System';
 import { heightAt, type Terrain } from '../world/Terrain';
 import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree } from '../world/Models';
 import { mulberry32 } from '../world/noise';
+import { pumpkinGeo, faceGeo } from '../theme/Dress';
 
 export interface Buildable {
   id: string;
@@ -25,7 +26,22 @@ export const BUILDABLES: Buildable[] = [
   { id: 'lamp', label: 'Lamp', icon: '💡', make: makeLamp, box: [0.15, 1.1, 0.15, 1.1], stackable: false, height: 2.3 },
   { id: 'tree', label: 'Tree', icon: '🌳', make: () => makeRoundTree(treeRnd), box: [0.25, 1.2, 0.25, 1.2], stackable: false, height: 3 },
   { id: 'flowers', label: 'Flower Pot', icon: '🌷', make: makeFlowerPot, box: [0.3, 0.25, 0.3, 0.25], stackable: false, height: 0.6 },
+  // seasonal pieces (theme.build lists them; appended so saved indices stay stable)
+  { id: 'jackolantern', label: "Jack-o'-Lantern", icon: '🎃', make: makeJack, box: [0.38, 0.35, 0.38, 0.35], stackable: false, height: 0.75 },
+  { id: 'spookylamp', label: 'Spooky Lamp', icon: '🏮', make: makeSpookyLamp, box: [0.15, 1.1, 0.15, 1.1], stackable: false, height: 2.3 },
 ];
+function makeJack() {
+  const g = new THREE.Group();
+  const sh = new THREE.Mesh(pumpkinGeo(0.45), new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.55 })); sh.castShadow = true;
+  const f = new THREE.Mesh(faceGeo(0.45), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color('#ffb347').multiplyScalar(2.2) }));
+  g.add(sh, f); return g;
+}
+function makeSpookyLamp() {
+  const g = makeLamp();
+  g.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardNodeMaterial | undefined; if (!m || !('emissive' in m)) return;
+    const c = m.clone(); if (c.emissiveIntensity > 1) { c.color.set('#ffb070'); c.emissive.set('#ff7a1a'); } else c.color.set('#3a2a50'); (o as THREE.Mesh).material = c; });
+  return g;
+}
 
 interface Placed { obj: THREE.Object3D; collider: RAPIER.Collider; def: Buildable; }
 

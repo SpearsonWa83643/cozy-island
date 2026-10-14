@@ -347,3 +347,17 @@ body.friend-open .swim-meter, body.friend-open .hotbar, body.friend-open .hint, 
 @keyframes fsLv { from { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 20% { transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -60%) scale(.98); } }
 .friend-row .visit { font: inherit; font-weight: 800; border: 0; border-radius: 12px; padding: 8px 10px; background: #ffe1ea; color: #c0406a; cursor: pointer; min-height: 40px; margin-right: 6px; }
 @media (max-width: 520px) { .fs-tool { width: 64px; } .fs-tools { gap: 8px; } }
+
+/* ---------- seasonal HUD skins (theme system: body.theme-<id>, vars from theme.ui) ---------- */
+body.theme-halloween .panel { background: linear-gradient(160deg, rgba(255,241,226,.9), rgba(236,222,255,.88)); box-shadow: 0 6px 20px rgba(70,30,110,.25), inset 0 0 0 2px rgba(255,138,42,.35); }
+body.theme-halloween .qbtn.on, body.theme-halloween .gbtn.on, body.theme-halloween .tbtn.big, body.theme-halloween .reward-btns .btn-equip { background: var(--accent); box-shadow: 0 2px 0 #b8561a; color: #fff; }
+body.theme-halloween .tbtn.on, body.theme-halloween .eye-btn.down, body.theme-halloween .map-guide.on { background: #c9a2ff; }
+body.theme-halloween .gbtn, body.theme-halloween .slot { box-shadow: 0 3px 0 rgba(90,50,140,.45), inset 0 0 0 2px rgba(122,74,184,.35); }
+body.theme-halloween .gbtn .badge { background: var(--accent); }
+body.theme-halloween .sheet { background: linear-gradient(180deg, #f3e8ff, #fff4ea 40%); border-top: 4px solid var(--accent); }
+body.theme-halloween .tab.on { background: var(--accent-dark); color: #fff; }
+body.theme-halloween .world-prompt { background: rgba(58,36,92,.9); color: #ffe2c2; border: 2px solid var(--accent); }
+body.theme-halloween .juice .pop.emote { background: rgba(255,240,226,.95); box-shadow: 0 0 0 3px rgba(122,74,184,.45); }
+body.theme-halloween .mode, body.theme-halloween .biome-name { color: #6a3aa8; }
+.theme-row { margin-top: 4px; }
+.theme-row .qbtn { padding: 6px 10px; }

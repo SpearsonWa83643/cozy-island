@@ -21,6 +21,16 @@ const NEXT: Record<string, [string, number][]> = {
   V: [['I', 2], ['vi', 2.5], ['IV', 1.5], ['Isus', 1]],
   vi: [['IV', 3], ['ii', 2], ['I', 1.5], ['iii', 1], ['V', 0.7]],
 };
+// spooky-cute (Halloween): natural/harmonic minor, a dash of chromatic mischief
+const MCHORDS: Record<string, number[]> = {
+  i: [0, 3, 7, 10, 14], iv: [5, 8, 12, 15], VI: [8, 12, 15, 19], VII: [10, 14, 17, 21], V7: [7, 11, 14, 17], iio: [2, 5, 8, 12], i6: [0, 3, 7, 9],
+};
+const MNEXT: Record<string, [string, number][]> = {
+  i: [['iv', 3], ['VI', 2.5], ['VII', 1.5], ['iio', 1], ['i6', 1]], i6: [['iv', 2], ['V7', 1.5]],
+  iv: [['i', 2], ['V7', 2], ['VI', 1]], VI: [['VII', 2], ['iio', 1.5], ['iv', 1]], VII: [['i', 3], ['VI', 1]],
+  iio: [['V7', 3]], V7: [['i', 3], ['VI', 1]],
+};
+const MPENTA = [0, 3, 5, 7, 10];
 const PENTA = [0, 2, 4, 7, 9];
 const KEYS = [60, 62, 65, 67, 57, 64]; // C D F G A E (major keys), moved between slowly
 
@@ -33,6 +43,13 @@ const pick = (items: [string, number][]) => { let s = 0; for (const [, w] of ite
  * key changes. Nothing loops, so it never sounds repetitive.
  */
 export class MusicGen {
+  /** 'classic' major pentatonic, or 'spooky' minor celesta + pizzicato (theme system) */
+  mode: 'classic' | 'spooky' = 'classic';
+  setMode(m: 'classic' | 'spooky') {
+    if (m === this.mode) return;
+    this.mode = m; this.motif = []; this.phraseLeft = 0;
+    this.key = m === 'spooky' ? 62 : KEYS[0]; this.chord = m === 'spooky' ? 'i' : 'I'; this.chordsInKey = 0;
+  }
   private key = KEYS[0];
   private chord = 'I';
   private nextChordAt = 0;
@@ -40,7 +57,7 @@ export class MusicGen {
   private density = 0.5;
   private dPhase = Math.random() * 10;
   private motif: number[] = [];
-  private instrument: 'pluck' | 'chime' | 'kalimba' = 'pluck';
+  private instrument: 'pluck' | 'chime' | 'kalimba' | 'celesta' | 'pizz' = 'pluck';
   private phraseLeft = 0;
   private chordsInKey = 0;
   private padLP: BiquadFilterNode;
@@ -75,14 +92,15 @@ export class MusicGen {
   private playChord(at: number, w: Float32Array) {
     const dur = rand(11, 19);
     this.chordsInKey++;
-    if (this.chordsInKey > 10 && this.chord === 'I' && Math.random() < 0.35) {
+    const sp = this.mode === 'spooky';
+    if (!sp && this.chordsInKey > 10 && this.chord === 'I' && Math.random() < 0.35) {
       // modulate up a fourth or fifth (smooth common-tone move)
       const step = Math.random() < 0.5 ? 5 : 7;
       this.key = ((this.key - 55 + step) % 12) + 55;
       this.chordsInKey = 0;
     }
-    this.chord = pick(NEXT[this.chord]);
-    const notes = CHORDS[this.chord];
+    this.chord = pick((sp ? MNEXT : NEXT)[this.chord] ?? (sp ? MNEXT.i : NEXT.I));
+    const notes = (sp ? MCHORDS : CHORDS)[this.chord];
     // voice: root low, others spread in a gentle open voicing; drop random tones for variety
     const base = this.key - 12;
     const voices = notes.filter((_, i) => i === 0 || Math.random() < 0.85);
@@ -120,7 +138,8 @@ export class MusicGen {
       const r = Math.random();
       const chimeBias = 0.2 + w[Biome.Alpine] * 0.5 + w[Biome.Marsh] * 0.3;
       const kalBias = 0.2 + w[Biome.Tropical] * 0.4 + w[Biome.Desert] * 0.3;
-      this.instrument = r < chimeBias ? 'chime' : r < chimeBias + kalBias ? 'kalimba' : 'pluck';
+      if (this.mode === 'spooky') this.instrument = r < 0.55 ? 'celesta' : 'pizz';
+      else this.instrument = r < chimeBias ? 'chime' : r < chimeBias + kalBias ? 'kalimba' : 'pluck';
       if (this.motif.length && Math.random() < 0.45) {
         const shift = Math.floor(rand(-2, 3));
         this.motif = this.motif.map((d, i) => d + shift + (Math.random() < 0.25 ? (i % 2 ? 1 : -1) : 0));
@@ -137,10 +156,13 @@ export class MusicGen {
     const idx = this.motif.length - this.phraseLeft;
     const deg = this.motif[idx];
     this.phraseLeft--;
-    const oct = Math.floor(deg / 5), pc = PENTA[deg % 5];
-    const f = mtof(this.key + (this.instrument === 'chime' ? 12 : 0) + oct * 12 + pc);
+    const sp = this.mode === 'spooky';
+    const oct = Math.floor(deg / 5);
+    // spooky: minor pentatonic with the odd chromatic tiptoe (b5 / maj7) for cheeky charm
+    const pc = sp ? (Math.random() < 0.1 ? [6, 11, 1][Math.floor(Math.random() * 3)] : MPENTA[deg % 5]) : PENTA[deg % 5];
+    const f = mtof(this.key + (this.instrument === 'chime' || this.instrument === 'celesta' ? 12 : 0) + oct * 12 + pc);
     if (Math.random() < 0.88) this.note(f, at);
-    const lens = this.instrument === 'chime' ? [2, 3, 4] : [1, 1, 2, 2, 3, 0.5];
+    const lens = this.instrument === 'chime' ? [2, 3, 4] : this.instrument === 'pizz' ? [0.5, 0.5, 1, 1, 1.5] : this.instrument === 'celesta' ? [1, 1, 2, 0.5, 3] : [1, 1, 2, 2, 3, 0.5];
     this.nextNoteAt = at + this.beat * lens[Math.floor(Math.random() * lens.length)] * (1 + rand(-0.04, 0.04));
   }
 
@@ -152,11 +174,13 @@ export class MusicGen {
     const send = ctx.createGain(); send.gain.value = 0.7; g.connect(send).connect(this.reverb);
     const vel = rand(0.6, 1);
     const partials: [number, number, number][] =
-      this.instrument === 'chime' ? [[1, 0.05, 4.5], [2.76, 0.018, 2.2], [5.4, 0.008, 1.2], [8.93, 0.004, 0.6]]
+      this.instrument === 'celesta' ? [[1, 0.06, 1.9], [4, 0.016, 0.45], [10, 0.004, 0.14]]
+      : this.instrument === 'pizz' ? [[1, 0.085, 0.3], [2, 0.03, 0.16], [3, 0.012, 0.08]]
+      : this.instrument === 'chime' ? [[1, 0.05, 4.5], [2.76, 0.018, 2.2], [5.4, 0.008, 1.2], [8.93, 0.004, 0.6]]
       : this.instrument === 'kalimba' ? [[1, 0.07, 1.6], [3.9, 0.012, 0.25], [6.1, 0.006, 0.12]]
       : [[1, 0.06, 1.3], [2, 0.022, 0.6], [3, 0.008, 0.3]];
     for (const [ratio, amp, dec] of partials) {
-      const o = ctx.createOscillator(); o.type = this.instrument === 'pluck' && ratio === 1 ? 'triangle' : 'sine';
+      const o = ctx.createOscillator(); o.type = (this.instrument === 'pluck' || this.instrument === 'pizz') && ratio === 1 ? 'triangle' : 'sine';
       o.frequency.value = Math.min(18000, F(f * ratio, 440));
       const og = ctx.createGain();
       og.gain.setValueAtTime(0.0001, at); og.gain.exponentialRampToValueAtTime(amp * vel, at + 0.006); og.gain.exponentialRampToValueAtTime(0.0001, at + dec);

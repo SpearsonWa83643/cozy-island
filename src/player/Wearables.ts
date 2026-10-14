@@ -168,6 +168,56 @@ const B: Record<string, Builder> = {
   },
   kelpsprout: () => sprout((b) => { for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.025, 0.16, 3, 6), i % 2 ? '#3f9a5a' : '#5fbf6a', [(i - 1) * 0.05, 0.2 + (i % 2) * 0.03, 0], [0, 0, (i - 1) * 0.35]); }, false, '#3f9a5a'),
   pearlsprout: () => sprout((b) => b.add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.19, 0], [0, 0, 0.35], [1.2, 0.35, 1]).add(sph(0.06, 8, 6), '#ffb8c9', [0.05, 0.25, 0], [0, 0, -0.35], [1.2, 0.35, 1]).add(sph(0.045, 10, 8), '#fffaf4', [0.03, 0.22, 0.02]), true),
+  // ---------------- halloween set ----------------
+  witchhat: () => {
+    const b = new Baker().add(cyl(0.52, 0.52, 0.03, 24), '#3a2a5a', [0, 0.24, 0], [-0.1, 0, 0])
+      .add(cone(0.27, 0.36, 18), '#46336e', [0, 0.43, -0.02], [-0.1, 0, 0]).add(cone(0.15, 0.3, 14), '#46336e', [0.05, 0.7, -0.06], [-0.35, 0, -0.35])
+      .add(cyl(0.272, 0.28, 0.06, 20), '#ff8a2a', [0, 0.28, -0.02], [-0.1, 0, 0]).add(box(0.09, 0.07, 0.03), '#ffd24d', [0, 0.28, 0.25], [-0.1, 0, 0]);
+    return { obj: mesh(b), top: 0.82, anim: (t, o) => { o.rotation.z = Math.sin(t * 1.3) * 0.03; } };
+  },
+  pumpkinhead: () => {
+    const b = new Baker();
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; b.add(sph(0.24, 12, 9), i % 2 ? '#f08a24' : '#ff9a30', [Math.cos(a) * 0.17, 0.05, Math.sin(a) * 0.17], [0, -a, 0], [0.75, 1, 1.05]); }
+    b.add(cyl(0.035, 0.05, 0.14, 6), '#5a7a2a', [0.02, 0.36, 0], [0, 0, -0.25]);
+    const g = new THREE.Group(); g.add(mesh(b));
+    // carved face glows from inside (emissive only, no real light)
+    const face = new Baker();
+    face.add(cone(0.06, 0.08, 3), '#ffd27a', [-0.12, 0.11, 0.39], [Math.PI / 2, 0, 0], [1, 1, 0.3]).add(cone(0.06, 0.08, 3), '#ffd27a', [0.12, 0.11, 0.39], [Math.PI / 2, 0, 0], [1, 1, 0.3]);
+    for (let i = 0; i < 5; i++) face.add(box(0.06, i % 2 ? 0.05 : 0.08, 0.02), '#ffd27a', [(i - 2) * 0.065, -0.07 - Math.abs(i - 2) * -0.012, 0.395 - Math.abs(i - 2) * 0.02]);
+    const fm = mesh(face, true); fm.castShadow = false; g.add(fm);
+    return { obj: g, top: 0.45 };
+  },
+  ghostsheet: () => {
+    const geo = new THREE.SphereGeometry(0.44, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.62);
+    const b = new Baker().add(geo, '#f6f2ff', [0, 0.05, 0], [0, 0, 0], [1, 1.2, 1])
+      .add(sph(0.06, 8, 6), '#2a2238', [-0.13, 0.08, 0.38], [0, 0, 0], [1, 1.25, 0.4]).add(sph(0.06, 8, 6), '#2a2238', [0.13, 0.08, 0.38], [0, 0, 0], [1, 1.25, 0.4])
+      .add(sph(0.05, 8, 6), '#ffb0c8', [-0.24, -0.04, 0.32], [0, 0, 0], [1, 0.6, 0.3]).add(sph(0.05, 8, 6), '#ffb0c8', [0.24, -0.04, 0.32], [0, 0, 0], [1, 0.6, 0.3]);
+    const m = mesh(b); const cm = baseMat.clone(); cm.side = THREE.DoubleSide; m.material = cm;
+    return { obj: m, top: 0.6, anim: (t, o) => { o.position.y = Math.sin(t * 2.4) * 0.02; } };
+  },
+  catears: () => {
+    const b = new Baker();
+    for (const s of [-1, 1]) b.add(cone(0.11, 0.2, 4), '#2e2a3a', [s * 0.19, 0.33, 0], [0, Math.PI / 4, s * -0.35]).add(cone(0.06, 0.12, 4), '#ff9ab8', [s * 0.185, 0.32, 0.035], [0, Math.PI / 4, s * -0.35]);
+    b.add(torus(0.3, 0.018, 5, 22), '#2e2a3a', [0, 0.2, 0], [Math.PI / 2 + 0.15, 0, 0]);
+    return { obj: mesh(b), top: 0.45, anim: (t, o) => { o.rotation.z = Math.sin(t * 5) * (Math.sin(t * 0.7) > 0.8 ? 0.06 : 0); } };
+  },
+  vampirecape: () => {
+    const c = cape('#2a1838', '#c22a3a');
+    const collar = mesh(new Baker().add(new THREE.CylinderGeometry(0.36, 0.3, 0.32, 14, 1, true, Math.PI * 0.55, Math.PI * 0.9), '#c22a3a', [0, 0.42, 0.22]));
+    const cm = baseMat.clone(); cm.side = THREE.DoubleSide; collar.material = cm;
+    c.obj.add(collar); return c;
+  },
+  nightwings: () => {
+    const g = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const b = new Baker();
+      for (let k = 0; k < 3; k++) b.add(sph(0.18 - k * 0.025, 9, 5), k % 2 ? '#ff8a2a' : '#5a3a8a', [s * (0.17 + k * 0.14), 0.07 - k * 0.05, 0], [0, 0, s * (0.2 + k * 0.25)], [1, 0.75, 0.08]);
+      b.add(cyl(0.012, 0.012, 0.46, 5), '#2a2238', [s * 0.29, 0.1, 0.012], [0, 0, s * 1.35]);
+      const w = mesh(b); w.userData.side = s; g.add(w);
+    }
+    g.position.z = -0.1;
+    return { obj: g, anim: (t, o) => { for (const c of o.children) c.rotation.y = c.userData.side * (0.25 + Math.sin(t * 6) * 0.45); } };
+  },
   // ---------------- face ----------------
   roundglasses: () => ({ obj: mesh(new Baker().add(torus(0.075, 0.014), '#5a3a2a', [-0.11, 0.02, 0.32]).add(torus(0.075, 0.014), '#5a3a2a', [0.11, 0.02, 0.32])
     .add(cyl(0.01, 0.01, 0.07, 6), '#5a3a2a', [0, 0.03, 0.33], [0, 0, Math.PI / 2])) }),

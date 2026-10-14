@@ -1,3 +1,4 @@
+import { setTheme, themeSetting, type ThemeSetting } from '../theme/theme';
 import type { Input, Handedness } from '../core/Input';
 import { BUILDABLES } from '../build/BuildMode';
 import type { Quality } from '../render/Renderer';
@@ -31,6 +32,7 @@ export class Hud {
         <label title="Music volume">🎵<input type="range" class="vol music" min="0" max="1" step="0.01"></label>
         <label title="Ambience volume">🌿<input type="range" class="vol amb" min="0" max="1" step="0.01"></label></div>
       <div class="hand-row" title="Which thumb drives the floating joystick">🕹️ <button class="qbtn hand" data-h="auto">Auto</button><button class="qbtn hand" data-h="left">Left</button><button class="qbtn hand" data-h="right">Right</button></div>
+      <div class="theme-row" title="Seasonal theme (Auto follows the calendar)">🎨 <button class="qbtn th" data-t="auto">Auto</button><button class="qbtn th" data-t="classic">🌿</button><button class="qbtn th" data-t="halloween">🎃</button></div>
       <div class="sound-hint">🔈 Tap or press any key for sound</div>
       <div class="biome-name">📍 Meadow</div>
       <div class="backend">Renderer: ${backend}</div></div>`);
@@ -53,6 +55,13 @@ export class Hud {
     });
   }
 
+  /** seasonal theme picker */
+  bindTheme() {
+    const btns = [...this.stats.querySelectorAll<HTMLButtonElement>('.th')];
+    const sync = () => { for (const b of btns) b.classList.toggle('on', b.dataset.t === themeSetting); };
+    for (const b of btns) b.addEventListener('click', (e) => { e.stopPropagation(); setTheme(b.dataset.t as ThemeSetting); sync(); });
+    sync();
+  }
   /** handedness for the floating joystick (touch only) */
   bindHand(input: Input) {
     const btns = [...this.stats.querySelectorAll<HTMLButtonElement>('.hand')];

@@ -235,6 +235,8 @@ export class Gameplay implements System {
 
   // ---------------- interaction ----------------
   private findTarget(p: THREE.Vector3): Target | null {
+    const th = this.g.dress?.target(p);
+    if (th) return th as Target;
     if (this.g.cave.inside) {
       // underground: the mole, and cave finds
       const mo = this.g.cave.mole;
@@ -345,6 +347,27 @@ export class Gameplay implements System {
     d.geodes = (d.geodes ?? 0) + 1;
     if (d.geodes > 1 && Math.random() > 0.3) return;
     this.giveCaveWear(pos, d.geodes === 1 ? 'crystalneck' : null, 'Cracked open the geode…');
+  }
+  /** theme collectibles (candy) */
+  get candy() { return this.save.data.candy ?? 0; }
+  addCandy(n: number, pos: THREE.Vector3, icon = '🍬') {
+    const d = this.save.data; d.candy = Math.max(0, (d.candy ?? 0) + n); this.save.touch();
+    if (n > 0) { this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.5, 0)), `${icon} +${n}`, 'emote', 1.2, 40); this.g.audio.pop(1.8); }
+  }
+  toast(h: string, ms?: number) { this.juice.toast(h, ms); }
+  /** give a not-yet-owned wearable from a themed set (null if all owned) */
+  giveThemeWear(pos: THREE.Vector3, ids: string[], why: string): boolean {
+    const d = this.save.data;
+    const pool = ids.filter((id) => !d.owned[id]);
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    if (!id) return false;
+    const w = WEAR_BY_ID.get(id)!;
+    d.owned[id] = 1; this.lastReward = id;
+    this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.6, 0)), w.icon, 'emote big', 1.8, 60);
+    this.g.audio.chest(w.rarity); this.g.player.cheer();
+    this.juice.toast(`${why} <b style="color:${RARITY[w.rarity].color}">${w.name}</b>! ✨ <small>(in your wardrobe)</small>`, 3200);
+    this.save.touch(); this.panels.refreshBadges();
+    return true;
   }
   private giveCaveWear(pos: THREE.Vector3, prefer: string | null, why: string) {
     const d = this.save.data;

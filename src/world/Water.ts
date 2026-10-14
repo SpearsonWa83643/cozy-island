@@ -4,7 +4,7 @@ import {
   positionLocal, positionWorld, pow, sin, smoothstep, texture, time, transformNormalToView, vec3,
 } from 'three/tsl';
 import { WORLD_SIZE } from './Terrain';
-import { HORIZON } from './Sky';
+import { skyU } from './Sky';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
 export function createWater(heightTex: THREE.Texture): THREE.Mesh {
@@ -52,7 +52,7 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   // Fresnel sky tint
   const viewDir = normalize(cameraPosition.sub(w));
   const fres = pow(float(1).sub(max(dot(nWorld, viewDir), float(0))), float(4));
-  col = mix(col, color(HORIZON).mul(1.05), fres.mul(0.55));
+  col = mix(col, skyU.horizon.mul(1.05), fres.mul(0.55));
   // sparkle
   const sparkle = smoothstep(float(0.72), float(0.9), mx_noise_float(vec3(w.x.mul(3.0), w.z.mul(3.0), t.mul(1.2)))).mul(0.12);
 

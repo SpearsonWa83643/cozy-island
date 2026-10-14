@@ -16,6 +16,7 @@ export interface SaveData {
   /** has visited the cave */
   caved?: boolean;
   shells: number;
+  candy?: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)
   seen: string[];                      // wearable ids the player has looked at (no NEW badge)
   equipped: Partial<Record<Slot, string>>;

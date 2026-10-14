@@ -4,7 +4,9 @@ import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
 import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface } from '../world/Terrain';
-import { createSky, SUN_DIR, skyFog } from '../world/Sky';
+import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
+import { theme, themeEvents, applyThemeCss } from '../theme/theme';
+import { Dress } from '../theme/Dress';
 import { createWater } from '../world/Water';
 import { Flora, fadeCam, fadeTarget } from '../world/Flora';
 import { Particles } from '../world/Particles';
@@ -141,6 +143,7 @@ export class Game {
     this.hud = new Hud(this.renderer.backendName);
     this.hud.bindAudio(this.audio);
     this.hud.bindHand(this.input);
+    this.hud.bindTheme();
     this.hud.onQuality = (q) => this.setQuality(q);
     this.hud.onSelect = (i) => { if (!this.build.active) this.build.toggle(true); this.build.select(i); };
     if (this.isTouch) {
@@ -153,6 +156,11 @@ export class Game {
     };
     this.play = new Gameplay(this, SPAWN);
     lap('gameplay');
+    applyThemeCss();
+    this.dress = new Dress(this);
+    this.scene.add(this.dress.group);
+    themeEvents.on(() => this.dress.rebuild());
+    lap('dress');
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
@@ -163,6 +171,7 @@ export class Game {
         this.particles.update(dt, t, this.player.position);
         this.reef.update(dt, t, this.player.position, this.player.swimming, Math.min(1, this.player.speed / 2.5));
     this.cave.update(dt, t, this.player.position);
+        this.dress.update(dt, t);
       },
     }, this.play);
     window.addEventListener('resize', () => {
@@ -256,6 +265,26 @@ export class Game {
     this.scene.background = on ? new THREE.Color('#06050a') : null;
   }
 
+  dress!: Dress;
+  /** eased 0..1 strength of the active theme's sky (so a live switch fades rather than pops) */
+  themeK = 0;
+  private skyTarget = { zenith: new THREE.Color(), mid: new THREE.Color(), low: new THREE.Color(), horizon: new THREE.Color() };
+  private applyThemeSky(dt: number) {
+    const ts = theme.sky;
+    this.themeK += ((ts ? ts.blend : 0) - this.themeK) * Math.min(1, dt * 1.2);
+    const k = this.themeK, T = this.skyTarget;
+    for (const key of ['zenith', 'mid', 'low', 'horizon'] as const) {
+      T[key].set(SKY_CLASSIC[key]); if (ts) T[key].lerp(new THREE.Color(ts[key]), k);
+      skyU[key].value.copy(T[key]);
+    }
+    skyU.sunGlow.value = 1 + ((ts?.sunGlow ?? 1) - 1) * k; skyU.moon.value = (ts?.moon ?? 0) * k; skyU.stars.value = (ts?.stars ?? 0) * k;
+    if (!ts || k < 0.001) return;
+    this.fog.color.lerp(new THREE.Color(ts.fog), k); this.fog.near += (ts.fogNear - this.fog.near) * k; this.fog.far += (ts.fogFar - this.fog.far) * k;
+    skyFog.value.copy(this.fog.color);
+    this.sun.color.lerp(new THREE.Color(ts.sun), k); this.sun.intensity += (ts.sunI - this.sun.intensity) * k;
+    this.hemi.color.lerp(new THREE.Color(ts.hemiSky), k); this.hemi.groundColor.lerp(new THREE.Color(ts.hemiGround), k); this.hemi.intensity += (ts.hemiI - this.hemi.intensity) * k;
+  }
+
   private updateAtmosphere(dt: number, p: THREE.Vector3) {
     biomeWeights(p.x, p.z, this.tmpW);
     const k = Math.min(1, dt * 1.5);
@@ -276,6 +305,7 @@ export class Game {
     skyFog.value.copy(fog);
     this.sun.color.copy(sun); this.sun.intensity = sunI;
     this.hemi.color.copy(sky); this.hemi.groundColor.copy(gr); this.hemi.intensity = hemiI;
+    this.applyThemeSky(dt);
     // underground: deep violet fog, a dim cool fill and a faint warm key (the crystals' glow is baked into the rock)
     this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
     const ck = this.caveK;
