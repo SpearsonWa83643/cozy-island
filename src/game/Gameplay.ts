@@ -77,6 +77,7 @@ export class Gameplay implements System {
     this.juice = new Juice(root, g.camera);
     this.juice.onEquipFromReward = () => { const last = this.lastReward; if (last) { this.equip(WEAR_BY_ID.get(last)!.slot, last); } };
     this.react = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
+    this.react.bind({ fauna: g.fauna, build: g.build, reef: g.reef, camera: g.camera });
     g.scene.add(this.react.group);
     this.panels = new Panels(document.body, {
       save: () => this.save.data,
@@ -124,16 +125,27 @@ export class Gameplay implements System {
       if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
       // seasonal tap reactions (ghosts giggle + twirl, jack-o'-lanterns flare)
       if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
-      // flora sway / petal burst (trees + plants); does not steal chest/animal taps
-      const floraHit = this.react.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56, g.player.position);
+      const lim = g.isTouch ? 70 : 56;
+      const proj = (v: THREE.Vector3) => this.juice.project(v);
+      // animal hop/startle (skips followers — FriendScreen already handled above); plays alongside feed walks
+      const animalHit = this.react.tapAnimal(e.clientX, e.clientY, proj, lim, g.player.position);
+      // flora sway / petal burst + rock wobble; does not steal chest/animal taps
+      const floraHit = this.react.tapAt(e.clientX, e.clientY, proj, lim, g.player.position);
+      // placed build props squash-bounce
+      const propHit = this.react.tapProp(e.clientX, e.clientY, proj, lim, g.player.position);
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
         if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 64 : 56)) { this.walk.cancel(false); this.act(); return; }
       }
       this.tapAt(e.clientX, e.clientY);
-      // tap squarely on a tree/plant (and nothing to pick there): react in place instead of walking into the trunk
-      if (floraHit === 'core' && (!this.walk.goal || !this.walk.goal.key)) this.walk.cancel(false);
+      // water ripples only when the tap didn't land on a solid reactable / interactable walk goal
+      // water ripples when the tap isn't squarely on flora/rock/prop (animals may splash themselves)
+      if (floraHit !== 'core' && propHit !== 'core') {
+        this.react.tapWater(e.clientX, e.clientY, proj, lim, g.player.position, g.renderer.renderer.domElement);
+      }
+      // tap squarely on a reactable (and nothing to pick there): react in place instead of walking into it
+      if ((animalHit === 'core' || floraHit === 'core' || propHit === 'core') && (!this.walk.goal || !this.walk.goal.key)) this.walk.cancel(false);
     });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;

@@ -114,6 +114,8 @@ export class BuildMode implements System {
   }
 
   get count() { return this.placed.length; }
+  /** placed pieces (tap reactions, tests) */
+  get pieces() { return this.placed; }
 
   /** true if a placed piece occupies the cell at (x, z) (used by wandering animals) */
   occupiedAt(x: number, z: number) {
