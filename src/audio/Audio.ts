@@ -450,7 +450,15 @@ export class AudioEngine {
     const f = 440 * Math.pow(2, Math.round(closeness * 12) / 12); this.tone('sine', f, t, 0.5, d, 0.05 + closeness * 0.05, 0.01); this.tone('sine', f * 1.5, t + 0.06, 0.4, d, 0.02 + closeness * 0.03, 0.01); }
   /** paper rustle for the map */
   paper() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.1); for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.035, 0.05, d, 'bandpass', 2500 + Math.random() * 2500, 1, 0.05, 0.004); }
-  /** short foliage rustle when tapping a tree / plant */
+  /** soft stone clack when tapping a rock / prop */
+  rockClack(pitch = 1) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(rand(-0.25, 0.25), 0.45, 0.1);
+    const o = this.tone('triangle', 220 * pitch, t, 0.08, d, 0.35, 0.002); o.frequency.exponentialRampToValueAtTime(90 * pitch, t + 0.07);
+    this.noiseHit(t, 0.05, d, 'bandpass', 1400 * pitch, 2.2, 0.22, 0.002);
+    this.noiseHit(t + 0.03, 0.04, d, 'bandpass', 900 * pitch, 1.8, 0.12, 0.002);
+  }
+    /** short foliage rustle when tapping a tree / plant */
   rustleTap(pitch = 1) {
     const t = this.go(); if (t < 0) return;
     const d = this.sfx(rand(-0.35, 0.35), 0.5, 0.12);
