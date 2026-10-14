@@ -128,3 +128,24 @@ An **👁️ eye button** sits above the action button. Press it and drag anywhe
 - Names, meters, friendship and tricks are saved, and **your followers come back with you** when you reload.
 
 Test: `node tests/friend.mjs` (desktop + iPad). Screenshots: `screenshots/43-friend-pet.png`, `44-friend-clean.png`, `45-friend-feed.png`, `46-friend-levelup.png`, `47-ipad-friend.png`.
+
+## Seasonal themes (🎃 Halloween)
+`src/theme/theme.ts` follows the 2D game's naming: `Theme`, `THEMES`, `THEME_ORDER`, `theme`, `setTheme`, `themeEvents`.
+**Which theme is active:** `?theme=halloween|classic` > the saved setting (the 🎨 Auto / 🌿 / 🎃 buttons in the stats panel, key `cozyIsland.theme.v1`) > the date window (`window: { from: [10, 1], to: [11, 1] }`) > classic. `?date=YYYY-MM-DD` previews a date.
+A theme drives:
+- the post grade (`grade`)
+- the sky gradient, moon, stars, fog and sun/hemi light (`sky`, blended over the biome atmosphere and fading live)
+- the HUD skin (`ui` → CSS vars + `body.theme-<id>`)
+- the music mode (`music: 'spooky'` = D minor celesta + pizzicato) and ambience (owl hoots, wind)
+- the decorations (`dress` → `src/theme/Dress.ts`)
+- critters, collectibles (candy, seasonal wearables that only drop in season) and build pieces
+
+Halloween adds:
+- jack-o'-lanterns with flickering carved faces in the pumpkin patch, by trees and around spawn
+- hanging lanterns, cobwebs, a tiny graveyard, bats, light mist
+- 8 friendly ghosts that float, giggle and twirl when tapped. Stand beside one and press E (or tap it) to **trick-or-treat** for 🍬. At 8 candy a ghost swaps them for a Halloween wearable: Witch Hat, Pumpkin Head, Ghost Sheet, Cat Ears, Vampire Cape or Night Bat Wings.
+- build pieces: Jack-o'-Lantern and Spooky Lamp
+
+Perf: one InstancedMesh per decor kind. The glow is emissive with per-instance TSL flicker, and only 3 real point lights follow the nearest lanterns.
+
+**Adding a season:** add an id to `ThemeId`, a `Theme` record with a `window`, and an entry in `THEME_ORDER`. Then optionally add a `dress` builder in `Dress.ts` and `body.theme-<id>` CSS.
