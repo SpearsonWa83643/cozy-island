@@ -1,4 +1,6 @@
-import { setTheme, themeSetting, type ThemeSetting } from '../theme/theme';
+import { setTheme, themeSetting, themeForDate, THEMES, THEME_ORDER, type ThemeSetting } from '../theme/theme';
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtWin = (w: { from: [number, number]; to: [number, number] }) => `${MON[w.from[0] - 1]} ${w.from[1]} – ${MON[w.to[0] - 1]} ${w.to[1]}`;
 import type { Input, Handedness } from '../core/Input';
 import { BUILDABLES } from '../build/BuildMode';
 import type { Quality } from '../render/Renderer';
@@ -19,20 +21,19 @@ export class Hud {
 
   constructor(backend: string) {
     const el = (html: string) => { const d = document.createElement('div'); d.innerHTML = html.trim(); const c = d.firstElementChild as HTMLElement; document.body.appendChild(c); return c; };
-    el(`<div class="hud panel title"><h1>🏝️ Cozy Island</h1><div class="keys">
+    el(`<div class="hud panel title corner"><h1>🏝️ Cozy Island</h1><div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
       <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Z</kbd><kbd>C</kbd> rotate<br>
       <kbd>E</kbd> pick · feed · open &nbsp; <kbd>F</kbd> dig &nbsp; <kbd>Click</kbd> walk / use<br> <kbd>M</kbd> map &nbsp; <kbd>G</kbd> trail &nbsp; <kbd>I</kbd> bag &nbsp; <kbd>O</kbd> wardrobe<br>
       <kbd>B</kbd> build mode &nbsp; <kbd>1</kbd>-<kbd>5</kbd> pick &nbsp; <kbd>R</kbd> rotate piece<br>
       <kbd>Click</kbd> place &nbsp; <kbd>Right-click</kbd>/<kbd>X</kbd> remove &nbsp; <kbd>U</kbd> mute</div>
       <div class="touch-hint">🕹️ Thumb-drag to walk · drag elsewhere to look · pinch to zoom<br>👆 Tap the ground or a thing to walk there · 🔨 Build, tap to place</div></div>`);
-    const stats = el(`<div class="hud panel stats"><div class="fps">-- FPS</div>
+    const stats = el(`<div class="hud panel stats corner"><div class="fps">-- FPS</div>
       <div><button class="qbtn" data-q="low">Low</button> <button class="qbtn" data-q="high">High</button></div>
       <div class="audio-row"><button class="qbtn mute" title="Mute (U)">🔊</button>
         <label title="Music volume">🎵<input type="range" class="vol music" min="0" max="1" step="0.01"></label>
         <label title="Ambience volume">🌿<input type="range" class="vol amb" min="0" max="1" step="0.01"></label></div>
       <div class="hand-row" title="Which thumb drives the floating joystick">🕹️ <button class="qbtn hand" data-h="auto">Auto</button><button class="qbtn hand" data-h="left">Left</button><button class="qbtn hand" data-h="right">Right</button></div>
-      <div class="theme-row" title="Seasonal theme (Auto follows the calendar)">🎨 <button class="qbtn th" data-t="auto">Auto</button><button class="qbtn th" data-t="classic">🌿</button><button class="qbtn th" data-t="halloween">🎃</button></div>
       <div class="sound-hint">🔈 Tap or press any key for sound</div>
       <div class="biome-name">📍 Meadow</div>
       <div class="backend">Renderer: ${backend}</div></div>`);
@@ -55,13 +56,32 @@ export class Hud {
     });
   }
 
-  /** seasonal theme picker */
-  bindTheme() {
-    const btns = [...this.stats.querySelectorAll<HTMLButtonElement>('.th')];
-    const sync = () => { for (const b of btns) b.classList.toggle('on', b.dataset.t === themeSetting); };
-    for (const b of btns) b.addEventListener('click', (e) => { e.stopPropagation(); setTheme(b.dataset.t as ThemeSetting); sync(); });
+  /** corner dock: ⚙️ toggles the corner panels (hidden by default, persisted), 🎨 opens the theme picker */
+  private dock!: HTMLElement;
+  private picker!: HTMLElement;
+  bindDock(load: () => boolean, save: (open: boolean) => void) {
+    const el = (html: string) => { const d = document.createElement('div'); d.innerHTML = html.trim(); const c = d.firstElementChild as HTMLElement; document.body.appendChild(c); return c; };
+    this.dock = el(`<div class="hud dock"><button class="dbtn theme-btn" title="Theme" aria-label="Theme">🎨</button><button class="dbtn gear" title="Settings & help" aria-label="Settings">⚙️</button></div>`);
+    const gear = this.dock.querySelector('.gear') as HTMLButtonElement, tb = this.dock.querySelector('.theme-btn') as HTMLButtonElement;
+    const setOpen = (o: boolean) => { document.body.classList.toggle('panels-open', o); gear.classList.toggle('on', o); gear.setAttribute('aria-expanded', String(o)); };
+    setOpen(load());
+    const stop = (e: Event) => e.stopPropagation();
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.dock.addEventListener(ev, stop);
+    gear.addEventListener('click', (e) => { e.stopPropagation(); const o = !document.body.classList.contains('panels-open'); setOpen(o); save(o); this.closePicker(); gear.blur(); });
+    // picker: Auto + every theme in THEME_ORDER (new themes show up automatically)
+    this.picker = el(`<div class="hud theme-picker" role="menu"><div class="tp-title">🎨 Theme</div>${
+      [`<button class="tp-item" data-t="auto"><span class="tpi">📅</span><span><b>Auto</b><small>by date · now ${THEMES[themeForDate()].name}</small></span></button>`,
+        ...THEME_ORDER.map((id) => `<button class="tp-item" data-t="${id}"><span class="tpi">${THEMES[id].icon}</span><span><b>${THEMES[id].name}</b>${THEMES[id].window ? `<small>${fmtWin(THEMES[id].window!)}</small>` : '<small>all year</small>'}</span></button>`)].join('')}</div>`);
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.picker.addEventListener(ev, stop);
+    const sync = () => { for (const b of this.picker.querySelectorAll<HTMLButtonElement>('.tp-item')) b.classList.toggle('on', b.dataset.t === themeSetting); tb.textContent = themeSetting === 'auto' ? '🎨' : THEMES[themeSetting].icon; };
+    for (const b of this.picker.querySelectorAll<HTMLButtonElement>('.tp-item')) b.addEventListener('click', (e) => { e.stopPropagation(); setTheme(b.dataset.t as ThemeSetting); sync(); setTimeout(() => this.closePicker(), 180); });
+    tb.addEventListener('click', (e) => { e.stopPropagation(); const o = !this.picker.classList.contains('open'); this.picker.classList.toggle('open', o); tb.classList.toggle('on', o); tb.blur(); });
+    window.addEventListener('pointerdown', (e) => { if (this.picker.classList.contains('open') && !this.picker.contains(e.target as Node) && !this.dock.contains(e.target as Node)) this.closePicker(); }, { capture: true });
     sync();
   }
+  closePicker() { this.picker?.classList.remove('open'); this.dock?.querySelector('.theme-btn')?.classList.remove('on'); }
+  /** hotbar shows only pieces the active theme allows */
+  syncBuildables(avail: (i: number) => boolean) { this.slots.forEach((s, i) => { s.style.display = avail(i) ? '' : 'none'; }); }
   /** handedness for the floating joystick (touch only) */
   bindHand(input: Input) {
     const btns = [...this.stats.querySelectorAll<HTMLButtonElement>('.hand')];

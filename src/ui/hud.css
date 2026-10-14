@@ -361,3 +361,32 @@ body.theme-halloween .juice .pop.emote { background: rgba(255,240,226,.95); box-
 body.theme-halloween .mode, body.theme-halloween .biome-name { color: #6a3aa8; }
 .theme-row { margin-top: 4px; }
 .theme-row .qbtn { padding: 6px 10px; }
+
+/* ---------- corner dock: ⚙️ toggles corner panels (hidden by default), 🎨 theme picker ---------- */
+.dock { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 10px; pointer-events: auto; z-index: 12; }
+.dbtn { width: 56px; height: 56px; border: 0; border-radius: 18px; font-size: 26px; line-height: 1; cursor: pointer; background: var(--panel, rgba(255,250,240,.88)); box-shadow: 0 4px 0 rgba(160,120,80,.3), 0 6px 18px rgba(80,50,20,.15); backdrop-filter: blur(6px); transition: transform .25s var(--ease, ease), background .2s; touch-action: manipulation; }
+.dbtn:active { transform: scale(.92); }
+.dbtn.gear.on { transform: rotate(90deg); background: var(--accent, #f2a93b); }
+.dbtn.theme-btn.on { background: var(--accent, #f2a93b); }
+body.touch .dbtn { width: 64px; height: 64px; font-size: 30px; }
+/* corner panels slide/fade away unless opened */
+.corner { transition: opacity .3s ease, transform .35s cubic-bezier(.2,.9,.3,1.2), visibility 0s linear .35s; }
+body:not(.panels-open) .corner { opacity: 0; visibility: hidden; pointer-events: none !important; }
+body:not(.panels-open) .panel.title { transform: translate(-24px, -12px) scale(.94); }
+body:not(.panels-open) .panel.stats { transform: translate(24px, -12px) scale(.94); }
+body.panels-open .corner { transition: opacity .3s ease, transform .35s cubic-bezier(.2,.9,.3,1.2), visibility 0s; }
+.panel.stats { top: calc(max(12px, env(safe-area-inset-top)) + 72px) !important; right: max(12px, env(safe-area-inset-right)) !important; transform-origin: top right; }
+body.touch .panel.stats { top: calc(max(12px, env(safe-area-inset-top)) + 80px) !important; }
+.panel.title { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); transform-origin: top left; }
+.theme-picker { top: calc(max(12px, env(safe-area-inset-top)) + 72px); right: max(12px, env(safe-area-inset-right)); width: min(300px, 80vw); padding: 10px; border-radius: 20px; pointer-events: none; z-index: 13;
+  background: var(--panel, rgba(255,250,240,.94)); box-shadow: 0 10px 30px rgba(60,30,90,.25); backdrop-filter: blur(8px);
+  opacity: 0; transform: translateY(-10px) scale(.95); transform-origin: top right; transition: opacity .22s ease, transform .28s cubic-bezier(.2,.9,.3,1.2); }
+body.touch .theme-picker { top: calc(max(12px, env(safe-area-inset-top)) + 80px); }
+.theme-picker.open { opacity: 1; transform: none; pointer-events: auto; }
+.tp-title { font-weight: 900; font-size: 16px; padding: 4px 8px 8px; }
+.tp-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin: 4px 0; padding: 6px 12px; border: 0; border-radius: 14px; background: rgba(255,255,255,.75); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.tp-item .tpi { font-size: 28px; width: 34px; text-align: center; }
+.tp-item b { display: block; font-size: 16px; } .tp-item small { opacity: .7; font-size: 12px; }
+.tp-item.on { background: var(--accent, #f2a93b); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
+body.theme-halloween .dbtn { background: linear-gradient(160deg, rgba(255,241,226,.95), rgba(236,222,255,.92)); }
+body.theme-halloween .theme-picker { background: linear-gradient(160deg, rgba(255,241,226,.96), rgba(236,222,255,.95)); }

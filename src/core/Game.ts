@@ -143,7 +143,7 @@ export class Game {
     this.hud = new Hud(this.renderer.backendName);
     this.hud.bindAudio(this.audio);
     this.hud.bindHand(this.input);
-    this.hud.bindTheme();
+
     this.hud.onQuality = (q) => this.setQuality(q);
     this.hud.onSelect = (i) => { if (!this.build.active) this.build.toggle(true); this.build.select(i); };
     if (this.isTouch) {
@@ -157,6 +157,9 @@ export class Game {
     this.play = new Gameplay(this, SPAWN);
     lap('gameplay');
     applyThemeCss();
+    this.hud.bindDock(() => !!this.play.save.data.panelsOpen, (o) => { this.play.save.data.panelsOpen = o; this.play.save.touch(); });
+    const syncBuild = () => { this.hud.syncBuildables((i) => this.build.available(i)); if (!this.build.available(this.build.selected)) this.build.select(0); };
+    syncBuild(); themeEvents.on(syncBuild);
     this.dress = new Dress(this);
     this.scene.add(this.dress.group);
     themeEvents.on(() => this.dress.rebuild());

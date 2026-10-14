@@ -85,9 +85,10 @@ async function run(label, dev, q) {
   ok(`${label}: tapping a ghost makes it react`, tr2.r === tr.r0 + 1 && tr2.spin > 0, JSON.stringify({ ...tr, ...tr2 }));
   // live switch via the HUD buttons (classic ↔ halloween), persisted as a setting
   await page.evaluate(() => { window.game.rig.locked = false; });
-  await page.click('.th[data-t="classic"]', { force: true });
+  const pick = async (t) => { if (label === 'ipad') { await page.tap('.dock .theme-btn'); await page.waitForTimeout(350); await page.tap(`.tp-item[data-t="${t}"]`); } else { await page.click('.dock .theme-btn'); await page.waitForTimeout(350); await page.click(`.tp-item[data-t="${t}"]`); } await page.waitForTimeout(400); };
+  await pick('classic');
   s = await info(page); ok(`${label}: switch to classic live`, s.id === 'classic' && s.ghosts === 0 && !/theme-halloween/.test(s.body), JSON.stringify(s));
-  await page.click('.th[data-t="halloween"]', { force: true });
+  await pick('halloween');
   s = await info(page); ok(`${label}: switch back to halloween`, s.id === 'halloween' && s.ghosts >= 4, JSON.stringify(s));
   // wardrobe with a Halloween item equipped
   if (label === 'ipad') {

@@ -7,6 +7,8 @@ import { heightAt, type Terrain } from '../world/Terrain';
 import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree } from '../world/Models';
 import { mulberry32 } from '../world/noise';
 import { pumpkinGeo, faceGeo } from '../theme/Dress';
+import { theme, THEMES } from '../theme/theme';
+const SEASONAL = new Set(Object.values(THEMES).flatMap((t) => t.build));
 
 export interface Buildable {
   id: string;
@@ -100,6 +102,8 @@ export class BuildMode implements System {
     return false;
   }
 
+  /** seasonal pieces only while their theme is active */
+  available(i: number) { const d = BUILDABLES[i]; return !!d && (!SEASONAL.has(d.id) || theme.build.includes(d.id)); }
   setRemoveMode(on: boolean) {
     this.removeMode = on;
     if (this.ghost) this.ghost.visible = !on;
@@ -121,7 +125,10 @@ export class BuildMode implements System {
   }
 
   select(i: number) {
-    this.selected = (i + BUILDABLES.length) % BUILDABLES.length;
+    const n = BUILDABLES.length, dir = i < this.selected ? -1 : 1;
+    let k = ((i % n) + n) % n;
+    for (let g = 0; g < n && !this.available(k); g++) k = (((k + dir) % n) + n) % n;
+    this.selected = k;
     if (this.active) this.rebuildGhost();
     this.onChange();
   }

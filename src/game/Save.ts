@@ -26,6 +26,8 @@ export interface SaveData {
   builds: { x: number; z: number; t: number; r: number; y: number }[];
   friendsMade: number;
   guide: boolean;
+  /** ⚙️ corner panels open */
+  panelsOpen?: boolean;
   /** friend profiles by animal key (species:id) */
   pets?: Record<string, PetData>;
   /** current followers (restored on load) */
