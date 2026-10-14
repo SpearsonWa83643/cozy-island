@@ -119,6 +119,8 @@ export class Flora {
   /** every placed plant (used for foraging spots) */
   aoPoints: { x: number; z: number; r: number }[] = [];
   spots: { name: string; x: number; z: number; h: number; sc: number }[] = [];
+  /** tap-reaction counter (tests / debug); bumped by TapReact */
+  reactions = 0;
 
   constructor(physics: Physics, spawn: THREE.Vector2) {
     const rnd = mulberry32(42);

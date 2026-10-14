@@ -450,6 +450,12 @@ export class AudioEngine {
     const f = 440 * Math.pow(2, Math.round(closeness * 12) / 12); this.tone('sine', f, t, 0.5, d, 0.05 + closeness * 0.05, 0.01); this.tone('sine', f * 1.5, t + 0.06, 0.4, d, 0.02 + closeness * 0.03, 0.01); }
   /** paper rustle for the map */
   paper() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.1); for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.035, 0.05, d, 'bandpass', 2500 + Math.random() * 2500, 1, 0.05, 0.004); }
+  /** short foliage rustle when tapping a tree / plant */
+  rustleTap(pitch = 1) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(rand(-0.35, 0.35), 0.5, 0.12);
+    for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.02, 0.055, d, 'bandpass', (2100 + Math.random() * 2200) * pitch, 1.3, 0.13, 0.003);
+  }
   /** little bubbly pop (equip, sheet) */
   pop(pitch = 1) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 520 * pitch, t, 0.12, this.sfx(0, 0.6, 0.1), 0.12, 0.002); o.frequency.exponentialRampToValueAtTime(980 * pitch, t + 0.08); }
   // ---------- friend close-up ----------

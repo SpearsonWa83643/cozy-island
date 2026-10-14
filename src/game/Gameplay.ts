@@ -15,6 +15,7 @@ import type { SeaBottle } from '../world/Reef';
 import { MapOverlay } from '../ui/MapOverlay';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
+import { TapReact } from '../world/TapReact';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -34,6 +35,7 @@ export class Gameplay implements System {
   map: MapOverlay;
   juice: Juice;
   panels: Panels;
+  react: TapReact;
   target: Target | null = null;
   private crumbs: THREE.Vector3[] = [];
   private warmT = 0; private remindT = 10; private targetT = 0;
@@ -74,6 +76,8 @@ export class Gameplay implements System {
     this.map.guideOn = this.guide.enabled;
     this.juice = new Juice(root, g.camera);
     this.juice.onEquipFromReward = () => { const last = this.lastReward; if (last) { this.equip(WEAR_BY_ID.get(last)!.slot, last); } };
+    this.react = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
+    g.scene.add(this.react.group);
     this.panels = new Panels(document.body, {
       save: () => this.save.data,
       equip: (slot, id) => this.equip(slot, id),
@@ -120,12 +124,16 @@ export class Gameplay implements System {
       if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
       // seasonal tap reactions (ghosts giggle + twirl, jack-o'-lanterns flare)
       if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
+      // flora sway / petal burst (trees + plants); does not steal chest/animal taps
+      const floraHit = this.react.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56, g.player.position);
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
         if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 64 : 56)) { this.walk.cancel(false); this.act(); return; }
       }
       this.tapAt(e.clientX, e.clientY);
+      // tap squarely on a tree/plant (and nothing to pick there): react in place instead of walking into the trunk
+      if (floraHit === 'core' && (!this.walk.goal || !this.walk.goal.key)) this.walk.cancel(false);
     });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -687,6 +695,7 @@ export class Gameplay implements System {
     }
     if (pl.swimming && !this.swimTip) { this.swimTip = true; if (!d.swum) { d.swum = true; this.save.touch(); this.juice.toast('🏊 Splash! Swim out over the reef: look for 🐚 shells, 💎 sea glass, ⭐ starfish, 🦪 pearls and drifting 🍾 bottles', 4200); } }
     this.updatePreview(dt);
+    this.react.update(dt);
     this.juice.update(dt);
   }
 }
