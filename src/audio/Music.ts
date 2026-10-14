@@ -43,12 +43,12 @@ const pick = (items: [string, number][]) => { let s = 0; for (const [, w] of ite
  * key changes. Nothing loops, so it never sounds repetitive.
  */
 export class MusicGen {
-  /** 'classic' major pentatonic, or 'spooky' minor celesta + pizzicato (theme system) */
-  mode: 'classic' | 'spooky' = 'classic';
-  setMode(m: 'classic' | 'spooky') {
+  /** 'classic' major pentatonic, 'spooky' minor celesta, or 'festive' bright chimes (theme system) */
+  mode: 'classic' | 'spooky' | 'festive' = 'classic';
+  setMode(m: 'classic' | 'spooky' | 'festive') {
     if (m === this.mode) return;
     this.mode = m; this.motif = []; this.phraseLeft = 0;
-    this.key = m === 'spooky' ? 62 : KEYS[0]; this.chord = m === 'spooky' ? 'i' : 'I'; this.chordsInKey = 0;
+    this.key = m === 'spooky' ? 62 : m === 'festive' ? 67 : KEYS[0]; this.chord = m === 'spooky' ? 'i' : 'I'; this.chordsInKey = 0;
   }
   private key = KEYS[0];
   private chord = 'I';
@@ -92,8 +92,8 @@ export class MusicGen {
   private playChord(at: number, w: Float32Array) {
     const dur = rand(11, 19);
     this.chordsInKey++;
-    const sp = this.mode === 'spooky';
-    if (!sp && this.chordsInKey > 10 && this.chord === 'I' && Math.random() < 0.35) {
+    const sp = this.mode === 'spooky'; const fest = this.mode === 'festive';
+    if (!sp && this.chordsInKey > 10 && this.chord === 'I' && Math.random() < (fest ? 0.45 : 0.35)) {
       // modulate up a fourth or fifth (smooth common-tone move)
       const step = Math.random() < 0.5 ? 5 : 7;
       this.key = ((this.key - 55 + step) % 12) + 55;
@@ -139,6 +139,7 @@ export class MusicGen {
       const chimeBias = 0.2 + w[Biome.Alpine] * 0.5 + w[Biome.Marsh] * 0.3;
       const kalBias = 0.2 + w[Biome.Tropical] * 0.4 + w[Biome.Desert] * 0.3;
       if (this.mode === 'spooky') this.instrument = r < 0.55 ? 'celesta' : 'pizz';
+      else if (this.mode === 'festive') this.instrument = r < 0.55 ? 'chime' : r < 0.85 ? 'celesta' : 'pluck';
       else this.instrument = r < chimeBias ? 'chime' : r < chimeBias + kalBias ? 'kalimba' : 'pluck';
       if (this.motif.length && Math.random() < 0.45) {
         const shift = Math.floor(rand(-2, 3));
@@ -151,7 +152,7 @@ export class MusicGen {
       }
       this.phraseLeft = this.motif.length;
       // rest between phrases
-      if (Math.random() > this.density) { this.nextNoteAt = at + this.beat * Math.floor(rand(4, 12)); this.phraseLeft = 0; return; }
+      if (Math.random() > this.density + (this.mode === 'festive' ? 0.15 : 0)) { this.nextNoteAt = at + this.beat * Math.floor(rand(this.mode === 'festive' ? 2 : 4, this.mode === 'festive' ? 8 : 12)); this.phraseLeft = 0; return; }
     }
     const idx = this.motif.length - this.phraseLeft;
     const deg = this.motif[idx];

@@ -42,8 +42,8 @@ export class AudioEngine {
   private beds: Record<string, { gain: GainNode; pan?: StereoPannerNode; filter?: BiquadFilterNode; filter2?: BiquadFilterNode; level: number }> = {};
   private music: MusicGen | null = null;
   /** theme ambience: owl hoots + extra wind */
-  private owls = 0; private windBoost = 0; private nextOwl = 0; private musicMode: 'classic' | 'spooky' = 'classic';
-  setThemeAudio(music: 'classic' | 'spooky', owls: number, wind: number) { this.musicMode = music; this.owls = owls; this.windBoost = wind; this.music?.setMode(music); }
+  private owls = 0; private windBoost = 0; private nextOwl = 0; private musicMode: 'classic' | 'spooky' | 'festive' = 'classic';
+  setThemeAudio(music: 'classic' | 'spooky' | 'festive', owls: number, wind: number) { this.musicMode = music; this.owls = owls; this.windBoost = wind; this.music?.setMode(music); }
   /** a soft, friendly "hoo-hoo" from somewhere in the trees */
   owl() {
     const t = this.go(); if (t < 0) return;
@@ -521,5 +521,15 @@ export class AudioEngine {
     const d = new Float32Array(this.analyser.fftSize); this.analyser.getFloatTimeDomainData(d);
     let s = 0; for (const v of d) s += v * v; return Math.sqrt(s / d.length);
   }
+  /** distant firework: soft thump, then a sparkly crackle (dist 0..1 = near..far, quieter + duller far away) */
+  firework(pan = 0, dist = 0.5) {
+    const t = this.go(); if (t < 0) return;
+    const g = 0.55 - dist * 0.3; const d = this.sfx(pan, g, 0.5);
+    const o = this.tone('sine', 90, t, 0.35, d, 0.35, 0.004); o.frequency.exponentialRampToValueAtTime(42, t + 0.3);
+    this.noiseHit(t, 0.25, d, 'lowpass', 900 - dist * 400, 0.7, 0.22, 0.003);
+    for (let i = 0; i < 10; i++) this.noiseHit(t + 0.18 + Math.random() * 0.6, 0.03, d, 'highpass', 4000 + Math.random() * 3000, 0.8, 0.05 + Math.random() * 0.04, 0.002);
+  }
+  /** rising whistle before a firework bursts */
+  whistle(pan = 0) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 700, t, 0.9, this.sfx(pan, 0.12, 0.4), 0.05, 0.05); o.frequency.exponentialRampToValueAtTime(1900, t + 0.85); }
   dispose() { clearInterval(this.timer); this.ctx?.close(); }
 }

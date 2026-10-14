@@ -6,7 +6,7 @@ import type { System } from '../core/System';
 import { heightAt, type Terrain } from '../world/Terrain';
 import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree } from '../world/Models';
 import { mulberry32 } from '../world/noise';
-import { pumpkinGeo, faceGeo } from '../theme/Dress';
+import { pumpkinGeo, faceGeo, flowerboxGeo, sunflowerGeo, haybaleGeo, snowmanGeo, cornucopiaGeo, xmastreeGeo, giftGeo, skyLanternGeo, heartBalloonGeo, chickGeo } from '../theme/Dress';
 import { theme, THEMES } from '../theme/theme';
 const SEASONAL = new Set(Object.values(THEMES).flatMap((t) => t.build));
 
@@ -31,6 +31,16 @@ export const BUILDABLES: Buildable[] = [
   // seasonal pieces (theme.build lists them; appended so saved indices stay stable)
   { id: 'jackolantern', label: "Jack-o'-Lantern", icon: '🎃', make: makeJack, box: [0.38, 0.35, 0.38, 0.35], stackable: false, height: 0.75 },
   { id: 'spookylamp', label: 'Spooky Lamp', icon: '🏮', make: makeSpookyLamp, box: [0.15, 1.1, 0.15, 1.1], stackable: false, height: 2.3 },
+  { id: 'flowerbox', label: 'Flower Box', icon: '🌸', make: makeFlowerBox, box: [0.35, 0.3, 0.22, 0.3], stackable: false, height: 0.7 },
+  { id: 'sunflower', label: 'Sunflower', icon: '🌻', make: makeSunflower, box: [0.2, 0.7, 0.2, 0.7], stackable: false, height: 1.4 },
+  { id: 'haybale', label: 'Hay Bale', icon: '🌾', make: makeHaybale, box: [0.4, 0.35, 0.35, 0.35], stackable: false, height: 0.75 },
+  { id: 'snowman', label: 'Snowman', icon: '⛄', make: makeSnowman, box: [0.35, 0.75, 0.35, 0.75], stackable: false, height: 1.6 },
+  { id: 'cornucopia', label: 'Cornucopia', icon: '🌽', make: makeCornucopia, box: [0.3, 0.3, 0.3, 0.3], stackable: false, height: 0.7 },
+  { id: 'xmastree', label: 'Holiday Tree', icon: '🎄', make: makeXmasTree, box: [0.4, 1.0, 0.4, 1.0], stackable: false, height: 2.1 },
+  { id: 'gift', label: 'Gift Box', icon: '🎁', make: makeGift, box: [0.25, 0.22, 0.25, 0.22], stackable: false, height: 0.5 },
+  { id: 'skylantern', label: 'Lantern', icon: '🏮', make: () => wrap(skyLanternGeo()), box: [0.2, 0.22, 0.2, 0.22], stackable: false, height: 0.5 },
+  { id: 'heartballoon', label: 'Heart Balloon', icon: '💖', make: () => wrap(heartBalloonGeo()), box: [0.1, 1.0, 0.1, 1.0], stackable: false, height: 2.2 },
+  { id: 'chick', label: 'Chick', icon: '🐣', make: () => wrap(chickGeo()), box: [0.15, 0.2, 0.15, 0.2], stackable: false, height: 0.4 },
 ];
 function makeJack() {
   const g = new THREE.Group();
@@ -44,6 +54,15 @@ function makeSpookyLamp() {
     const c = m.clone(); if (c.emissiveIntensity > 1) { c.color.set('#ffb070'); c.emissive.set('#ff7a1a'); } else c.color.set('#3a2a50'); (o as THREE.Mesh).material = c; });
   return g;
 }
+const std = () => new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.55 });
+function wrap(geo: THREE.BufferGeometry) { const g = new THREE.Group(); const m = new THREE.Mesh(geo, std()); m.castShadow = true; g.add(m); return g; }
+function makeFlowerBox() { return wrap(flowerboxGeo()); }
+function makeSunflower() { return wrap(sunflowerGeo()); }
+function makeHaybale() { return wrap(haybaleGeo()); }
+function makeSnowman() { return wrap(snowmanGeo()); }
+function makeCornucopia() { return wrap(cornucopiaGeo()); }
+function makeXmasTree() { return wrap(xmastreeGeo()); }
+function makeGift() { return wrap(giftGeo()); }
 
 interface Placed { obj: THREE.Object3D; collider: RAPIER.Collider; def: Buildable; }
 

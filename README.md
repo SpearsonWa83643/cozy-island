@@ -131,7 +131,7 @@ Test: `node tests/friend.mjs` (desktop + iPad). Screenshots: `screenshots/43-fri
 
 ## Seasonal themes (🎃 Halloween)
 `src/theme/theme.ts` follows the 2D game's naming: `Theme`, `THEMES`, `THEME_ORDER`, `theme`, `setTheme`, `themeEvents`.
-**Which theme is active:** `?theme=halloween|classic` > the saved setting (the 🎨 Auto / 🌿 / 🎃 buttons in the stats panel, key `cozyIsland.theme.v1`) > the date window (`window: { from: [10, 1], to: [11, 1] }`) > classic. `?date=YYYY-MM-DD` previews a date.
+**Which theme is active:** `?theme=halloween|spring|summer|autumn|winter|thanksgiving|christmas` > the saved setting (the 🎨 Auto / 🌿 / 🎃 buttons in the stats panel, key `cozyIsland.theme.v1`) > the date window (`window: { from: [10, 1], to: [11, 1] }`) > spring. Legacy `classic` maps to `spring`. `?date=YYYY-MM-DD` previews a date.
 A theme drives:
 - the post grade (`grade`)
 - the sky gradient, moon, stars, fog and sun/hemi light (`sky`, blended over the biome atmosphere and fading live)

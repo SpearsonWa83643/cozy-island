@@ -8,7 +8,7 @@ export const HORIZON = new THREE.Color('#ffe0c2');
 export const FOG_COLOR = new THREE.Color('#cfe3ea');
 /** live fog/horizon colour (blended per biome by the game) */
 export const skyFog = uniform(FOG_COLOR.clone());
-/** live sky palette: the theme system lerps these (classic = the original day gradient) */
+/** live sky palette: the theme system lerps these (spring = the original day gradient) */
 export const SKY_CLASSIC = { zenith: '#3f8fdc', mid: '#86c7ee', low: '#bfe4f2', horizon: '#ffe0c2' };
 export const skyU = {
   zenith: uniform(new THREE.Color(SKY_CLASSIC.zenith)),

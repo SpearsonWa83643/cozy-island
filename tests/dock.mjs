@@ -44,16 +44,16 @@ async function run(label, dev, query) {
   // theme picker
   await click('.dock .theme-btn'); await page.waitForFunction(() => +getComputedStyle(document.querySelector('.theme-picker')).opacity > 0.98, null, { timeout: 15000 }).catch(() => {});
   const items = await page.evaluate(() => [...document.querySelectorAll('.tp-item')].map((b) => b.dataset.t).join());
-  ok(`${label}: picker lists Auto + all themes`, items === 'auto,classic,halloween', items);
+  ok(`${label}: picker lists Auto + all themes`, items === 'auto,halloween,thanksgiving,christmas,spring,summer,autumn,winter', items);
   ok(`${label}: old stats-panel theme buttons removed`, (await page.evaluate(() => document.querySelectorAll('.stats .th').length)) === 0);
   if (label === 'ipad') await shot(page, '56-ipad-theme-picker');
-  await click('.tp-item[data-t="classic"]'); await page.waitForTimeout(500);
+  await click('.tp-item[data-t="spring"]'); await page.waitForTimeout(500);
   let s = await page.evaluate(() => ({ id: window.game.themes.current().id, src: window.game.themes.source(), pick: getComputedStyle(document.querySelector('.theme-picker')).opacity, hot: [...document.querySelectorAll('.hotbar .slot')].filter((e) => e.style.display !== 'none').length }));
-  ok(`${label}: choose Classic even in October`, s.id === 'classic' && s.src === 'setting', JSON.stringify(s));
-  ok(`${label}: Halloween build pieces hidden in Classic`, s.hot === 5, JSON.stringify(s));
+  ok(`${label}: choose Spring even in October`, s.id === 'spring' && s.src === 'setting', JSON.stringify(s));
+  ok(`${label}: Halloween build pieces hidden in Spring`, s.hot === 6, JSON.stringify(s));
   await page.reload(); await page.waitForFunction(() => window.game?.ready);
   s = await page.evaluate(() => ({ id: window.game.themes.current().id }));
-  ok(`${label}: choice persists`, s.id === 'classic', JSON.stringify(s));
+  ok(`${label}: choice persists`, s.id === 'spring', JSON.stringify(s));
   await click('.dock .theme-btn'); await page.waitForTimeout(450); await click('.tp-item[data-t="auto"]'); await page.waitForTimeout(500);
   s = await page.evaluate(() => ({ id: window.game.themes.current().id, src: window.game.themes.source(), want: window.game.themes.forDate(new Date().toISOString().slice(0, 10)), hot: [...document.querySelectorAll('.hotbar .slot')].filter((e) => e.style.display !== 'none').length }));
   ok(`${label}: Auto returns to date theme`, s.id === s.want && s.src === 'date', JSON.stringify(s));

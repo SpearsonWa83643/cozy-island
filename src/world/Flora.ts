@@ -8,6 +8,7 @@ import { mulberry32 } from './noise';
 import { Biome, BIOME_COUNT, POND, AREA } from './Biomes';
 import { biomeWeights, heightAt, slopeAt, snowAt, terrainColor, ISLAND_RADIUS, smooth } from './Terrain';
 import * as P from './Plants';
+import { seasonFoliage, grassTint, snowK } from '../theme/Season';
 import type { Physics } from '../core/Physics';
 
 // ---------- camera occlusion fade (shared by all vegetation) ----------
@@ -31,7 +32,7 @@ export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) 
   // subtle world-space grain (bark / leaf / rock variation) instead of textures
   const pw = positionWorld;
   const grain = mx_noise_float(pw.mul(3.2)).mul(0.07).add(mx_noise_float(pw.mul(0.7)).mul(0.06)).add(1);
-  m.colorNode = vec3(grain);
+  m.colorNode = vec3(grain).mul(seasonFoliage());
   // rim light + fake foliage translucency (canopy glows when looking toward the sun)
   const vdir = normalize(pw.sub(cameraPosition));
   const rim = pow(float(1).sub(clamp(dot(normalView, positionViewDirection), 0, 1)), 3);
@@ -298,11 +299,13 @@ export class Flora {
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
     const material = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.9 });
     const tip = uv().y;
-    material.colorNode = mix(vec3(0.82), vec3(1.16), tip);
+    material.colorNode = mix(vec3(0.82), vec3(1.16), tip).mul(grassTint);
     const pl = positionLocal;
     const sway = sin(time.mul(1.8).add(pl.x.mul(0.35)).add(pl.z.mul(0.25))).mul(0.08)
       .add(sin(time.mul(3.1).add(pl.x.mul(1.3))).mul(0.025)).mul(windStrength);
-    material.positionNode = pl.add(vec3(sway, float(0), sway.mul(0.6)).mul(tip.mul(tip)));
+    // snow (winter / christmas) buries the blades to short frosty stubs
+    const bury = float(1).sub(snowK.mul(0.72));
+    material.positionNode = vec3(pl.x, pl.y.mul(bury), pl.z).add(vec3(sway, float(0), sway.mul(0.6)).mul(tip.mul(tip)).mul(bury));
 
     const N = Math.round(22000 * AREA);
     const grass = new THREE.InstancedMesh(geo, material, N);

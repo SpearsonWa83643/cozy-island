@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
 import { Noise2D } from './noise';
 import { Biome, BiomeField, BASE_CENTERS, BIOME_COUNT, BASE_POND, biomeWeightsBase, ISLAND_SCALE } from './Biomes';
+import { seasonGround } from '../theme/Season';
 
 export const WORLD_SIZE = 196; // terrain mesh extent (meters)
 const BASE_RADIUS = 47;
@@ -223,7 +224,7 @@ export class Terrain {
     const ripple = sin(pw.x.mul(2.4).add(pw.z.mul(1.3)).add(n2.mul(3.5))).mul(0.05).add(n1.mul(0.03));
     const strata = sin(pw.y.mul(6.5).add(n1.mul(1.6))).mul(0.08);
     const detail = float(1).add(grassD.mul(mk.w)).add(ripple.mul(mk.x)).add(strata.mul(mk.z)).add(n1.mul(0.025).mul(mk.y));
-    mat.colorNode = vec3(detail);
+    mat.colorNode = vec3(detail).mul(seasonGround(mk.w, n2));
     const cell = floor(pw.mul(13));
     const hsh = fract(sin(dot(cell.xz.add(cell.y).add(floor(cameraPosition.xz.mul(1.5))), vec2(12.9898, 78.233))).mul(43758.5453));
     const glint = step(0.99, hsh).mul(mk.y.mul(0.8).add(mk.x.mul(0.12)));

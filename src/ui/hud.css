@@ -390,3 +390,20 @@ body.touch .theme-picker { top: calc(max(12px, env(safe-area-inset-top)) + 80px)
 .tp-item.on { background: var(--accent, #f2a93b); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
 body.theme-halloween .dbtn { background: linear-gradient(160deg, rgba(255,241,226,.95), rgba(236,222,255,.92)); }
 body.theme-halloween .theme-picker { background: linear-gradient(160deg, rgba(255,241,226,.96), rgba(236,222,255,.95)); }
+
+body.theme-spring .dbtn { background: linear-gradient(160deg, rgba(255,250,245,.95), rgba(255,230,240,.9)); }
+body.theme-summer .dbtn { background: linear-gradient(160deg, rgba(255,252,235,.95), rgba(255,240,200,.9)); }
+body.theme-autumn .dbtn { background: linear-gradient(160deg, rgba(255,246,232,.95), rgba(255,220,180,.9)); }
+body.theme-winter .dbtn { background: linear-gradient(160deg, rgba(240,248,255,.95), rgba(220,235,250,.92)); }
+body.theme-thanksgiving .dbtn { background: linear-gradient(160deg, rgba(255,248,236,.95), rgba(255,220,180,.9)); }
+body.theme-christmas .dbtn { background: linear-gradient(160deg, rgba(255,240,240,.95), rgba(220,245,230,.92)); }
+body.theme-christmas .theme-picker { background: linear-gradient(160deg, rgba(255,244,240,.96), rgba(230,250,235,.95)); }
+body.theme-winter .theme-picker { background: linear-gradient(160deg, rgba(240,248,255,.96), rgba(230,240,255,.95)); }
+body.theme-newyear .dbtn { background: linear-gradient(160deg, rgba(255,246,220,.95), rgba(220,214,255,.92)); }
+body.theme-newyear .theme-picker { background: linear-gradient(160deg, rgba(255,248,230,.96), rgba(228,222,255,.95)); }
+body.theme-valentine .dbtn { background: linear-gradient(160deg, rgba(255,245,248,.95), rgba(255,214,228,.92)); }
+body.theme-valentine .theme-picker { background: linear-gradient(160deg, rgba(255,246,250,.96), rgba(255,224,236,.95)); }
+body.theme-easter .dbtn { background: linear-gradient(160deg, rgba(255,252,236,.95), rgba(232,224,255,.92)); }
+body.theme-easter .theme-picker { background: linear-gradient(160deg, rgba(255,252,240,.96), rgba(236,230,255,.95)); }
+/* 10 themes + Auto: keep the picker inside short / landscape screens */
+.theme-picker { max-height: calc(100vh - 110px); max-height: calc(100dvh - 110px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
