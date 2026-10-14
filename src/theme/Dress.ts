@@ -245,6 +245,38 @@ export class Dress {
     return null;
   }
 
+  /** tap reactions: a ghost giggles + twirls (or trick-or-treats if you're beside it); a jack-o'-lantern flares */
+  reactions = 0;
+  tapAt(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number }, lim: number): boolean {
+    if (!this.group.children.length) return false;
+    const p = this.g.player.position, v = new THREE.Vector3();
+    let best: Ghost | null = null, bd = lim;
+    for (const gh of this.ghosts) {
+      if (gh.obj.position.distanceTo(p) > 16) continue;
+      const s = project(v.copy(gh.obj.position).add(new THREE.Vector3(0, 0.55, 0))); const d = Math.hypot(s.x - cx, s.y - cy);
+      if (d < bd) { bd = d; best = gh; }
+    }
+    if (best) {
+      this.reactions++;
+      const o = best.obj.position;
+      if (Math.hypot(o.x - p.x, o.z - p.z) < 2.3) { this.trickOrTreat(best); return true; }
+      best.spin = 1; best.giggleT = 4; this.g.audio.giggle(1.2 + Math.random() * 0.2);
+      this.g.play.emote(o.clone().add(new THREE.Vector3(0, 1.2, 0)), ['👻', '💜', 'Tee hee!', '✨'][Math.floor(Math.random() * 4)]);
+      return true;
+    }
+    let li = -1; bd = lim * 0.8;
+    this.lanterns.forEach((l, i) => { if (l.distanceTo(p) > 14) return; const s = project(v.copy(l)); const d = Math.hypot(s.x - cx, s.y - cy); if (d < bd) { bd = d; li = i; } });
+    if (li >= 0) {
+      this.reactions++;
+      const l = this.lanterns[li];
+      this.flare = { pos: l.clone(), t: 0.8 }; this.lightT = 0;
+      this.g.audio.pop(0.7); this.g.play.emote(l.clone().add(new THREE.Vector3(0, 0.5, 0)), ['🎃', '✨', '🕯️'][li % 3]);
+      return true;
+    }
+    return false;
+  }
+  private flare: { pos: THREE.Vector3; t: number } | null = null;
+
   trickOrTreat(gh: Ghost) {
     const play = this.g.play, pos = gh.obj.position.clone().add(new THREE.Vector3(0, 0.9, 0));
     gh.spin = 1; this.g.audio.giggle(1.25);
@@ -303,7 +335,8 @@ export class Dress {
       const near = this.lanterns.map((l) => [l.distanceToSquared(p), l] as const).sort((a, b) => a[0] - b[0]).slice(0, this.lights.length);
       near.forEach(([, l], i) => this.lights[i].position.copy(l).add(new THREE.Vector3(0, 0.2, 0)));
     }
-    this.lights.forEach((l, i) => { l.intensity = (2.2 + Math.sin(t * 11 + i * 2) * 0.3 + Math.sin(t * 17.3 + i) * 0.2) * (1 - this.g.caveK); });
+    if (this.flare && this.lights.length) { this.flare.t -= dt; this.lights[0].position.copy(this.flare.pos).add(new THREE.Vector3(0, 0.3, 0)); if (this.flare.t <= 0) this.flare = null; }
+    this.lights.forEach((l, i) => { l.intensity = (i === 0 && this.flare ? 6 * this.flare.t + 2 : 0) + (2.2 + Math.sin(t * 11 + i * 2) * 0.3 + Math.sin(t * 17.3 + i) * 0.2) * (1 - this.g.caveK); });
     void this.flick;
   }
 }

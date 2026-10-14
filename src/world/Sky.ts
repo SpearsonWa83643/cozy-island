@@ -3,7 +3,7 @@ import { float, floor, fract, max, mix, normalize, positionLocal, pow, sin, smoo
 
 export const SUN_DIR = new THREE.Vector3(-0.5, 0.78, -0.6).normalize();
 /** the (Halloween) moon hangs low over the sea, opposite the sun, so it frames the island at dusk */
-export const MOON_DIR = new THREE.Vector3(0.62, 0.3, 0.72).normalize();
+export const MOON_DIR = new THREE.Vector3(0.62, 0.17, 0.72).normalize();
 export const HORIZON = new THREE.Color('#ffe0c2');
 export const FOG_COLOR = new THREE.Color('#cfe3ea');
 /** live fog/horizon colour (blended per biome by the game) */

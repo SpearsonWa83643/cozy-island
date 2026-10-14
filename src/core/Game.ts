@@ -5,7 +5,7 @@ import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
 import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface } from '../world/Terrain';
 import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
-import { theme, themeEvents, applyThemeCss } from '../theme/theme';
+import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
 import { createWater } from '../world/Water';
 import { Flora, fadeCam, fadeTarget } from '../world/Flora';
@@ -266,6 +266,8 @@ export class Game {
   }
 
   dress!: Dress;
+  /** theme system handle (tests / console) */
+  themes = { current: () => theme, source: () => themeSource, set: setTheme, forDate: (iso: string) => themeForDate(new Date(iso + 'T12:00:00')), resolve: () => resolveTheme() };
   /** eased 0..1 strength of the active theme's sky (so a live switch fades rather than pops) */
   themeK = 0;
   private skyTarget = { zenith: new THREE.Color(), mid: new THREE.Color(), low: new THREE.Color(), horizon: new THREE.Color() };

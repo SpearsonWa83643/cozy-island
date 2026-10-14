@@ -118,6 +118,8 @@ export class Gameplay implements System {
       // tapping a follower opens its close-up friend screen
       const fr = this.friendAt(e.clientX, e.clientY);
       if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
+      // seasonal tap reactions (ghosts giggle + twirl, jack-o'-lanterns flare)
+      if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
@@ -355,6 +357,7 @@ export class Gameplay implements System {
     if (n > 0) { this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.5, 0)), `${icon} +${n}`, 'emote', 1.2, 40); this.g.audio.pop(1.8); }
   }
   toast(h: string, ms?: number) { this.juice.toast(h, ms); }
+  emote(pos: THREE.Vector3, icon: string) { this.juice.pop(pos, icon, 'emote', 1.2, 40); }
   /** give a not-yet-owned wearable from a themed set (null if all owned) */
   giveThemeWear(pos: THREE.Vector3, ids: string[], why: string): boolean {
     const d = this.save.data;
