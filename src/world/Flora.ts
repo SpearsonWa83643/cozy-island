@@ -19,7 +19,7 @@ export const sunDirU = uniform(new THREE.Vector3(-0.5, 0.78, -0.6).normalize());
 
 /** Vertex-coloured, flat-shaded, wind-swaying material that dithers out when it blocks the camera. */
 export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) {
-  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: opts.rough ?? 0.85, side: opts.side ?? THREE.FrontSide });
+  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: opts.rough ?? 0.82, side: opts.side ?? THREE.FrontSide });
   const sway = attribute('sway', 'float');
   const pl = positionLocal;
   const t = time;
@@ -31,13 +31,18 @@ export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) 
   m.positionNode = pl.add(wv);
   // subtle world-space grain (bark / leaf / rock variation) instead of textures
   const pw = positionWorld;
-  const grain = mx_noise_float(pw.mul(3.2)).mul(0.07).add(mx_noise_float(pw.mul(0.7)).mul(0.06)).add(1);
-  m.colorNode = vec3(grain).mul(seasonFoliage());
-  // rim light + fake foliage translucency (canopy glows when looking toward the sun)
+  const grain = mx_noise_float(pw.mul(3.2)).mul(0.08).add(mx_noise_float(pw.mul(0.7)).mul(0.07)).add(1);
+  const vc = vertexColor();
+  // bark vs leaf: greens get SSS; trunks get deeper contrast
+  const green = smoothstep(0.02, 0.12, vc.y.sub(vc.x.max(vc.z)));
+  const barkMul = mix(vec3(0.78, 0.7, 0.62), vec3(1.05, 1.04, 1.0), green);
+  m.colorNode = vec3(grain).mul(seasonFoliage()).mul(barkMul);
+  // rim light + fake foliage translucency / SSS (canopy glows when looking toward the sun)
   const vdir = normalize(pw.sub(cameraPosition));
-  const rim = pow(float(1).sub(clamp(dot(normalView, positionViewDirection), 0, 1)), 3);
-  const back = pow(clamp(dot(vdir, sunDirU), 0, 1), 3).mul(sway.min(1));
-  m.emissiveNode = vertexColor().mul(rim.mul(0.16).add(back.mul(0.45)));
+  const rim = pow(float(1).sub(clamp(dot(normalView, positionViewDirection), 0, 1)), 2.6);
+  const back = pow(clamp(dot(vdir, sunDirU), 0, 1), 2.4).mul(sway.min(1));
+  const sss = green.mul(back.mul(0.72).add(rim.mul(0.22))).add(rim.mul(0.08));
+  m.emissiveNode = vc.mul(sss);
   m.maskNode = occlusionMask();
   m.maskShadowNode = bool(true); // shadows stay solid
   return m;
@@ -297,9 +302,11 @@ export class Flora {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-    const material = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.9 });
+    const material = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.88 });
     const tip = uv().y;
-    material.colorNode = mix(vec3(0.82), vec3(1.16), tip).mul(grassTint);
+    // richer tip→root: cooler dark base, brighter sunlit tip; slight warm lift mid-blade
+    material.colorNode = mix(mix(vec3(0.68, 0.78, 0.52), vec3(0.95, 1.08, 0.72), tip), vec3(1.18, 1.22, 0.88), tip.mul(tip)).mul(grassTint);
+    material.emissiveNode = grassTint.mul(tip.mul(tip).mul(0.07));
     const pl = positionLocal;
     const sway = sin(time.mul(1.8).add(pl.x.mul(0.35)).add(pl.z.mul(0.25))).mul(0.08)
       .add(sin(time.mul(3.1).add(pl.x.mul(1.3))).mul(0.025)).mul(windStrength);

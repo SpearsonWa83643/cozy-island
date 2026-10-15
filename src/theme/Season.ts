@@ -15,6 +15,8 @@ export interface SeasonLook {
   grass: string;
   /** ground (grass areas) target colour + strength */
   ground: string | null; groundK: number;
+  /** optional water shallow / mid / deep targets + blend (null keeps the classic island palette) */
+  water?: [string, string, string] | null; waterK?: number;
 }
 export const NO_SEASON: SeasonLook = { leaf: null, leafK: 0, snow: 0, grass: '#ffffff', ground: null, groundK: 0 };
 
@@ -27,6 +29,11 @@ export const snowK = uniform(0);
 export const grassTint = uniform(v3('#ffffff'));
 export const groundCol = uniform(v3('#ffffff'));
 export const groundK = uniform(0);
+/** live water palette (Water.ts); defaults match the classic shallow→deep ramp */
+export const waterShallow = uniform(v3('#7ef5e2'));
+export const waterMid = uniform(v3('#14a8c8'));
+export const waterDeep = uniform(v3('#0c4a8a'));
+export const waterK = uniform(0);
 
 const LUM = vec3(0.3, 0.59, 0.11);
 /** colour multiplier for vertex-coloured foliage: recolours green leaves (keeping their light/dark), frosts tops */
@@ -60,6 +67,7 @@ export function seasonGround(mask: any, n: any) {
 const tmpC = new THREE.Color(), tmpV = new THREE.Vector3();
 const toV = (hex: string) => { tmpC.set(hex); return tmpV.set(tmpC.r, tmpC.g, tmpC.b); };
 /** ease the uniforms toward a look (call every frame) */
+const WATER_DEFAULT: [string, string, string] = ['#7ef5e2', '#14a8c8', '#0c4a8a'];
 export function updateSeason(look: SeasonLook, dt: number) {
   const k = Math.min(1, dt * 1.6);
   if (look.leaf) {
@@ -70,6 +78,9 @@ export function updateSeason(look: SeasonLook, dt: number) {
   grassTint.value.lerp(toV(look.grass), k);
   if (look.ground) groundCol.value.lerp(toV(look.ground), k);
   groundK.value += ((look.ground ? look.groundK : 0) - groundK.value) * k;
+  const w = look.water ?? WATER_DEFAULT;
+  waterShallow.value.lerp(toV(w[0]), k); waterMid.value.lerp(toV(w[1]), k); waterDeep.value.lerp(toV(w[2]), k);
+  waterK.value += ((look.water ? (look.waterK ?? 1) : 0) - waterK.value) * k;
 }
 /** jump straight to a look (first frame / tests) */
 export function snapSeason(look: SeasonLook) { updateSeason(look, 10); }

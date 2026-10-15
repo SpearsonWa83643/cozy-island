@@ -220,11 +220,13 @@ export class Terrain {
     const mk = attribute('mask', 'vec4');
     const pw = positionWorld;
     const n1 = mx_noise_float(pw.xz.mul(1.7)), n2 = mx_noise_float(pw.xz.mul(0.33));
-    const grassD = n1.mul(0.11).add(n2.mul(0.09));
-    const ripple = sin(pw.x.mul(2.4).add(pw.z.mul(1.3)).add(n2.mul(3.5))).mul(0.05).add(n1.mul(0.03));
-    const strata = sin(pw.y.mul(6.5).add(n1.mul(1.6))).mul(0.08);
-    const detail = float(1).add(grassD.mul(mk.w)).add(ripple.mul(mk.x)).add(strata.mul(mk.z)).add(n1.mul(0.025).mul(mk.y));
-    mat.colorNode = vec3(detail).mul(seasonGround(mk.w, n2));
+    const grassD = n1.mul(0.14).add(n2.mul(0.11));
+    const ripple = sin(pw.x.mul(2.4).add(pw.z.mul(1.3)).add(n2.mul(3.5))).mul(0.055).add(n1.mul(0.035));
+    const strata = sin(pw.y.mul(6.5).add(n1.mul(1.6))).mul(0.09);
+    const detail = float(1).add(grassD.mul(mk.w)).add(ripple.mul(mk.x)).add(strata.mul(mk.z)).add(n1.mul(0.03).mul(mk.y));
+    // grass patches get a tiny warm lift so meadows read richer without extra polys
+    const lush = float(1).add(mk.w.mul(0.06));
+    mat.colorNode = vec3(detail).mul(lush).mul(seasonGround(mk.w, n2));
     const cell = floor(pw.mul(13));
     const hsh = fract(sin(dot(cell.xz.add(cell.y).add(floor(cameraPosition.xz.mul(1.5))), vec2(12.9898, 78.233))).mul(43758.5453));
     const glint = step(0.99, hsh).mul(mk.y.mul(0.8).add(mk.x.mul(0.12)));

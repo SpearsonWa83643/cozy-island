@@ -64,7 +64,7 @@ const summer: Theme = {
   ui: { accent: '#f0b429', accentDark: '#d4880a', panel: 'rgba(255,252,240,.9)', ink: '#4a3a20' },
   music: 'classic', ambience: { owls: 0, wind: 0.15 }, dress: 'summer',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['sunflower'],
-  season: { leaf: ['#3f9e34', '#58b23c', '#7cc23e'], leafK: 0.25, snow: 0, grass: '#f6f8dc', ground: '#8cc04a', groundK: 0.15 },
+  season: { leaf: ['#3f9e34', '#58b23c', '#7cc23e'], leafK: 0.25, snow: 0, grass: '#f6f8dc', ground: '#8cc04a', groundK: 0.15, water: ['#6ff2da', '#1ab0c8', '#0a4a8a'], waterK: 0.4 },
 };
 
 const autumn: Theme = {
@@ -77,7 +77,7 @@ const autumn: Theme = {
   ui: { accent: '#e07030', accentDark: '#a05020', panel: 'rgba(255,246,232,.9)', ink: '#4a3020' },
   music: 'classic', ambience: { owls: 0.3, wind: 0.35 }, dress: 'autumn',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['haybale'],
-  season: { leaf: ['#ea8a2a', '#d24a26', '#f0c040'], leafK: 0.85, snow: 0, grass: '#f2d29a', ground: '#b8a055', groundK: 0.45 },
+  season: { leaf: ['#ea8a2a', '#d24a26', '#f0c040'], leafK: 0.85, snow: 0, grass: '#f2d29a', ground: '#b8a055', groundK: 0.45, water: ['#8fe0c8', '#2a9ab0', '#0e4a78'], waterK: 0.55 },
 };
 
 const winter: Theme = {
@@ -90,7 +90,7 @@ const winter: Theme = {
   ui: { accent: '#6a9fd8', accentDark: '#3a6aa0', panel: 'rgba(240,248,255,.9)', ink: '#2a3a50' },
   music: 'classic', ambience: { owls: 0.2, wind: 0.4 }, dress: 'winter',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['snowman'],
-  season: { leaf: ['#4e7a62', '#5c8670', '#6a8e7c'], leafK: 0.5, snow: 0.9, grass: '#d8f0e8', ground: '#eef3fa', groundK: 0.9 },
+  season: { leaf: ['#4e7a62', '#5c8670', '#6a8e7c'], leafK: 0.5, snow: 0.9, grass: '#d8f0e8', ground: '#eef3fa', groundK: 0.9, water: ['#b8e8f0', '#4aa0c8', '#1a4a7a'], waterK: 0.85 },
 };
 
 const halloween: Theme = {
@@ -132,7 +132,7 @@ const christmas: Theme = {
   ui: { accent: '#e04050', accentDark: '#2a8a50', panel: 'rgba(30,40,64,.88)', ink: '#fff4e8' },
   music: 'festive', ambience: { owls: 0.1, wind: 0.3 }, dress: 'christmas',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['xmastree', 'gift'],
-  season: { leaf: ['#3a7050', '#447a58', '#4e8460'], leafK: 0.35, snow: 0.8, grass: '#d8f0e8', ground: '#eaf0fa', groundK: 0.85 },
+  season: { leaf: ['#3a7050', '#447a58', '#4e8460'], leafK: 0.35, snow: 0.8, grass: '#d8f0e8', ground: '#eaf0fa', groundK: 0.85, water: ['#c0e8f4', '#508eb8', '#1a4068'], waterK: 0.8 },
 };
 
 /** Easter Sunday (anonymous Gregorian algorithm) as [month, day] */
@@ -156,7 +156,7 @@ const newyear: Theme = {
   ui: { accent: '#f4c84a', accentDark: '#7a5ad8', panel: 'rgba(24,26,60,.88)', ink: '#fff6e0' },
   music: 'festive', ambience: { owls: 0, wind: 0.2 }, dress: 'newyear',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['skylantern'],
-  season: { leaf: ['#3a7050', '#447a58', '#4e8460'], leafK: 0.35, snow: 0.55, grass: '#d8f0e8', ground: '#e6edf8', groundK: 0.6 },
+  season: { leaf: ['#3a7050', '#447a58', '#4e8460'], leafK: 0.35, snow: 0.55, grass: '#d8f0e8', ground: '#e6edf8', groundK: 0.6, water: ['#b0e0f0', '#4688b0', '#183c68'], waterK: 0.7 },
 };
 
 const valentine: Theme = {

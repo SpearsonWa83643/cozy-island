@@ -5,6 +5,7 @@ import {
 } from 'three/tsl';
 import { WORLD_SIZE } from './Terrain';
 import { skyU } from './Sky';
+import { waterDeep, waterK, waterMid, waterShallow } from '../theme/Season';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
 export function createWater(heightTex: THREE.Texture): THREE.Mesh {
@@ -19,7 +20,7 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   const amp = smoothstep(float(24), float(44), p.xz.length()).mul(0.85).add(0.15);
   const wave = sin(a1).mul(0.06).add(sin(a2).mul(0.05)).add(sin(a3).mul(0.025)).mul(amp);
 
-  const mat = new THREE.MeshStandardNodeMaterial({ transparent: true, roughness: 0.42, metalness: 0.0 });
+  const mat = new THREE.MeshStandardNodeMaterial({ transparent: true, roughness: 0.38, metalness: 0.0 });
   mat.positionNode = p.add(vec3(0, wave, 0));
 
   // Analytic normal + high-frequency ripples (fragment only).
@@ -38,28 +39,36 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   const h = texture(heightTex, uvH).r.mul(10).sub(4);
   const depth = clamp(h.negate(), 0, 6);
 
-  let col = mix(color('#6ff2da'), color('#1fc4c4'), smoothstep(float(0.0), float(0.9), depth));
-  col = mix(col, color('#139bc4'), smoothstep(float(0.9), float(3.0), depth));
-  col = mix(col, color('#1466a8'), smoothstep(float(3.2), float(6.0), depth));
+  // Classic island palette (clearer shallows, richer deep blue); season uniforms tint toward theme water when waterK > 0
+  const classicShallow = color('#7ef5e2');
+  const classicMidA = color('#2ad4c8');
+  const classicMidB = color('#1498c0');
+  const classicDeep = color('#0a4588');
+  let base = mix(classicShallow, classicMidA, smoothstep(float(0.0), float(0.7), depth));
+  base = mix(base, classicMidB, smoothstep(float(0.7), float(2.6), depth));
+  base = mix(base, classicDeep, smoothstep(float(2.8), float(6.0), depth));
+  let themed = mix(waterShallow, waterMid, smoothstep(float(0.0), float(2.4), depth));
+  themed = mix(themed, waterDeep, smoothstep(float(2.6), float(6.0), depth));
+  let col = mix(base, themed, waterK);
 
-  // Foam
+  // Softer foam bands — wide shoreline wash + gentle rolling crest lines
   const n = mx_noise_float(vec3(w.x.mul(0.9), w.z.mul(0.9), t.mul(0.35)));
-  const shore = smoothstep(float(0.28), float(0.02), depth.add(n.mul(0.08)));
-  const band = smoothstep(float(0.82), float(0.97), sin(depth.mul(9).sub(t.mul(1.6)).add(n.mul(1.5))))
-    .mul(smoothstep(float(1.0), float(0.15), depth));
-  const foam = clamp(max(shore, band.mul(0.75)), 0, 1);
+  const shore = smoothstep(float(0.38), float(0.0), depth.add(n.mul(0.1)));
+  const band = smoothstep(float(0.72), float(0.96), sin(depth.mul(7.5).sub(t.mul(1.45)).add(n.mul(1.4))))
+    .mul(smoothstep(float(1.15), float(0.12), depth));
+  const foam = clamp(max(shore.mul(0.92), band.mul(0.55)), 0, 1);
 
   // Fresnel sky tint
   const viewDir = normalize(cameraPosition.sub(w));
-  const fres = pow(float(1).sub(max(dot(nWorld, viewDir), float(0))), float(4));
-  col = mix(col, skyU.horizon.mul(1.05), fres.mul(0.55));
-  // sparkle
-  const sparkle = smoothstep(float(0.72), float(0.9), mx_noise_float(vec3(w.x.mul(3.0), w.z.mul(3.0), t.mul(1.2)))).mul(0.12);
+  const fres = pow(float(1).sub(max(dot(nWorld, viewDir), float(0))), float(3.6));
+  col = mix(col, skyU.horizon.mul(1.05), fres.mul(0.5));
+  // sparkle (kept subtle, mostly mid/deep so shallows stay clear)
+  const sparkle = smoothstep(float(0.74), float(0.92), mx_noise_float(vec3(w.x.mul(3.0), w.z.mul(3.0), t.mul(1.2)))).mul(0.11);
 
-  mat.colorNode = mix(col, color('#ffffff'), foam);
-  mat.emissiveNode = vec3(sparkle).mul(smoothstep(float(0.5), float(2.5), depth));
-  // clear shallows: you can see the reef shelf (~1.5-2.5 m) through the water; the drop-off goes deep blue
-  mat.opacityNode = clamp(max(mix(float(0.34), float(0.95), smoothstep(float(0.1), float(4.6), depth)), foam), 0, 1);
+  mat.colorNode = mix(col, color('#f4fffc'), foam.mul(0.88));
+  mat.emissiveNode = vec3(sparkle).mul(smoothstep(float(0.45), float(2.8), depth));
+  // clearer shallows: reef shelf readable; deep blue stays nearly opaque
+  mat.opacityNode = clamp(max(mix(float(0.26), float(0.96), smoothstep(float(0.05), float(4.4), depth)), foam.mul(0.7)), 0, 1);
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = false;
