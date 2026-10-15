@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { theme } from '../theme/theme';
 import { heightAt } from './Terrain';
-import type { Flora } from './Flora';
+import { Flora } from './Flora';
 import type { Fauna, Agent } from './Fauna';
 import type { BuildMode } from '../build/BuildMode';
 import type { Reef } from './Reef';
@@ -115,6 +115,8 @@ export class TapReact {
   rockHits = 0;
   waterHits = 0;
   propHits = 0;
+  /** last flora/rock spot successfully tapped (Gameplay harvest hook) */
+  lastSpot: Spot | null = null;
 
   private cool = new Map<string, number>();
   private leans: Lean[] = [];
@@ -159,8 +161,10 @@ export class TapReact {
     const spots = this.flora.spots;
     let best: Spot | null = null, core = false;
     let bestScore = Infinity;
+    this.lastSpot = null;
     for (const sp of spots) {
       if (!isPlant(sp.name) && !isRock(sp.name)) continue;
+      if (this.flora.gone.has(Flora.key(sp.name, sp.x, sp.z))) continue;
       const far = Math.hypot(sp.x - player.x, sp.z - player.z);
       if (far > 24) continue;
       const a = project(_v.set(sp.x, sp.h + 0.1, sp.z));
@@ -185,6 +189,7 @@ export class TapReact {
     const tree = isTree(best.name);
     const rock = isRock(best.name);
     const res = core ? 'core' : 'slop';
+    this.lastSpot = best;
     if (until > this.now) return res;
 
     this.cool.set(key, this.now + (tree ? 0.85 : rock ? 0.75 : 0.65));

@@ -3,7 +3,8 @@
 export type FoodId = 'apple' | 'cherry' | 'berry' | 'blueberry' | 'acorn' | 'mushroom' | 'pinecone' | 'coconut' | 'cactusfruit' | 'seeds' | 'clover' | 'carrot' | 'reed'
   | 'conch' | 'seaglass' | 'starfish' | 'pearl'
   | 'worm' | 'bug' | 'fossil' | 'gem'
-  | 'crystal' | 'geode' | 'glowcap' | 'relic';
+  | 'crystal' | 'geode' | 'glowcap' | 'relic'
+  | 'wood';
 /** sea items are treasures, not food: they show in the bag and trade for shells */
 export interface FoodDef { id: FoodId; name: string; icon: string; sea?: boolean; trade?: number; }
 export const FOODS: Record<FoodId, FoodDef> = {
@@ -20,6 +21,7 @@ export const FOODS: Record<FoodId, FoodDef> = {
   clover: { id: 'clover', name: 'Clover', icon: '☘️' },
   carrot: { id: 'carrot', name: 'Wild carrot', icon: '🥕' },
   reed: { id: 'reed', name: 'Reed grain', icon: '🌾' },
+  wood: { id: 'wood', name: 'Wood', icon: '🪵' },
   conch: { id: 'conch', name: 'Conch shell', icon: '🐚', sea: true, trade: 2 },
   seaglass: { id: 'seaglass', name: 'Sea glass', icon: '💎', sea: true, trade: 3 },
   starfish: { id: 'starfish', name: 'Starfish', icon: '⭐', sea: true, trade: 2 },

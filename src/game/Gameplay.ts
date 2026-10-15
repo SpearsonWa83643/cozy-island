@@ -7,6 +7,7 @@ import { Treasure } from './Treasure';
 import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
 import { Dig } from './Dig';
+import { Harvest } from './Harvest';
 import { FriendScreen, ensurePet } from './FriendScreen';
 import { WEARABLES, CAVE_WEAR } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
@@ -33,6 +34,7 @@ export class Gameplay implements System {
   guide = new Guide();
   walk: TapWalk;
   digger = new Dig();
+  harvest!: Harvest;
   private digCool = 0; private digMsgT = 0;
   private ray = new THREE.Raycaster();
   map: MapOverlay;
@@ -86,6 +88,17 @@ export class Gameplay implements System {
     this.react = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
     this.react.bind({ fauna: g.fauna, build: g.build, reef: g.reef, camera: g.camera });
     g.scene.add(this.react.group);
+    this.harvest = new Harvest(
+      g.flora, g.audio,
+      (id, pos, icon) => {
+        const f = this.save.data.food; f[id] = (f[id] ?? 0) + 1; this.save.touch();
+        this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.25, 0)), '+1', 'plus', 0.9, 40);
+        this.juice.fly(pos, icon, this.panels.bagBtn, () => this.panels.refreshBadges());
+      },
+      (h, ms) => this.juice.toast(h, ms),
+      (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45),
+    );
+    g.scene.add(this.harvest.group);
     this.panels = new Panels(document.body, {
       save: () => this.save.data,
       equip: (slot, id) => this.equip(slot, id),
@@ -148,6 +161,8 @@ export class Gameplay implements System {
       const animalHit = this.react.tapAnimal(e.clientX, e.clientY, proj, lim, g.player.position);
       // flora sway / petal burst + rock wobble; does not steal chest/animal taps
       const floraHit = this.react.tapAt(e.clientX, e.clientY, proj, lim, g.player.position);
+      // wood chop / fruit pick on tree taps (within range)
+      if (floraHit && this.react.lastSpot) this.harvest.onTreeTap(this.react.lastSpot, g.player.position);
       // placed build props squash-bounce
       const propHit = this.react.tapProp(e.clientX, e.clientY, proj, lim, g.player.position);
       // tapping the thing you're already next to uses it right away
@@ -710,6 +725,7 @@ export class Gameplay implements System {
     this.digCool -= dt; this.digMsgT -= dt;
     if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build.active) this.shovel();
     this.digger.update(dt);
+    this.harvest.update(dt);
     // contextual target
     this.targetT -= dt;
     if (this.targetT <= 0) this.target = g.build.active || this.previewOn || g.player.mounted ? null : this.findTarget(p);

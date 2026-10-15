@@ -113,6 +113,9 @@ const SPECS: Spec[] = [
   { name: 'marshbush', make: (r) => P.bush(r, ['#6f9a4a', '#5f8f4a', '#7fa85a']), variants: 2, count: 20, biomes: [Biome.Marsh], h: [0.4, 99], space: 0.8, low: 0.5 },
 ];
 
+
+function spotKey(x: number, z: number) { return `${x.toFixed(2)},${z.toFixed(2)}`; }
+
 export class Flora {
   group = new THREE.Group();
   private scalable: { mesh: THREE.InstancedMesh; max: number; low: number }[] = [];
@@ -127,8 +130,13 @@ export class Flora {
   spots: { name: string; x: number; z: number; h: number; sc: number }[] = [];
   /** tap-reaction counter (tests / debug); bumped by TapReact */
   reactions = 0;
+  /** spots whose canopy was chopped away (stump/grass) — TapReact skips them */
+  gone = new Set<string>();
+  private physics: Physics;
+  private trunks = new Map<string, ReturnType<Physics['addCylinder']>>();
 
   constructor(physics: Physics, spawn: THREE.Vector2) {
+    this.physics = physics;
     const rnd = mulberry32(42);
     const mat = floraMaterial();
     const matDouble = floraMaterial({ side: THREE.DoubleSide });
@@ -178,7 +186,11 @@ export class Flora {
           im.setMatrixAt(placed, m4.compose(p3, q, s3));
           const br = 0.88 + rnd() * 0.24;
           im.setColorAt(placed, tint.setRGB(br, br, br * (0.95 + rnd() * 0.1)));
-          if (spec.collide === 'trunk') { physics.addCylinder(x, h + 1, z, 1, 0.28 * sc); this.trees.push(new THREE.Vector3(x, h, z)); }
+          if (spec.collide === 'trunk') {
+            const col = physics.addCylinder(x, h + 1, z, 1, 0.28 * sc);
+            this.trunks.set(spotKey(x, z), col);
+            this.trees.push(new THREE.Vector3(x, h, z));
+          }
           if (spec.shadow !== false && !spec.water) this.aoPoints.push({ x, z, r: (spec.collide === 'trunk' ? 1.4 : 0.6) * sc });
           if (spec.collide === 'cactus') physics.addCylinder(x, h + 1.2, z, 1.2, 0.35 * sc);
           if (spec.collide === 'ball') physics.addBall(x, h + 0.2, z, 0.75 * sc);
@@ -395,6 +407,61 @@ export class Flora {
       this.clouds.push(g);
       this.group.add(g);
     }
+  }
+
+
+  /** Stable key for a flora spot (matches Harvest / TapReact). */
+  static key(name: string, x: number, z: number) { return `${name}|${x.toFixed(2)}|${z.toFixed(2)}`; }
+
+  findInstance(name: string, x: number, z: number): { mesh: THREE.InstancedMesh; index: number; base: THREE.Matrix4; pos: THREE.Vector3 } | null {
+    const m = new THREE.Matrix4(), p = new THREE.Vector3();
+    let best: { mesh: THREE.InstancedMesh; index: number; base: THREE.Matrix4; pos: THREE.Vector3 } | null = null;
+    let bd = 0.35;
+    for (const ch of this.group.children) {
+      const im = ch as THREE.InstancedMesh;
+      if (!im.isInstancedMesh || im.name !== name) continue;
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m);
+        const d = Math.hypot(p.x - x, p.z - z);
+        if (d < bd) {
+          bd = d;
+          best = { mesh: im, index: i, base: m.clone(), pos: p.clone() };
+        }
+      }
+    }
+    return best;
+  }
+
+  /** Hide a tree canopy (zero scale) and drop its tall trunk collider. Returns false if already gone. */
+  fellTree(name: string, x: number, z: number): boolean {
+    const k = Flora.key(name, x, z);
+    if (this.gone.has(k)) return false;
+    this.gone.add(k);
+    const hit = this.findInstance(name, x, z);
+    if (hit) {
+      const zed = new THREE.Matrix4().makeScale(0, 0, 0);
+      hit.mesh.setMatrixAt(hit.index, zed);
+      hit.mesh.instanceMatrix.needsUpdate = true;
+    }
+    const col = this.trunks.get(spotKey(x, z));
+    if (col) { this.physics.remove(col); this.trunks.delete(spotKey(x, z)); }
+    return true;
+  }
+
+  /** Shrink / replace trunk collider with a stump-sized one while the stump is visible. */
+  setStumpCollider(x: number, z: number, h: number, sc: number) {
+    const k = spotKey(x, z);
+    const old = this.trunks.get(k);
+    if (old) { this.physics.remove(old); this.trunks.delete(k); }
+    const col = this.physics.addCylinder(x, h + 0.22, z, 0.22, 0.22 * sc);
+    this.trunks.set(k, col);
+  }
+
+  clearTrunkCollider(x: number, z: number) {
+    const k = spotKey(x, z);
+    const old = this.trunks.get(k);
+    if (old) { this.physics.remove(old); this.trunks.delete(k); }
   }
 
   setQuality(high: boolean) {
