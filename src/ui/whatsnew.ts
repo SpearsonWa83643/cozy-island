@@ -1,0 +1,12 @@
+// "What's new" note shown once on load after each release.
+// Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
+export const VERSION = '2026-10-15-mounts';
+
+export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
+
+export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'Ride a bald eagle! Tap Call Mount.' },
+  { icon: 'wood', text: 'Seasons & holidays dress the whole island.' },
+  { icon: 'fruit', text: 'Tap trees, plants, rocks and water — they react!' },
+  { icon: 'heart', text: 'Clean HUD: ⚙️ hides panels, 🎨 picks any theme.' },
+];

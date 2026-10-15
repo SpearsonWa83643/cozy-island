@@ -17,6 +17,7 @@ import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
+import { showWhatsNew } from '../ui/whatsnewNote';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -191,6 +192,8 @@ export class Gameplay implements System {
     };
     window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
+    // What's new note (once per release); mounts wire in via bindMount after Game constructs Mount
+    setTimeout(() => showWhatsNew(this.g.audio), 700);
   }
 
   bindMount(m: Mount) {
