@@ -10,8 +10,8 @@ import type { FoodId } from '../game/Items';
 /**
  * The cave: a rocky arch on the hillside between the alpine peak and the desert, leading (via a soft fade)
  * into a self-contained underground basin ~45 m below. The interior is a floor heightfield whose rim rises into
- * walls, plus a ceiling heightfield; light is baked into vertex "glow" from crystals and mushrooms (no real point
- * lights → cheap on iPad). Bats, glowing pool fish, beetles and a friendly mole live inside; bats also circle the
+ * walls, plus a ceiling heightfield; light is baked into vertex "glow" from crystals and mushrooms with soft falloff,
+ * warm/cool pools, ceiling bounce and a tunnel daylight shaft (no real point lights → cheap on iPad). Bats, glowing pool fish, beetles and a friendly mole live inside; bats also circle the
  * entrance outside. Only one side is ever drawn (Game hides the island while you're underground).
  */
 const n2 = new Noise2D(911);
@@ -40,7 +40,7 @@ export class Cave {
   private beetleS: { x: number; z: number; a: number; t: number }[] = [];
   private moleObj = new THREE.Group(); private moleBody = new THREE.Group();
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(); private v = new THREE.Vector3();
-  private lights: { x: number; y: number; z: number; c: THREE.Color; i: number }[] = [];
+  private lights: { x: number; y: number; z: number; c: THREE.Color; i: number; soft: number }[] = [];
   high = true;
   stats = { stalactites: 0, crystals: 0 };
 
@@ -162,10 +162,14 @@ export class Cave {
       if (e < 0.35 || e > 0.78 || Math.hypot(lx - POOL.x, lz - POOL.z) < POOL.r) continue;
       shrooms.push({ x: lx, z: lz, s: 0.6 + rnd() * 0.8 }); i++;
     }
-    for (const c of crystals) this.lights.push({ x: c.x, y: this.floorL(c.x, c.z) + 0.8, z: c.z, c: new THREE.Color(CRYSTAL_COLS[c.c]), i: 1.6 * c.s });
-    for (const s of shrooms) this.lights.push({ x: s.x, y: this.floorL(s.x, s.z) + 0.3, z: s.z, c: new THREE.Color('#5ff0e0'), i: 0.5 * s.s });
-    this.lights.push({ x: POOL.x, y: -0.6, z: POOL.z, c: new THREE.Color('#2ad8d0'), i: 2.2 });
-    this.lights.push({ x: T1 - 1, y: 1.5, z: 0, c: new THREE.Color('#ffe6b0'), i: 3.5 }); // daylight from the tunnel mouth
+    // cool crystal shafts + warm mushroom pools (baked, no real point lights)
+    for (const c of crystals) this.lights.push({ x: c.x, y: this.floorL(c.x, c.z) + 0.9, z: c.z, c: new THREE.Color(CRYSTAL_COLS[c.c]), i: 2.0 * c.s, soft: 7.5 });
+    for (const s of shrooms) this.lights.push({ x: s.x, y: this.floorL(s.x, s.z) + 0.28, z: s.z, c: new THREE.Color('#ffb070'), i: 0.85 * s.s, soft: 4.2 });
+    this.lights.push({ x: POOL.x, y: -0.55, z: POOL.z, c: new THREE.Color('#3ae0d0'), i: 2.8, soft: 9 });
+    // entrance daylight shaft: a warm key near the mouth + softer fill stepping into the chamber
+    this.lights.push({ x: T1 - 0.6, y: 1.6, z: 0, c: new THREE.Color('#ffe8b8'), i: 4.6, soft: 11 });
+    this.lights.push({ x: T1 + 3.5, y: 1.3, z: 0, c: new THREE.Color('#ffd9a0'), i: 2.2, soft: 8 });
+    this.lights.push({ x: T0 - 2, y: 1.8, z: 0, c: new THREE.Color('#fff0d0'), i: 1.1, soft: 6 });
     // floor + ceiling grids with baked glow
     const nx = Math.round((X1 - X0) / STEP) + 1, nz = Math.round((Z1 - Z0) / STEP) + 1;
     const mk = (ceil: boolean) => {
@@ -180,8 +184,26 @@ export class Cave {
         if (!ceil) { const wet = smooth(POOL.r + 1.5, POOL.r, Math.hypot(lx - POOL.x, lz - POOL.z)); c.lerp(new THREE.Color('#2f3a44'), wet * 0.7); }
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
         g.setRGB(0, 0, 0);
-        for (const L of this.lights) { const d2 = (L.x - lx) ** 2 + (L.y - y) ** 2 + (L.z - lz) ** 2; const f = L.i / (1 + d2 * 1.1); g.r += L.c.r * f; g.g += L.c.g * f; g.b += L.c.b * f; }
-        glow[k] = Math.min(0.9, g.r * 0.22); glow[k + 1] = Math.min(0.9, g.g * 0.22); glow[k + 2] = Math.min(0.9, g.b * 0.22);
+        // soft inverse-square with a finite radius (cheap, readable pools) + a faint ceiling bounce off the floor
+        for (const L of this.lights) {
+          const d2 = (L.x - lx) ** 2 + (L.y - y) ** 2 + (L.z - lz) ** 2;
+          const d = Math.sqrt(d2);
+          const soft = L.soft;
+          const fall = Math.max(0, 1 - d / soft);
+          const f = L.i * fall * fall / (1 + d2 * 0.55);
+          g.r += L.c.r * f; g.g += L.c.g * f; g.b += L.c.b * f;
+          if (ceil) {
+            const fy = this.floorL(L.x, L.z);
+            const bd2 = (L.x - lx) ** 2 + (fy - y) ** 2 + (L.z - lz) ** 2;
+            const bd = Math.sqrt(bd2);
+            const bf = Math.max(0, 1 - bd / (soft * 1.35));
+            const bounce = L.i * 0.22 * bf * bf / (1 + bd2 * 0.35);
+            g.r += L.c.r * bounce * 0.85; g.g += L.c.g * bounce * 0.9; g.b += L.c.b * bounce;
+          }
+        }
+        // slightly stronger on the floor (readability underfoot), softer on the ceiling
+        const gain = ceil ? 0.18 : 0.26;
+        glow[k] = Math.min(0.95, g.r * gain); glow[k + 1] = Math.min(0.95, g.g * gain); glow[k + 2] = Math.min(0.95, g.b * gain);
       }
       const idx: number[] = [];
       for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
@@ -194,7 +216,8 @@ export class Cave {
       return geo;
     };
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
-    mat.emissiveNode = attribute('glow', 'vec3');
+    // gentle breath on the baked glow (whole chamber, very cheap) — crystals pulse harder on their own mesh
+    mat.emissiveNode = attribute('glow', 'vec3').mul(float(1).add(sin(time.mul(1.4)).mul(0.05)));
     const floor = new THREE.Mesh(mk(false), mat); floor.receiveShadow = true; this.floorMesh = floor;
     const ceil = new THREE.Mesh(mk(true), mat);
     this.interior.add(floor, ceil);
@@ -232,8 +255,9 @@ export class Cave {
       const list = crystals.filter((c) => c.c === ci);
       const cg = new Baker(); cg.ao = false;
       for (let k = 0; k < 6; k++) cg.add(new THREE.OctahedronGeometry(0.16, 0), k % 2 ? '#ffffff' : CRYSTAL_COLS[ci], [Math.cos(k * 2.4) * 0.22 * (k / 6), 0.25 + (k % 3) * 0.1, Math.sin(k * 2.4) * 0.22 * (k / 6)], [Math.cos(k) * 0.4, k, Math.sin(k) * 0.4], [0.55, 2.4 - k * 0.2, 0.55]);
-      const cm = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.2, metalness: 0.1, flatShading: true });
-      cm.emissive = new THREE.Color(CRYSTAL_COLS[ci]); cm.emissiveIntensity = 1.4;
+      const cm = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.18, metalness: 0.12, flatShading: true });
+      const base = new THREE.Color(CRYSTAL_COLS[ci]);
+      cm.emissiveNode = vec3(base.r, base.g, base.b).mul(float(1.25).add(sin(time.mul(2.1 + ci * 0.35).add(float(ci))).mul(0.4)));
       const im = new THREE.InstancedMesh(cg.build(), cm, Math.max(1, list.length));
       list.forEach((c, k) => { this.v.set(c.x + O.x, this.floorL(c.x, c.z) + O.y - 0.05, c.z + O.z); im.setMatrixAt(k, this.m.compose(this.v, this.q.setFromEuler(this.e.set(0, rnd() * 6, 0)), this.s.setScalar(c.s))); });
       im.count = list.length; this.interior.add(im);
@@ -241,15 +265,16 @@ export class Cave {
     this.stats.crystals = crystals.length;
     // glow mushrooms
     const sg = new Baker(); sg.ao = false;
-    sg.add(new THREE.CylinderGeometry(0.03, 0.045, 0.22, 6), '#d8f0ea', [0, 0.11, 0]).add(new THREE.SphereGeometry(0.14, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#5ff0e0', [0, 0.2, 0], [0, 0, 0], [1, 0.7, 1])
-      .add(new THREE.CylinderGeometry(0.02, 0.03, 0.14, 6), '#d8f0ea', [0.14, 0.07, 0.05]).add(new THREE.SphereGeometry(0.08, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#8ffff0', [0.14, 0.13, 0.05], [0, 0, 0], [1, 0.7, 1]);
-    const smat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.4 }); smat.emissive = new THREE.Color('#40e8d8'); smat.emissiveIntensity = 0.9;
+    sg.add(new THREE.CylinderGeometry(0.03, 0.045, 0.22, 6), '#f0e0d0', [0, 0.11, 0]).add(new THREE.SphereGeometry(0.14, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), '#ff9a58', [0, 0.2, 0], [0, 0, 0], [1, 0.7, 1])
+      .add(new THREE.CylinderGeometry(0.02, 0.03, 0.14, 6), '#f0e0d0', [0.14, 0.07, 0.05]).add(new THREE.SphereGeometry(0.08, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), '#ffc078', [0.14, 0.13, 0.05], [0, 0, 0], [1, 0.7, 1]);
+    const smat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.38 });
+    smat.emissiveNode = vec3(1.0, 0.62, 0.32).mul(float(0.85).add(sin(time.mul(1.6)).mul(0.12)));
     const sm = new THREE.InstancedMesh(sg.build(), smat, shrooms.length);
     shrooms.forEach((s, k) => { this.v.set(s.x + O.x, this.floorL(s.x, s.z) + O.y - 0.03, s.z + O.z); sm.setMatrixAt(k, this.m.compose(this.v, this.q.setFromEuler(this.e.set(0, rnd() * 6, 0)), this.s.setScalar(s.s))); });
     this.interior.add(sm);
     // the pool: dark teal water that breathes with light
-    const pmat = new THREE.MeshStandardNodeMaterial({ color: '#0f4a56', roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.82 });
-    pmat.emissiveNode = vec3(0.05, 0.42, 0.42).mul(float(0.55).add(sin(time.mul(1.3)).mul(0.12)));
+    const pmat = new THREE.MeshStandardNodeMaterial({ color: '#0c3a48', roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.84 });
+    pmat.emissiveNode = vec3(0.08, 0.48, 0.46).mul(float(0.62).add(sin(time.mul(1.25)).mul(0.14)));
     const pool = new THREE.Mesh(new THREE.CircleGeometry(POOL.r + 0.4, 32).rotateX(-Math.PI / 2), pmat);
     pool.position.set(POOL.x + O.x, O.y - 0.4, POOL.z + O.z); this.interior.add(pool);
     // glowing cave fish
@@ -284,9 +309,24 @@ export class Cave {
     this.moleBody.add(bodyM); this.moleObj.add(mound, this.moleBody);
     this.moleObj.position.set(this.mole.x, this.mole.y, this.mole.z); this.interior.add(this.moleObj);
     physics.addCylinder(this.mole.x, this.mole.y + 0.3, this.mole.z, 0.3, 0.35);
-    // tunnel-mouth daylight
-    const day = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3), new THREE.MeshBasicNodeMaterial({ color: '#fff0c8', fog: false }));
-    day.position.set(O.x + T1 - 1.6, this.floorL(T1 - 1.6, 0) + O.y + 1.3, O.z); day.rotation.y = Math.PI / 2; this.interior.add(day);
+    // tunnel-mouth daylight shaft: bright mouth disc + a soft volumetric-looking wedge into the chamber
+    const dayMat = new THREE.MeshBasicNodeMaterial({ color: '#fff2d0', fog: false, transparent: true, opacity: 0.92 });
+    const day = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.2), dayMat);
+    day.position.set(O.x + T1 - 1.6, this.floorL(T1 - 1.6, 0) + O.y + 1.35, O.z); day.rotation.y = Math.PI / 2; this.interior.add(day);
+    const shaftGeo = new THREE.PlaneGeometry(6.5, 2.8);
+    const shaftCols: number[] = [];
+    const spa = shaftGeo.attributes.position;
+    for (let i = 0; i < spa.count; i++) {
+      // u along -x into the cave: fade brightness + add a warm→cool shift
+      const u = (spa.getX(i) + 3.25) / 6.5; // 0 at mouth side, 1 deep
+      const a = (1 - u) * (1 - u) * 0.35;
+      shaftCols.push(1.0 * a, 0.92 * a, 0.72 * a);
+    }
+    shaftGeo.setAttribute('color', new THREE.Float32BufferAttribute(shaftCols, 3));
+    const shaft = new THREE.Mesh(shaftGeo, new THREE.MeshBasicNodeMaterial({ vertexColors: true, fog: false, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    shaft.position.set(O.x + T1 + 2.2, this.floorL(T1 + 2, 0) + O.y + 1.5, O.z);
+    shaft.rotation.y = Math.PI / 2;
+    this.interior.add(shaft);
     // collectibles
     const spots = (id: FoodId, n: number, emin: number, emax: number) => {
       for (let i = 0, tries = 0; i < n && tries < 2000; tries++) {
