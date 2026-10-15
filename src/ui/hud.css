@@ -431,3 +431,7 @@ body.theme-easter .dbtn { background: linear-gradient(160deg, rgba(255,252,236,.
 body.theme-easter .theme-picker { background: linear-gradient(160deg, rgba(255,252,240,.96), rgba(236,230,255,.95)); }
 /* 10 themes + Auto: keep the picker inside short / landscape screens */
 .theme-picker { max-height: calc(100vh - 110px); max-height: calc(100dvh - 110px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+.who-row { margin-top: 6px; }
+.who-row .who { width: 100%; min-height: 40px; font-weight: 800; }
+body.entry-open .hud.dock { pointer-events: none; opacity: .35; }

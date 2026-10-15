@@ -14,7 +14,8 @@
     "shots:biomes": "node tests/biomes.mjs",
     "perf": "node tests/perf.mjs",
     "test:loop": "node tests/loop.mjs",
-    "test:mount": "node tests/mount.mjs"
+    "test:mount": "node tests/mount.mjs",
+    "test:entry": "node tests/entry.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

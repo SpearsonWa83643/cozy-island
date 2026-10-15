@@ -18,6 +18,7 @@ import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
 import { showWhatsNew } from '../ui/whatsnewNote';
+import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -192,8 +193,19 @@ export class Gameplay implements System {
     };
     window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
-    // What's new note (once per release); mounts wire in via bindMount after Game constructs Mount
-    setTimeout(() => showWhatsNew(this.g.audio), 700);
+    // Entry (name + DOB) first; What's new waits until it closes. Mounts wire in via bindMount.
+    showEntry({
+      audio: this.g.audio,
+      toast: (h, ms) => this.juice.toast(h, ms),
+      onChange: (p) => this.g.hud.setPlayerName(p.name),
+    });
+    this.g.hud.setPlayerName(entryPlayer.name);
+    this.g.hud.bindPlayer(() => openEntryEditor({
+      audio: this.g.audio,
+      toast: (h, ms) => this.juice.toast(h, ms),
+      onChange: (p) => this.g.hud.setPlayerName(p.name),
+    }));
+    afterEntry(() => setTimeout(() => showWhatsNew(this.g.audio), 400));
   }
 
   bindMount(m: Mount) {

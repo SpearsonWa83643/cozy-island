@@ -8,6 +8,7 @@ import type { AudioEngine } from '../audio/Audio';
 
 export class Hud {
   private fpsEl: HTMLElement;
+  private titleEl: HTMLElement;
   private hotbar: HTMLElement;
   private modeEl: HTMLElement;
   private slots: HTMLElement[] = [];
@@ -21,7 +22,7 @@ export class Hud {
 
   constructor(backend: string) {
     const el = (html: string) => { const d = document.createElement('div'); d.innerHTML = html.trim(); const c = d.firstElementChild as HTMLElement; document.body.appendChild(c); return c; };
-    el(`<div class="hud panel title corner"><h1>🏝️ Cozy Island</h1><div class="keys">
+    this.titleEl = el(`<div class="hud panel title corner"><h1>🏝️ Cozy Island</h1><div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk &nbsp; <kbd>Shift</kbd> run &nbsp; <kbd>Space</kbd> jump<br>
       <kbd>Drag</kbd> orbit &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Z</kbd><kbd>C</kbd> rotate<br>
       <kbd>E</kbd> pick · feed · open &nbsp; <kbd>F</kbd> dig &nbsp; <kbd>V</kbd> Call Mount &nbsp; <kbd>Click</kbd> walk / use<br> <kbd>M</kbd> map &nbsp; <kbd>G</kbd> trail &nbsp; <kbd>I</kbd> bag &nbsp; <kbd>O</kbd> wardrobe<br>
@@ -34,6 +35,7 @@ export class Hud {
         <label title="Music volume">🎵<input type="range" class="vol music" min="0" max="1" step="0.01"></label>
         <label title="Ambience volume">🌿<input type="range" class="vol amb" min="0" max="1" step="0.01"></label></div>
       <div class="hand-row" title="Which thumb drives the floating joystick">🕹️ <button class="qbtn hand" data-h="auto">Auto</button><button class="qbtn hand" data-h="left">Left</button><button class="qbtn hand" data-h="right">Right</button></div>
+      <div class="who-row"><button class="qbtn who" type="button" title="Who's playing?" aria-label="Who's playing?">👤 Who's playing?</button></div>
       <div class="sound-hint">🔈 Tap or press any key for sound</div>
       <div class="biome-name">📍 Meadow</div>
       <div class="backend">Renderer: ${backend}</div></div>`);
@@ -105,6 +107,22 @@ export class Hud {
     const showHint = () => hint.classList.toggle('hidden', a.started);
     a.onUnlock = () => setTimeout(showHint, 300);
     showHint();
+  }
+
+
+  /** show the saved player name in the corner title when set */
+  setPlayerName(name: string) {
+    const h = this.titleEl.querySelector('h1');
+    if (!h) return;
+    const n = (name || '').trim();
+    h.textContent = n ? `🏝️ ${n}'s Island` : '🏝️ Cozy Island';
+  }
+
+  /** ⚙️ panel: reopen the entry / who's-playing card */
+  bindPlayer(open: () => void) {
+    const b = this.stats.querySelector('.who') as HTMLButtonElement | null;
+    if (!b) return;
+    b.addEventListener('click', (e) => { e.stopPropagation(); open(); b.blur(); });
   }
 
   setBiome(name: string) {
