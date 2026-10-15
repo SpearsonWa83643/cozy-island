@@ -8,6 +8,7 @@ import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
 import { Dig } from './Dig';
 import { Harvest } from './Harvest';
+import { Puzzles, stoneChestLoot } from './Puzzles';
 import { FriendScreen, ensurePet } from './FriendScreen';
 import { WEARABLES, CAVE_WEAR } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
@@ -21,7 +22,7 @@ import type { Mount } from '../player/Mount';
 import { showWhatsNew } from '../ui/whatsnewNote';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
 
-type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
+type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -35,6 +36,7 @@ export class Gameplay implements System {
   walk: TapWalk;
   digger = new Dig();
   harvest!: Harvest;
+  puzzles!: Puzzles;
   private digCool = 0; private digMsgT = 0;
   private ray = new THREE.Raycaster();
   map: MapOverlay;
@@ -99,6 +101,28 @@ export class Gameplay implements System {
       (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45),
     );
     g.scene.add(this.harvest.group);
+    this.puzzles = new Puzzles(
+      g.flora, g.audio,
+      (h, ms) => this.juice.toast(h, ms),
+      (pos) => {
+        const d = this.save.data;
+        d.puzzles = { ...(d.puzzles ?? {}), stones: true };
+        const loot = stoneChestLoot(d.owned);
+        if (loot) {
+          d.owned[loot.id] = 1; this.lastReward = loot.id;
+          this.juice.pop(pos, loot.icon, 'emote big', 1.8, 60);
+          this.g.audio.chest(loot.rarity); this.g.player.cheer();
+          this.juice.toast(`🎁 The stone chest held a <b>${loot.name}</b>! ✨ <small>(wardrobe)</small>`, 3200);
+        } else {
+          d.shells += 8;
+          this.juice.pop(pos, '🐚', 'emote big', 1.6, 50);
+          this.juice.toast('🎁 The stone chest held <b>+8 🐚</b>!', 2600);
+        }
+        this.save.touch(); this.panels.refreshBadges();
+      },
+      !!d.puzzles?.stones,
+    );
+    g.scene.add(this.puzzles.group);
     this.panels = new Panels(document.body, {
       save: () => this.save.data,
       equip: (slot, id) => this.equip(slot, id),
@@ -308,6 +332,8 @@ export class Gameplay implements System {
   private findTarget(p: THREE.Vector3): Target | null {
     const th = this.g.dress?.target(p);
     if (th) return th as Target;
+    const pz = this.puzzles?.target(p);
+    if (pz) return pz as Target;
     if (this.g.cave.inside) {
       // underground: the mole, and cave finds
       const mo = this.g.cave.mole;
@@ -726,6 +752,8 @@ export class Gameplay implements System {
     if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build.active) this.shovel();
     this.digger.update(dt);
     this.harvest.update(dt);
+    this.puzzles.sense(p, dt);
+    this.puzzles.update(dt);
     // contextual target
     this.targetT -= dt;
     if (this.targetT <= 0) this.target = g.build.active || this.previewOn || g.player.mounted ? null : this.findTarget(p);

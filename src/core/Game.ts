@@ -123,7 +123,11 @@ export class Game {
     this.fauna.blockers = (x, z) => this.build.occupiedAt(x, z);
 
     // --- Audio hooks ---
-    this.player.onStep = (p, run) => this.audio.footstep(this.surfaceUnder(p), run ? 1.25 : 1);
+    this.player.onStep = (p, run) => {
+      const surf = this.surfaceUnder(p);
+      this.audio.footstep(surf, run ? 1.25 : 1);
+      this.play?.puzzles.footstep(p, this.player.facingYaw, surf, run);
+    };
     this.player.onJump = () => this.audio.jump();
     this.player.onLand = (p, impact) => this.audio.land(this.surfaceUnder(p), impact);
     this.player.onSwimStart = (p) => { this.audio.splash(0, 0.55, true); this.reef.ring(p.x, p.z, 1.1, 1.3); this.reef.ring(p.x, p.z, 0.6, 0.9); };

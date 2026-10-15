@@ -34,6 +34,8 @@ export interface SaveData {
   followers?: string[];
   /** times hopped onto a mount */
   mountRides?: number;
+  /** cozy puzzles solved (pressure stones, etc.) */
+  puzzles?: Record<string, boolean>;
 }
 
 const KEY = 'cozyIsland.save.v1';
