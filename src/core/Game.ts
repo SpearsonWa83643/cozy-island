@@ -17,6 +17,7 @@ import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
+import { Mount } from '../player/Mount';
 import { BuildMode } from '../build/BuildMode';
 import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
@@ -39,6 +40,7 @@ export class Game {
   sky!: THREE.Mesh;
   player!: Player;
   rig!: CameraRig;
+  mount!: Mount;
   build!: BuildMode;
   flora!: Flora;
   particles!: Particles;
@@ -156,6 +158,38 @@ export class Game {
     };
     this.play = new Gameplay(this, SPAWN);
     lap('gameplay');
+    // eagle mount (Call Mount): after Gameplay so toasts / save / walk cancel are ready
+    this.mount = new Mount(this.player, this.input, this.rig, {
+      blocked: () => !!this.play.friend?.open || this.build.active || this.play.previewing || this.play.lockMoving,
+      mustLand: () => this.build.active || this.cave.inside,
+      toast: (h, ms) => this.play.toast(h, ms),
+      sfx: (k) => this.audio.mount(k),
+      cancelWalk: () => this.play.walk.cancel(false),
+      onRide: () => { this.play.save.data.mountRides = (this.play.save.data.mountRides ?? 0) + 1; this.play.save.touch(); },
+    });
+    for (const o of this.mount.groups) this.scene.add(o);
+    this.touch?.bindMount(() => this.mount.press(), () => this.mount.buttonState);
+    this.play.bindMount(this.mount);
+    if (!this.isTouch) {
+      const btn = document.createElement('button');
+      btn.className = 'mount-btn desktop'; btn.type = 'button';
+      btn.innerHTML = '<span class="mi">🦅</span><span class="ml">Call Mount <kbd>V</kbd></span>';
+      btn.addEventListener('click', (e) => { e.stopPropagation(); this.audio.unlock(); this.mount.press(); });
+      document.body.appendChild(btn);
+      const tick = () => {
+        const st = this.mount.buttonState;
+        btn.classList.toggle('busy', st === 'busy'); btn.classList.toggle('blocked', st === 'blocked');
+        btn.classList.toggle('on', st === 'hop' || st === 'land'); btn.classList.toggle('hide', this.build.active);
+        const ml = btn.querySelector('.ml')!, mi = btn.querySelector('.mi')!;
+        if (st === 'land') { mi.textContent = '🛬'; ml.innerHTML = 'Land <kbd>V</kbd>'; }
+        else if (st === 'hop') { mi.textContent = '🦅'; ml.innerHTML = 'Hop on <kbd>V</kbd>'; }
+        else if (st === 'busy') { mi.textContent = '🦅'; ml.textContent = '…'; }
+        else { mi.textContent = '🦅'; ml.innerHTML = 'Call Mount <kbd>V</kbd>'; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
     applyThemeCss();
     this.hud.bindDock(() => !!this.play.save.data.panelsOpen, (o) => { this.play.save.data.panelsOpen = o; this.play.save.touch(); });
     const syncBuild = () => { this.hud.syncBuildables((i) => this.build.available(i)); if (!this.build.available(this.build.selected)) this.build.select(0); };
@@ -167,7 +201,7 @@ export class Game {
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
-    this.systems.push(this.player, this.rig, this.build, {
+    this.systems.push(this.player, this.rig, this.mount, this.build, {
       update: (dt, t) => {
         this.flora.update(dt);
         this.fauna.update(dt, t, this.play.followCtx);

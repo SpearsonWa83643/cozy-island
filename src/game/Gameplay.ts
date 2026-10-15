@@ -16,6 +16,7 @@ import { MapOverlay } from '../ui/MapOverlay';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
+import type { Mount } from '../player/Mount';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -53,6 +54,10 @@ export class Gameplay implements System {
   rewardDelay = 750;
   private pendingReward: (() => void) | null = null;
   private rewardTimer = 0;
+  mount: Mount | null = null;
+  /** wardrobe / friend overlays that should block Call Mount */
+  get previewing() { return this.previewOn; }
+  get lockMoving() { return this.lockMove > 0; }
   /** show a pending reward card immediately (tests) */
   showRewardNow() { clearTimeout(this.rewardTimer); this.pendingReward?.(); }
 
@@ -120,6 +125,16 @@ export class Gameplay implements System {
     g.input.onClick.push((e, drag) => {
       if (drag || g.build.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend.open) return;
       g.audio.unlock();
+      // mount: tap the waiting eagle to hop on, or tap the ground while riding to glide there
+      if (this.mount?.active) {
+        const used = this.mount.onTap(e.clientX, e.clientY, (v) => this.juice.project(v), (cx, cy) => {
+          const r = g.renderer.renderer.domElement.getBoundingClientRect();
+          const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+          this.ray.setFromCamera(ndc, g.camera);
+          return g.terrain.raycast(this.ray.ray.origin, this.ray.ray.direction);
+        }, g.isTouch ? 80 : 64);
+        if (used) { this.walk.cancel(false); return; }
+      }
       // tapping a follower opens its close-up friend screen
       const fr = this.friendAt(e.clientX, e.clientY);
       if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
@@ -176,6 +191,10 @@ export class Gameplay implements System {
     };
     window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
+  }
+
+  bindMount(m: Mount) {
+    this.mount = m;
   }
 
   get followCtx() { return this.ctx; }
@@ -432,7 +451,7 @@ export class Gameplay implements System {
   /** walk into the arch / back out of the tunnel: soft fade, then swap worlds */
   caveTransition(enter: boolean, instant = false) {
     const g = this.g, c = g.cave;
-    this.walk.cancel(false); this.caveCool = 2;
+    this.walk.cancel(false); this.mount?.dropNow(); this.caveCool = 2;
     const swap = () => {
       g.setCave(enter);
       if (enter) { const e = c.entry; g.player.teleport(e.x, e.z, e.facing); g.rig.yaw = e.facing + Math.PI; g.rig.pitch = 0.32; }
@@ -508,7 +527,7 @@ export class Gameplay implements System {
   /** shovel: dig right in front of you. At the map's X it digs up the chest; elsewhere a hole and maybe a find. */
   shovel() {
     const g = this.g, d = this.save.data, pl = g.player;
-    if (this.lockMove > 0 || this.previewOn || g.build.active || this.digCool > 0 || pl.swimming) return false;
+    if (this.lockMove > 0 || this.previewOn || g.build.active || this.digCool > 0 || pl.swimming || pl.mounted) return false;
     if (g.cave.inside) { if (this.digMsgT <= 0) { this.juice.toast('🪨 The cave floor is solid rock', 1300); this.digMsgT = 2; } g.audio.pop(0.55); this.digCool = 0.5; return false; }
     this.walk.cancel(false);
     const p = pl.position, f = pl.facingYaw;
@@ -646,7 +665,7 @@ export class Gameplay implements System {
 
   update(dt: number) {
     const g = this.g, p = g.player.position, d = this.save.data;
-    if (!g.cave.inside) this.recordTrail(p);
+    if (!g.cave.inside && !g.player.mounted) this.recordTrail(p);
     this.ctx.px = p.x; this.ctx.py = p.y; this.ctx.pz = p.z; this.ctx.running = g.player.speed > 5.2;
     this.walk.update(dt);
     // friends get dusty / hungry over time; remember who follows you
@@ -660,7 +679,7 @@ export class Gameplay implements System {
     // cave doors
     this.caveCool -= dt;
     { const c = g.cave;
-      if (this.caveCool <= 0 && this.lockMove <= 0) {
+      if (this.caveCool <= 0 && this.lockMove <= 0 && !g.player.mounted) {
         if (!c.inside) { const dp = c.doorPt; if (Math.hypot(p.x - dp.x, p.z - dp.z) < 1.15 && Math.abs(p.y - c.mouth.y) < 2.2) this.caveTransition(true); }
         else { const ep = c.exitPt; if (Math.hypot(p.x - ep.x, p.z - ep.z) < 1.3) this.caveTransition(false); }
       }
@@ -670,14 +689,15 @@ export class Gameplay implements System {
     this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy && !g.cave.inside ? this.treasure.spot : null);
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action
-    if (g.input.pressed.has('e') && !g.build.active) this.act();
+    if (g.input.pressed.has('e') && !g.build.active && !g.player.mounted) this.act();
+    if (g.input.pressed.has('v') && !this.friend.open) this.mount?.press();
     // shovel: F / Dig button, hold to keep digging
     this.digCool -= dt; this.digMsgT -= dt;
     if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build.active) this.shovel();
     this.digger.update(dt);
     // contextual target
     this.targetT -= dt;
-    if (this.targetT <= 0) this.target = g.build.active || this.previewOn ? null : this.findTarget(p);
+    if (this.targetT <= 0) this.target = g.build.active || this.previewOn || g.player.mounted ? null : this.findTarget(p);
     const t = this.target;
     this.panels.setAction(t && g.isTouch ? t.icon : null, t?.label ?? '', t?.key ?? '');
     if (!g.isTouch) this.juice.setPrompt(t ? t.pos : null, t ? `<kbd>E</kbd> ${t.label} <span>${t.icon}</span>` : '');

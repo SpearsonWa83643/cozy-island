@@ -32,6 +32,8 @@ export interface SaveData {
   pets?: Record<string, PetData>;
   /** current followers (restored on load) */
   followers?: string[];
+  /** times hopped onto a mount */
+  mountRides?: number;
 }
 
 const KEY = 'cozyIsland.save.v1';

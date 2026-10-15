@@ -249,6 +249,30 @@ body.touch .hand-row { display: flex; }
 .cave-fade { position: fixed; inset: 0; background: #06050a; opacity: 0; pointer-events: none; z-index: 40; transition: opacity .38s cubic-bezier(.4,0,.2,1); }
 .cave-fade.on { opacity: 1; }
 
+
+/* ---------- Call Mount (eagle) — dominant-hand side, above Dig/Build; mirrors eye ---------- */
+.mount-btn { position: absolute; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; cursor: pointer;
+  right: calc(max(24px, env(safe-area-inset-right)) + 92px); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 210px);
+  width: 78px; min-height: 78px; border-radius: 22px; border: 0; padding: 6px 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: rgba(255,250,240,.92); color: #4a3b2f; font: inherit; font-weight: 900; box-shadow: 0 4px 0 rgba(160,120,80,.35), 0 8px 16px rgba(80,50,20,.16);
+  transition: transform .18s var(--spring, ease), box-shadow .18s ease, background .18s ease, opacity .2s ease; z-index: 6; }
+.mount-btn .mi { font-size: 28px; line-height: 1; }
+.mount-btn .ml { font-size: 11px; line-height: 1.1; text-align: center; max-width: 72px; }
+.mount-btn::after { content: ''; position: absolute; inset: -8px; border-radius: 28px; }
+.mount-btn.down, .mount-btn:active { transform: translateY(3px) scale(.96); box-shadow: 0 2px 0 rgba(160,120,80,.35); }
+.mount-btn.on { background: #ffd166; }
+.mount-btn.busy { opacity: .55; pointer-events: none; }
+.mount-btn.blocked { opacity: .45; }
+.mount-btn.hide { opacity: 0; pointer-events: none !important; }
+body[data-hand="right"] .mount-btn { right: auto; left: calc(max(24px, env(safe-area-inset-left)) + 40px); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 240px); }
+.touch-ui.building .mount-btn { opacity: 0; pointer-events: none !important; }
+/* desktop: top-right under the dock */
+.mount-btn.desktop { position: fixed; right: max(16px, env(safe-area-inset-right)); top: calc(max(14px, env(safe-area-inset-top)) + 78px);
+  width: auto; min-width: 132px; height: 52px; min-height: 52px; flex-direction: row; gap: 8px; padding: 0 16px; border-radius: 16px; }
+.mount-btn.desktop .ml { font-size: 14px; max-width: none; }
+.mount-btn.desktop .ml kbd { font-size: 11px; padding: 1px 5px; border-radius: 5px; background: rgba(0,0,0,.08); }
+body.friend-open .mount-btn { visibility: hidden !important; }
+
 /* ---------- eye (free look) button, iPad ---------- */
 .eye-btn { position: absolute; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab;
   right: calc(max(24px, env(safe-area-inset-right)) + 222px); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 120px);
@@ -269,7 +293,7 @@ body[data-hand="right"] .eye-btn { right: auto; left: calc(max(24px, env(safe-ar
 /* ---------- friend close-up screen ---------- */
 .friend-screen { position: fixed; inset: 0; z-index: 40; display: none; pointer-events: none; font-family: inherit; color: #4a3b2f; }
 .friend-screen.open { display: block; }
-body.friend-open .touch-ui, body.friend-open .game-bar, body.friend-open .action-btn, body.friend-open .hud, body.friend-open .juice,
+body.friend-open .touch-ui, body.friend-open .game-bar, body.friend-open .action-btn, body.friend-open .mount-btn, body.friend-open .hud, body.friend-open .juice,
 body.friend-open .swim-meter, body.friend-open .hotbar, body.friend-open .hint, body.friend-open .world-prompt { visibility: hidden !important; }
 .fs-stage { position: absolute; inset: 0; pointer-events: auto; touch-action: none; cursor: none;
   background: radial-gradient(ellipse at 50% 55%, rgba(255,255,255,0) 45%, rgba(90,60,30,.18) 100%); }

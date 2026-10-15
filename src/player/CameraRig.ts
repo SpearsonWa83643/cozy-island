@@ -18,6 +18,8 @@ export class CameraRig implements System {
   private pendYaw = 0;
   private pendPitch = 0;
   locked = false; // when true, screenshot/debug code drives the camera
+  /** extra look-at height while riding a mount */
+  mountBoost = 0;
 
   constructor(public camera: THREE.PerspectiveCamera, private input: Input, private player: Player) {
     this.target.copy(player.position);
@@ -37,8 +39,10 @@ export class CameraRig implements System {
     if (this.pitch <= 0.05 || this.pitch >= 1.35) this.pendPitch = 0;
     if (i.keys.has('z')) this.yaw += dt * 1.8;
     if (i.keys.has('c')) this.yaw -= dt * 1.8;
-    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, 3.5, 28);
-    const p = this.player.position.add(new THREE.Vector3(0, 1.1, 0));
+    const dMin = this.mountBoost > 0.5 ? 7 : 3.5;
+    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, dMin, 28);
+    if (this.mountBoost > 0.5 && this.distance < 10) this.distance += (10 - this.distance) * Math.min(1, dt * 1.5);
+    const p = this.player.position.add(new THREE.Vector3(0, 1.1 + this.mountBoost, 0));
     this.target.lerp(p, Math.min(1, dt * 8));
     this.apply();
     this.player.cameraYaw = this.yaw;

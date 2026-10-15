@@ -97,6 +97,8 @@ export class Player implements System {
   ground: (x: number, z: number) => number = heightAt;
   /** underground: no water, no current, no shoreline watchdog */
   inCave = false;
+  /** riding a mount: movement is driven by Mount */
+  mounted = false;
   /** times the anti-stuck nudge fired (tests) */
   unstuckCount = 0;
   private strokePhase = 0;
@@ -128,6 +130,23 @@ export class Player implements System {
     return new THREE.Vector3(t.x, t.y - HALF_H - RADIUS, t.z);
   }
 
+  /** place the kinematic body at feet height y without ground-snapping (mount seating) */
+  snapBody(x: number, y: number, z: number, facing?: number) {
+    const p = { x, y: y + HALF_H + RADIUS, z };
+    this.body.setTranslation(p, true);
+    this.body.setNextKinematicTranslation(p);
+    if (facing !== undefined) this.facing = facing;
+    this.vy = 0; this.swimming = false; this.swimBlend = 0; this.speedSmoothed = 0;
+  }
+  /** back on your feet after a ride: legs and lean back to normal */
+  unseat() {
+    const { footL, footR, body } = this.parts;
+    footL.position.set(-0.14, 0.08, 0.04); footR.position.set(0.14, 0.08, 0.04);
+    body.rotation.set(0, 0, 0); body.position.y = 0;
+    this.object.rotation.set(0, this.facing, 0);
+    this.grounded = false; this.airVy = 0; this.vy = 0;
+  }
+
   teleport(x: number, z: number, facing?: number) {
     const g = this.ground(x, z), deep = !this.inCave && WATER_LEVEL - g > SWIM_IN;
     const y = (deep ? FLOAT_FEET : g + 0.05) + HALF_H + RADIUS;
@@ -138,6 +157,19 @@ export class Player implements System {
   }
 
   update(dt: number) {
+    if (this.mounted) {
+      // Mount seats the mesh; keep a soft idle breathe so the rider feels alive
+      this.t += dt; this.outfit.update(this.t);
+      const breathe = 1 + Math.sin(performance.now() * 0.003) * 0.015;
+      const { body, footL, footR } = this.parts;
+      body.scale.set(1, breathe, 1);
+      body.position.y = -0.1 + Math.sin(this.t * 2.6) * 0.012; // settled into the feathers
+      body.rotation.set(0.14, 0, 0); // lean into the wind
+      // legs astride the eagle's back, dangling a little
+      const sw = Math.sin(this.t * 2.2) * 0.03;
+      footL.position.set(-0.36, 0.06 + sw, 0.12); footR.position.set(0.36, 0.06 - sw, 0.12);
+      return;
+    }
     const k = this.input.keys;
     let fx = 0, fz = 0;
     if (this.enabled) {

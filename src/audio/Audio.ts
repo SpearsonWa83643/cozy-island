@@ -539,5 +539,21 @@ export class AudioEngine {
   }
   /** rising whistle before a firework bursts */
   whistle(pan = 0) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 700, t, 0.9, this.sfx(pan, 0.12, 0.4), 0.05, 0.05); o.frequency.exponentialRampToValueAtTime(1900, t + 0.85); }
+  /** eagle mount: call / hop / flap / land / leave */
+  mount(kind: 'call' | 'hop' | 'flap' | 'land' | 'leave') {
+    const t = this.go(); if (t < 0) return;
+    if (kind === 'call') {
+      this.whistle(0); this.noiseHit(t + 0.05, 0.7, this.sfx(0, 0.35, 0.35), 'bandpass', 500, 0.7, 0.2, 0.08, this.pink);
+    } else if (kind === 'hop') {
+      this.pop(1.3); this.noiseHit(t, 0.12, this.sfx(0, 0.4, 0.1), 'bandpass', 900, 1.2, 0.25, 0.01, this.pink);
+    } else if (kind === 'flap') {
+      this.noiseHit(t, 0.18, this.sfx((Math.random() - 0.5) * 0.3, 0.45, 0.15), 'bandpass', 420 + Math.random() * 180, 1.1, 0.5, 0.02, this.pink);
+      this.noiseHit(t + 0.08, 0.14, this.sfx(0, 0.25, 0.1), 'lowpass', 280, 0.8, 0.35, 0.02, this.brown);
+    } else if (kind === 'land') {
+      this.pop(0.85); this.noiseHit(t, 0.1, this.sfx(0, 0.35, 0.08), 'bandpass', 700, 1.4, 0.3, 0.01);
+    } else {
+      this.whistle(0.2); this.noiseHit(t, 0.5, this.sfx(0, 0.3, 0.3), 'bandpass', 380, 0.6, 0.18, 0.06, this.pink);
+    }
+  }
   dispose() { clearInterval(this.timer); this.ctx?.close(); }
 }

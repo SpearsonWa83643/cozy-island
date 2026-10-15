@@ -14,6 +14,8 @@ export class TouchControls {
   private buildBtn: HTMLElement;
   private removeBtn: HTMLElement;
   private rotateBtn: HTMLElement;
+  private mountBtn: HTMLElement | null = null;
+  private mountState = '';
 
   constructor(private input: Input, private build: BuildMode) {
     document.body.classList.add('touch');
@@ -22,6 +24,7 @@ export class TouchControls {
     this.root.innerHTML = `
       <div class="stick"><div class="knob"></div></div>
       <button class="eye-btn" aria-label="Look around (hold and drag)"><span class="eye-ball"><span class="eye-pupil"></span></span></button>
+      <button class="mount-btn" aria-label="Call Mount"><span class="mi">🦅</span><span class="ml">Call Mount</span></button>
       <div class="tbtns">
         <button class="tbtn rotate" aria-label="Rotate piece">⟳<span>Rotate</span></button>
         <button class="tbtn remove" aria-label="Remove mode">✖<span>Remove</span></button>
@@ -103,7 +106,33 @@ export class TouchControls {
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dig.addEventListener(ev, () => this.input.keys.delete('f'));
     tap(this.rotateBtn, () => this.input.pressed.add('r'));
     tap(this.removeBtn, () => this.build.setRemoveMode(!this.build.removeMode));
+    this.mountBtn = this.root.querySelector('.mount-btn');
     this.sync();
+  }
+
+  /** Call Mount sits above Dig/Build (dominant-hand side, mirrors the eye button). */
+  bindMount(press: () => boolean | void, state: () => string) {
+    const btn = this.mountBtn; if (!btn) return;
+    const doTap = (el: HTMLElement, fn: () => void) => el.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('down'); fn();
+    });
+    doTap(btn, () => { press(); this.refreshMount(state()); });
+    // keep label in sync every frame via rAF (cheap)
+    const tick = () => { this.refreshMount(state()); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  private refreshMount(st: string) {
+    const btn = this.mountBtn; if (!btn || st === this.mountState) return;
+    this.mountState = st;
+    const ml = btn.querySelector('.ml')!, mi = btn.querySelector('.mi')!;
+    btn.classList.toggle('busy', st === 'busy');
+    btn.classList.toggle('blocked', st === 'blocked');
+    btn.classList.toggle('on', st === 'hop' || st === 'land');
+    if (st === 'land') { mi.textContent = '🛬'; ml.textContent = 'Land'; btn.setAttribute('aria-label', 'Land'); }
+    else if (st === 'hop') { mi.textContent = '🦅'; ml.textContent = 'Hop on'; btn.setAttribute('aria-label', 'Hop on'); }
+    else if (st === 'busy') { mi.textContent = '🦅'; ml.textContent = '…'; btn.setAttribute('aria-label', 'Eagle busy'); }
+    else { mi.textContent = '🦅'; ml.textContent = 'Call Mount'; btn.setAttribute('aria-label', 'Call Mount'); }
   }
 
   /** Reflect build-mode state on the buttons. */
@@ -112,5 +141,6 @@ export class TouchControls {
     this.root.classList.toggle('building', on);
     this.buildBtn.classList.toggle('on', on);
     this.removeBtn.classList.toggle('on', this.build.removeMode);
+    this.mountBtn?.classList.toggle('hide', on);
   }
 }
