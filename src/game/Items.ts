@@ -120,3 +120,6 @@ export const HALLOWEEN_SET: WearDef[] = [
 WEARABLES.push(...HALLOWEEN_SET);
 for (const w of HALLOWEEN_SET) WEAR_BY_ID.set(w.id, w);
 export const CAVE_WEAR = ['minerhelmet', 'crystalcrown', 'batwings', 'crystalneck', 'glowsprout'];
+
+/** mount treasures: found in treasure chests (see player/MountDefs nextMountTreasure); each unlocks a mount */
+export { MOUNT_TREASURES } from '../player/MountDefs';

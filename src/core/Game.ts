@@ -20,6 +20,8 @@ import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { Mount } from '../player/Mount';
 import type { BuildMode } from '../build/BuildMode';
+import { MountPicker } from '../ui/MountPicker';
+import { isMountUnlocked, mountById, unlockedMounts } from '../player/MountDefs';
 import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
 import { AudioEngine } from '../audio/Audio';
@@ -46,6 +48,7 @@ export class Game {
   build: BuildMode | null = null;
   private buildP: Promise<BuildMode> | null = null;
   private buildWait: ((b: BuildMode) => void)[] = [];
+  mountPicker!: MountPicker;
   flora!: Flora;
   particles!: Particles;
   fauna!: Fauna;
@@ -170,21 +173,30 @@ export class Game {
     this.play = new Gameplay(this, SPAWN);
     await lap('gameplay');
     // eagle mount (Call Mount): after Gameplay so toasts / save / walk cancel are ready
+    const sd = () => this.play.save.data;
+    this.mountPicker = new MountPicker(sd, {
+      pick: (id) => { sd().mountId = id; this.play.save.touch(); this.mount.call(id); },
+      ui: () => this.audio.ui(), deny: () => this.audio.ui(),
+    });
     this.mount = new Mount(this.player, this.input, this.rig, {
-      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving,
+      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving || this.mountPicker.open,
       mustLand: () => !!this.build?.active || this.cave.inside,
       toast: (h, ms) => this.play.toast(h, ms),
       sfx: (k) => this.audio.mount(k),
       cancelWalk: () => this.play.walk.cancel(false),
       onRide: () => { this.play.save.data.mountRides = (this.play.save.data.mountRides ?? 0) + 1; this.play.save.touch(); },
+      openPicker: () => { if (unlockedMounts(sd()).length < 2) return false; this.mountPicker.show(); return true; },
     });
+    // last picked mount (if still unlocked) is the one Call Mount / V brings
+    { const m = mountById(sd().mountId); if (isMountUnlocked(m, sd())) this.mount.select(m.id); }
     for (const o of this.mount.groups) this.scene.add(o);
-    this.touch?.bindMount(() => this.mount.press(), () => this.mount.buttonState);
+    this.touch?.bindMount(() => this.mount.press(), () => this.mount.buttonState, () => this.mount.def.icon);
     this.play.bindMount(this.mount);
     if (!this.isTouch) {
       const btn = document.createElement('button');
       btn.className = 'mount-btn desktop'; btn.type = 'button';
       btn.innerHTML = '<span class="mi">🦅</span><span class="ml">Call Mount <kbd>V</kbd></span>';
+      let lastIcon = '';
       btn.addEventListener('click', (e) => { e.stopPropagation(); this.audio.unlock(); this.mount.press(); });
       document.body.appendChild(btn);
       const tick = () => {
@@ -192,10 +204,10 @@ export class Game {
         btn.classList.toggle('busy', st === 'busy'); btn.classList.toggle('blocked', st === 'blocked');
         btn.classList.toggle('on', st === 'hop' || st === 'land'); btn.classList.toggle('hide', !!this.build?.active);
         const ml = btn.querySelector('.ml')!, mi = btn.querySelector('.mi')!;
-        if (st === 'land') { mi.textContent = '🛬'; ml.innerHTML = 'Land <kbd>V</kbd>'; }
-        else if (st === 'hop') { mi.textContent = '🦅'; ml.innerHTML = 'Hop on <kbd>V</kbd>'; }
-        else if (st === 'busy') { mi.textContent = '🦅'; ml.textContent = '…'; }
-        else { mi.textContent = '🦅'; ml.innerHTML = 'Call Mount <kbd>V</kbd>'; }
+        const ic = st === 'land' ? '🛬' : this.mount.def.icon;
+        if (ic !== lastIcon) { mi.innerHTML = ic; lastIcon = ic; }
+        const lbl = st === 'land' ? 'Land <kbd>V</kbd>' : st === 'hop' ? 'Hop on <kbd>V</kbd>' : st === 'busy' ? '…' : 'Call Mount <kbd>V</kbd>';
+        if (ml.innerHTML !== lbl) ml.innerHTML = lbl;
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);

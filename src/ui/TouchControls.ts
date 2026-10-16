@@ -111,28 +111,30 @@ export class TouchControls {
   }
 
   /** Call Mount sits above Dig/Build (dominant-hand side, mirrors the eye button). */
-  bindMount(press: () => boolean | void, state: () => string) {
+  bindMount(press: () => boolean | void, state: () => string, icon: () => string = () => '🦅') {
     const btn = this.mountBtn; if (!btn) return;
     const doTap = (el: HTMLElement, fn: () => void) => el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); e.stopPropagation();
       el.classList.add('down'); fn();
     });
-    doTap(btn, () => { press(); this.refreshMount(state()); });
+    doTap(btn, () => { press(); this.refreshMount(state(), icon()); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(ev, () => btn.classList.remove('down'));
     // keep label in sync every frame via rAF (cheap)
-    const tick = () => { this.refreshMount(state()); requestAnimationFrame(tick); };
+    const tick = () => { this.refreshMount(state(), icon()); requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   }
-  private refreshMount(st: string) {
-    const btn = this.mountBtn; if (!btn || st === this.mountState) return;
-    this.mountState = st;
+  private refreshMount(st: string, icon: string) {
+    const btn = this.mountBtn; if (!btn || st + icon === this.mountState) return;
+    this.mountState = st + icon;
     const ml = btn.querySelector('.ml')!, mi = btn.querySelector('.mi')!;
     btn.classList.toggle('busy', st === 'busy');
     btn.classList.toggle('blocked', st === 'blocked');
     btn.classList.toggle('on', st === 'hop' || st === 'land');
-    if (st === 'land') { mi.textContent = '🛬'; ml.textContent = 'Land'; btn.setAttribute('aria-label', 'Land'); }
-    else if (st === 'hop') { mi.textContent = '🦅'; ml.textContent = 'Hop on'; btn.setAttribute('aria-label', 'Hop on'); }
-    else if (st === 'busy') { mi.textContent = '🦅'; ml.textContent = '…'; btn.setAttribute('aria-label', 'Eagle busy'); }
-    else { mi.textContent = '🦅'; ml.textContent = 'Call Mount'; btn.setAttribute('aria-label', 'Call Mount'); }
+    mi.innerHTML = st === 'land' ? '🛬' : icon;
+    if (st === 'land') { ml.textContent = 'Land'; btn.setAttribute('aria-label', 'Land'); }
+    else if (st === 'hop') { ml.textContent = 'Hop on'; btn.setAttribute('aria-label', 'Hop on'); }
+    else if (st === 'busy') { ml.textContent = '…'; btn.setAttribute('aria-label', 'Mount busy'); }
+    else { ml.textContent = 'Call Mount'; btn.setAttribute('aria-label', 'Call Mount'); }
   }
 
   /** Reflect build-mode state on the buttons. */

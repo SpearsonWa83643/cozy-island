@@ -36,6 +36,10 @@ export interface SaveData {
   mountRides?: number;
   /** cozy puzzles solved (pressure stones, etc.) */
   puzzles?: Record<string, boolean>;
+  /** special treasures found (mount unlocks: pterodactyl_egg, cloud_puppy_tuft, rainbow_horseshoe) */
+  treasures?: string[];
+  /** last mount picked in Call Mount */
+  mountId?: string;
 }
 
 const KEY = 'cozyIsland.save.v1';

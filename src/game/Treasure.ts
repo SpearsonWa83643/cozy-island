@@ -7,6 +7,7 @@ import type { Flora } from '../world/Flora';
 import type { SaveData } from './Save';
 import { theme, HALLOWEEN_WEAR } from '../theme/theme';
 import { RARITY, WEARABLES, type Rarity, type WearDef , CAVE_WEAR } from './Items';
+import { nextMountTreasure, mountForTreasure } from '../player/MountDefs';
 
 const easeOutBack = (t: number) => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 const easeOutElastic = (t: number) => t <= 0 ? 0 : t >= 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
@@ -158,7 +159,10 @@ export class Treasure {
     const c = BIOME_CENTERS[bi];
     const side = Math.hypot(x - c[0], z - c[1]) < c[2] * 0.35 ? 'in the heart of' : `on the ${dirWord(x - c[0], z - c[1])} side of`;
     const place = bi === Biome.Marsh ? 'the Misty Marsh' : `the ${BIOME_NAMES[bi]}`;
-    return near ? `Dig ${side} ${place}, close to ${near}.` : `Dig ${side} ${place}, where the ground is soft.`;
+    const base = near ? `Dig ${side} ${place}, close to ${near}.` : `Dig ${side} ${place}, where the ground is soft.`;
+    // a chest that carries a mount treasure gets a little teaser on the map
+    const mt = nextMountTreasure(this.save);
+    return mt ? `${base} ✨ Something warm and magical is inside — a ${mountForTreasure(mt)?.short ?? 'flying'} friend's treasure!` : base;
   }
 
   takeBottle() { this.save.map.state = 'active'; this.newSpot(); }

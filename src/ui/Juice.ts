@@ -69,15 +69,15 @@ export class Juice {
   }
 
   /** big reward card after opening a chest */
-  reward(icon: string, name: string, rarity: string, color: string, extra: string, onClose: () => void) {
+  reward(icon: string, name: string, rarity: string, color: string, extra: string, onClose: () => void, opts?: { action: string; onAction: () => void }) {
     const el = document.createElement('div');
     el.className = 'reward';
     el.innerHTML = `<div class="reward-card" style="--rc:${color}"><div class="reward-rays"></div><div class="reward-icon">${icon}</div>
       <div class="reward-rarity">${rarity}</div><div class="reward-name">${name}</div><div class="reward-extra">${extra}</div>
-      <div class="reward-btns"><button class="btn-equip">Wear it</button><button class="btn-ok">Nice!</button></div></div>`;
+      <div class="reward-btns"><button class="btn-equip">${opts?.action ?? 'Wear it'}</button><button class="btn-ok">Nice!</button></div></div>`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    const close = (equip: boolean) => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); onClose(); if (equip) this.onEquipFromReward?.(); };
+    const close = (equip: boolean) => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); onClose(); if (equip) (opts ? opts.onAction() : this.onEquipFromReward?.()); };
     el.querySelector('.btn-ok')!.addEventListener('click', () => close(false));
     el.querySelector('.btn-equip')!.addEventListener('click', () => close(true));
     return el;

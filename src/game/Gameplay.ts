@@ -22,6 +22,7 @@ import { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
 import { showWhatsNew } from '../ui/whatsnewNote';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
+import { addTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -698,6 +699,9 @@ export class Gameplay implements System {
 
   private openChest() {
     const d = this.save.data;
+    // every 2nd chest (from the 2nd on) carries the next mount treasure until all three are found
+    const mt = nextMountTreasure(d);
+    if (mt) return this.openMountChest(mt);
     const { item, dup } = this.treasure.roll(d.owned);
     const r = RARITY[item.rarity];
     this.treasure.open(item.rarity);
@@ -722,6 +726,36 @@ export class Gameplay implements System {
         this.panels.setMapPulse(true, true);
       });
       card.classList.add('r' + item.rarity);
+    };
+    this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), this.rewardDelay);
+  }
+
+  /** a chest with a mount treasure: unlocks that mount, auto-selects it, "Ride it!" calls it */
+  private openMountChest(tid: string) {
+    const d = this.save.data, m = mountForTreasure(tid)!, t = m.treasure!;
+    this.treasure.open(4);
+    this.g.audio.chest(5);
+    this.g.player.cheer();
+    d.chests++;
+    addTreasure(d, tid);
+    d.mountId = m.id;
+    if (this.mount && this.mount.phase === 'off') this.mount.select(m.id);
+    this.lastReward = tid;
+    d.map.n++; d.map.state = 'opened';
+    this.save.touch();
+    this.pendingReward = () => {
+      this.pendingReward = null;
+      const after = () => {
+        this.treasure.finish();
+        this.treasure.newSpot();
+        this.save.touch();
+        this.panels.refreshBadges();
+        this.panels.setMapPulse(true, true);
+      };
+      const card = this.juice.reward(t.icon, t.name, 'New mount!', '#ff7eb6',
+        `<b>${m.icon} ${m.name}</b> unlocked! ${t.blurb}`, () => { after(); this.juice.toast(`🗺️ A new map was tucked inside the chest! Tap <b>Call Mount</b> to pick your ${m.short}.`, 3200); },
+        { action: 'Ride it!', onAction: () => { setTimeout(() => this.mount?.call(m.id), 250); } });
+      card.classList.add('r4', 'mount-reward');
     };
     this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), this.rewardDelay);
   }

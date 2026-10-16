@@ -5,16 +5,18 @@ import type { Player } from './Player';
 import type { CameraRig } from './CameraRig';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
 import { offshore, SWIM_MAX } from '../world/Shore';
+import { mountById, type MountDef, type MountId } from './MountDefs';
+import { BUILDERS, type MountRig } from './MountArt';
 
 /**
- * Mounts (v1: the default bald eagle). Adapted from 2D Master's eagle (src/mount/mount.ts):
+ * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy and unicorn (MountDefs.ts / MountArt.ts).
+ * Adapted from 2D Master's mount (src/mount/mount.ts + defs.ts). With more than one unlocked, Call Mount opens a picker.
  * Call Mount → the eagle swoops in on a Hermite curve and hovers beside you → Hop on (button / tap the eagle / V)
  * → fly with the same joystick / WASD (Shift or stick rim = faster, Space = big flap up, tap the ground = glide there)
  * → Land (button / V) sets you down and the eagle soars away. Never underground: entering the cave or build mode lands you.
  */
 export type MountPhase = 'off' | 'arrive' | 'wait' | 'hop' | 'ride' | 'leave';
-export type MountId = 'eagle';
-export const MOUNTS: Record<MountId, { name: string; icon: string }> = { eagle: { name: 'Bald Eagle', icon: '🦅' } };
+export type { MountId } from './MountDefs';
 
 const RIDE_ALT = 5.6;      // metres above ground / sea while flying
 const WAIT_ALT = 1.05;     // hover height beside you while it waits
@@ -24,9 +26,6 @@ const ARRIVE_T = 1.7;
 const LEAVE_T = 1.7;
 const HOP_T = 0.42;
 const WAIT_MAX = 30;       // seconds it waits before flying off
-const SCALE = 1.55;
-/** seat on the eagle's back, in eagle (body) space */
-const SEAT = new THREE.Vector3(0, 0.36, -0.02);
 
 function hermite(p0: number, v0: number, p1: number, v1: number, t: number) {
   const t2 = t * t, t3 = t2 * t;
@@ -46,6 +45,8 @@ export interface MountHooks {
   cancelWalk: () => void;
   /** a ride started (save stats) */
   onRide: () => void;
+  /** Call Mount with several mounts unlocked: open the picker instead (returns true when it opened) */
+  openPicker?: () => boolean;
 }
 
 export class Mount implements System {
@@ -65,12 +66,15 @@ export class Mount implements System {
   private hopT = 0; private hopFrom = new THREE.Vector3();
   private seg: Seg | null = null; private segT = 0;
   private t = 0;
-  private body = new THREE.Group();
-  private head = new THREE.Group();
-  private wingL = new THREE.Group(); private wingR = new THREE.Group();
-  private tipL = new THREE.Group(); private tipR = new THREE.Group();
-  private tail = new THREE.Group();
-  private legs = new THREE.Group();
+  def: MountDef = mountById('eagle');
+  private rigs = new Map<MountId, MountRig>();
+  private current!: MountRig;
+  private body!: THREE.Group;
+  private head!: THREE.Group;
+  private wingL!: THREE.Group; private wingR!: THREE.Group;
+  private tipL!: THREE.Group; private tipR!: THREE.Group;
+  private tail!: THREE.Group;
+  private legs!: THREE.Group;
   private shadow: THREE.Mesh;
   private mats: THREE.MeshStandardNodeMaterial[] = [];
   private v = new THREE.Vector3();
@@ -79,71 +83,26 @@ export class Mount implements System {
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2),
       new THREE.MeshBasicNodeMaterial({ color: '#2a1a10', transparent: true, opacity: 0.3, depthWrite: false }));
     this.shadow.renderOrder = 3;
-    this.buildEagle();
+    this.select('eagle');
     this.object.visible = false; this.shadow.visible = false;
   }
 
   /** add both to the scene */
   get groups() { return [this.object, this.shadow]; }
 
-  // ------------------------------------------------------------ art
-  private m(hex: string, rough = 0.8, flat = true) {
-    const m = new THREE.MeshStandardNodeMaterial({ color: hex, roughness: rough, metalness: 0, flatShading: flat });
-    this.mats.push(m); return m;
-  }
-  private buildEagle() {
-    const brown = this.m('#6b4630'), dark = this.m('#4a2e1f'), white = this.m('#fbf7ee', 0.6, false), gold = this.m('#f2b13b', 0.45, false),
-      eye = this.m('#2a1a12', 0.3, false), shine = this.m('#ffffff', 0.2, false), feather = this.m('#7d5438');
-    const mesh = (g: THREE.BufferGeometry, mt: THREE.Material, p: [number, number, number], s: [number, number, number] = [1, 1, 1], r: [number, number, number] = [0, 0, 0]) => {
-      const o = new THREE.Mesh(g, mt); o.position.set(...p); o.scale.set(...s); o.rotation.set(...r); return o;
-    };
-    const sph = (r: number, w = 14, h = 10) => new THREE.SphereGeometry(r, w, h);
-    // round, cosy body: chest and back, slightly tilted head-up
-    this.body.add(mesh(sph(0.42), brown, [0, 0, 0], [0.95, 0.78, 1.45]));
-    this.body.add(mesh(sph(0.3), feather, [0, -0.08, 0.22], [1, 0.8, 1.1]));
-    // a soft saddle-ish tuft where the rider sits
-    this.body.add(mesh(sph(0.2, 10, 8), this.m('#c9a26b', 0.9), [0, 0.27, -0.02], [1.1, 0.35, 1.3]));
-    // head (bald eagle: white)
-    this.head.position.set(0, 0.24, 0.6);
-    this.head.add(mesh(sph(0.27), white, [0, 0.06, 0.02], [1, 0.95, 1.05]));
-    this.head.add(mesh(sph(0.22), white, [0, -0.06, -0.12], [1.1, 0.9, 1])); // white neck ruff
-    const beak = new THREE.ConeGeometry(0.075, 0.24, 8); beak.rotateX(Math.PI / 2);
-    this.head.add(mesh(beak, gold, [0, 0.0, 0.3]));
-    this.head.add(mesh(sph(0.06, 8, 6), gold, [0, -0.03, 0.4], [1, 0.8, 1])); // hooked tip
-    for (const s of [-1, 1]) {
-      this.head.add(mesh(sph(0.05, 10, 8), eye, [s * 0.15, 0.1, 0.18]));
-      this.head.add(mesh(sph(0.016, 6, 5), shine, [s * 0.165, 0.125, 0.22]));
-      this.head.add(mesh(sph(0.045, 8, 6), brown, [s * 0.14, 0.17, 0.14], [1.4, 0.45, 1], [0, 0, s * -0.3])); // brow
-    }
-    this.body.add(this.head);
-    // white fan tail
-    this.tail.position.set(0, 0.04, -0.6);
-    for (let i = -2; i <= 2; i++) {
-      const f = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, 0.5), white);
-      f.position.set(i * 0.075, 0, -0.22); f.rotation.y = i * 0.18; this.tail.add(f);
-    }
-    this.body.add(this.tail);
-    // golden legs, tucked in flight
-    for (const s of [-1, 1]) {
-      this.legs.add(mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.26, 6), gold, [s * 0.14, -0.32, 0.06]));
-      this.legs.add(mesh(sph(0.065, 8, 6), gold, [s * 0.14, -0.46, 0.12], [1, 0.6, 1.3]));
-    }
-    this.body.add(this.legs);
-    // wings: shoulder hinge → inner wing → hinged tip with fingered primaries
-    const wing = (root: THREE.Group, tip: THREE.Group, s: number) => {
-      root.position.set(s * 0.3, 0.14, 0.06);
-      root.add(mesh(new THREE.BoxGeometry(0.95, 0.07, 0.62), brown, [s * 0.47, 0, -0.02]));
-      root.add(mesh(new THREE.BoxGeometry(0.8, 0.075, 0.24), dark, [s * 0.45, 0.01, 0.22])); // leading-edge coverts
-      tip.position.set(s * 0.93, 0, -0.03);
-      tip.add(mesh(new THREE.BoxGeometry(0.55, 0.05, 0.5), dark, [s * 0.27, 0, -0.04]));
-      for (let i = 0; i < 4; i++) tip.add(mesh(new THREE.BoxGeometry(0.34, 0.03, 0.1), dark, [s * (0.6 + i * 0.02), 0, 0.13 - i * 0.12], [1, 1, 1], [0, s * (-0.12 - i * 0.12), 0]));
-      root.add(tip);
-      this.body.add(root);
-    };
-    wing(this.wingL, this.tipL, 1); wing(this.wingR, this.tipR, -1);
-    this.body.scale.setScalar(SCALE);
-    this.object.add(this.body);
-    this.object.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+  // ------------------------------------------------------------ art (procedural rigs, MountArt.ts)
+  /** switch the mount you'll call next (only while it's away) */
+  select(id: MountId) {
+    if (this.phase !== 'off' && this.current) return false;
+    const def = mountById(id);
+    let r = this.rigs.get(def.id);
+    if (!r) { r = BUILDERS[def.id](); this.rigs.set(def.id, r); }
+    if (this.current) this.object.remove(this.current.body);
+    this.current = r; this.id = def.id; this.def = def;
+    ({ body: this.body, head: this.head, wingL: this.wingL, wingR: this.wingR, tipL: this.tipL, tipR: this.tipR, tail: this.tail, legs: this.legs } = r);
+    this.mats = r.mats;
+    this.object.add(r.body);
+    return true;
   }
   private setAlpha(a: number) {
     for (const m of this.mats) { const tr = a < 0.999; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = a; }
@@ -166,17 +125,23 @@ export class Mount implements System {
 
   /** the one Mount button / V key: Call → Hop on → Land */
   press() {
-    if (this.phase === 'off') return this.call();
+    if (this.phase === 'off') {
+      // several mounts unlocked: let the player pick (the picker calls the chosen one)
+      if (this.canCall() && this.hooks.openPicker?.()) return true;
+      return this.call();
+    }
     if (this.phase === 'wait') return this.mount();
     if (this.phase === 'ride') return this.land();
     return false;
   }
 
-  call() {
+  /** call the selected mount (or switch to `id` first) */
+  call(id?: MountId) {
     if (!this.canCall()) {
-      if (this.player.inCave) this.hooks.toast('🦅 The eagle can\'t fly down here — head outside first', 1800);
+      if (this.player.inCave) this.hooks.toast(`${this.def.icon} Your ${this.def.short} can't fly down here — head outside first`, 1800);
       return false;
     }
+    if (id && id !== this.id) this.select(id);
     this.calls++;
     const p = this.player.position;
     // swoop in from behind the camera's right shoulder, high and wide, ending hovering just beside you
@@ -198,7 +163,7 @@ export class Mount implements System {
     this.object.visible = this.shadow.visible = true;
     this.glideAmt = 1; this.glide = 0;
     this.hooks.sfx('call');
-    this.hooks.toast('🦅 Here comes your eagle!', 1500);
+    this.hooks.toast(`${this.def.icon} Here comes your ${this.def.short}!`, 1500);
     return true;
   }
 
@@ -356,7 +321,7 @@ export class Mount implements System {
         const dx = p.x - this.gx, dz = p.z - this.gz, d = Math.hypot(dx, dz);
         if (d > 3.2) { const k = Math.min(1, dt * 1.5) * (d - 2.2) / d; this.gx += dx * k; this.gz += dz * k; this.turnTo(Math.atan2(dx, dz), dt, 3); }
         this.bank += (0 - this.bank) * Math.min(1, dt * 3);
-        if (this.waitT > WAIT_MAX || d > 18 || this.player.inCave) { this.hooks.toast('🦅 The eagle got bored and flew off. Call it again any time!', 2000); this.startLeave(); }
+        if (this.waitT > WAIT_MAX || d > 18 || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and flew off. Call it again any time!`, 2000); this.startLeave(); }
         break;
       }
       case 'hop': {
@@ -366,7 +331,7 @@ export class Mount implements System {
           this.phase = 'ride'; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
           this.hooks.onRide();
           this.hooks.sfx('flap');
-          if (this.rides === 1) this.hooks.toast('🦅 Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off', 3600);
+          if (this.rides === 1) this.hooks.toast(`${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
         }
         break;
       }
@@ -392,10 +357,10 @@ export class Mount implements System {
     const gWant = (this.glide > 0 && this.speed > 3) || (ph === 'arrive' && this.segT < 0.55) ? 1 : 0;
     this.glideAmt += (gWant - this.glideAmt) * Math.min(1, dt * 4);
     const rate = ph === 'wait' ? 2.6 : ph === 'hop' ? 3.4 : ph === 'leave' ? 2.6 : ph === 'arrive' ? 1.4 : this.boost > 0.5 ? 2.8 : 1.5 + this.speed * 0.04;
-    this.flapRate += (rate - this.flapRate) * Math.min(1, dt * 5);
+    this.flapRate += (rate * this.current.rate - this.flapRate) * Math.min(1, dt * 5);
     this.flap += dt * Math.PI * 2 * this.flapRate * (1 - this.glideAmt * 0.9);
     const c = Math.cos(this.flap);
-    const amp = ph === 'wait' ? 0.75 : 0.62;
+    const amp = (ph === 'wait' ? 0.75 : 0.62) * this.current.amp;
     const up = c * amp * (1 - this.glideAmt) + 0.18 * this.glideAmt;
     this.wingL.rotation.z = up; this.wingR.rotation.z = -up;
     // tips lag behind the stroke (a soft whip)
@@ -412,8 +377,11 @@ export class Mount implements System {
     this.object.rotateX(pitch);
     this.object.rotateZ(this.bank);
     // tail fans while hovering; legs drop when it's close to the ground
-    this.tail.scale.x = ph === 'wait' || ph === 'hop' ? 1.25 : 1;
-    this.tail.rotation.x = ph === 'wait' ? 0.25 : -0.05;
+    if (this.current.fanTail) {
+      this.tail.scale.x = ph === 'wait' || ph === 'hop' ? 1.25 : 1;
+      this.tail.rotation.x = ph === 'wait' ? 0.25 : -0.05;
+    }
+    this.current.animate?.(this.t, dt, ph, this.speed, this.flap);
     this.legs.position.y = this.alt < 2.2 ? -0.06 : 0.06;
     // head looks at you while waiting, into the turn while flying
     if (ph === 'wait') {
@@ -426,7 +394,8 @@ export class Mount implements System {
     const gy = this.groundAt(this.gx, this.gz);
     const k = 1 / (1 + this.alt / 6);
     this.shadow.position.set(this.gx, gy + 0.06, this.gz);
-    this.shadow.scale.set(1.5 * (0.5 + k * 0.6), 1, 1.1 * (0.5 + k * 0.6));
+    const ss = this.current.shadow;
+    this.shadow.scale.set(1.5 * ss * (0.5 + k * 0.6), 1, 1.1 * ss * (0.5 + k * 0.6));
     this.shadow.rotation.y = this.heading;
     if (ph !== 'leave') (this.shadow.material as THREE.MeshBasicNodeMaterial).opacity = 0.1 + 0.25 * k;
   }
@@ -434,7 +403,7 @@ export class Mount implements System {
   /** place the rider on the eagle's back (and keep the physics body under them) */
   private seatRider() {
     this.object.updateMatrixWorld(true);
-    const seat = this.body.localToWorld(this.v.copy(SEAT));
+    const seat = this.body.localToWorld(this.v.copy(this.current.seat));
     const o = this.player.object;
     if (this.phase === 'hop') {
       // little arc from where you stood onto the eagle's back
@@ -456,6 +425,7 @@ export class Mount implements System {
   /** test/debug snapshot */
   snapshot() {
     return {
+      id: this.id, name: this.def.name,
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
