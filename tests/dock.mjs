@@ -44,7 +44,7 @@ async function run(label, dev, query) {
   // theme picker
   await click('.dock .theme-btn'); await page.waitForFunction(() => +getComputedStyle(document.querySelector('.theme-picker')).opacity > 0.98, null, { timeout: 15000 }).catch(() => {});
   const items = await page.evaluate(() => [...document.querySelectorAll('.tp-item')].map((b) => b.dataset.t).join());
-  ok(`${label}: picker lists Auto + all themes`, items === 'auto,halloween,thanksgiving,christmas,spring,summer,autumn,winter', items);
+  ok(`${label}: picker lists Auto + all themes`, items === 'auto,halloween,thanksgiving,christmas,newyear,valentine,easter,spring,summer,autumn,winter', items);
   ok(`${label}: old stats-panel theme buttons removed`, (await page.evaluate(() => document.querySelectorAll('.stats .th').length)) === 0);
   if (label === 'ipad') await shot(page, '56-ipad-theme-picker');
   await click('.tp-item[data-t="spring"]'); await page.waitForTimeout(500);

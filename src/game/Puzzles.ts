@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { heightAt, surfaceAt, type Surface } from '../world/Terrain';
+import { heightAt, type Surface } from '../world/Terrain';
 import { Baker } from '../world/Baker';
 import type { Flora } from '../world/Flora';
 import type { AudioEngine } from '../audio/Audio';
