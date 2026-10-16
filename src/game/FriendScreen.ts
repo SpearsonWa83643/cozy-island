@@ -5,34 +5,17 @@ import { Biome, BIOME_COUNT } from '../world/Biomes';
 import { biomeWeights } from '../world/Terrain';
 import { FOODS, TASTES, WEAR_BY_ID, RARITY, type FoodId, type Species } from './Items';
 import type { SaveData, PetData } from './Save';
+import { ensurePet, needFor } from './FriendPet';
+export { ensurePet, needFor } from './FriendPet';
 import { buildRig, dirtGeo, dirtMat, type Rig } from './FriendModel';
 
 const STUDIO = new THREE.Vector3(0, 420, 0);
 type Mode = 'pet' | 'clean' | 'feed';
 
-const NAMES: Record<string, string[]> = {
-  bunny: ['Clover', 'Mochi', 'Biscuit', 'Pip', 'Hazel', 'Juniper', 'Tofu', 'Bramble', 'Nibbles', 'Daisy', 'Cocoa', 'Puff'],
-  deer: ['Fern', 'Willow', 'Maple', 'Bambi', 'Aspen', 'Hickory', 'Sorrel', 'Chestnut', 'Birch', 'Rowan'],
-  duck: ['Waddles', 'Puddle', 'Quackers', 'Dot', 'Bubbles', 'Lily', 'Ripple', 'Noodle', 'Pudding', 'Reed'],
-  crab: ['Pinchy', 'Sandy', 'Clawdia', 'Shelly', 'Coral', 'Snappy', 'Barnaby', 'Kelp', 'Tide', 'Pebble'],
-  bird: ['Tweety', 'Sunny', 'Skye', 'Pippa', 'Kiwi', 'Robin', 'Breeze', 'Chirpy', 'Feather', 'Wren'],
-};
-/** friendship needed to reach level l */
-export const needFor = (l: number) => 4 * l * (l - 1);
 const GIFT: Record<string, string> = { bunny: 'flower', deer: 'leafwings', duck: 'floatie', crab: 'shellneck', bird: 'butterfly' };
 const TRICKS: Record<string, { name: string; icon: string }> = { spin: { name: 'Spin', icon: '🌀' }, dance: { name: 'Happy Dance', icon: '💃' } };
 const BASE_YAW: Record<string, number> = { bunny: -0.35, deer: -0.75, duck: -0.45, crab: -0.15, bird: -0.4 };
 
-export function ensurePet(d: SaveData, key: string, species: string): PetData {
-  d.pets ??= {};
-  let p = d.pets[key];
-  if (!p) {
-    const list = NAMES[species] ?? NAMES.bunny, id = +(key.split(':')[1] ?? 0);
-    p = { name: list[(id * 7 + 3) % list.length], sp: species, love: 0, lvl: 1, clean: 0.9, tricks: [] };
-    d.pets[key] = p;
-  }
-  return p;
-}
 
 interface Dirt { mesh: THREE.Mesh; p: THREE.Vector3; n: THREE.Vector3; r: number; dirt: number }
 

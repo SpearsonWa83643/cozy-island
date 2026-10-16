@@ -1,6 +1,6 @@
 import { Biome } from '../world/Biomes';
 import type { Surface } from '../world/Terrain';
-import { MusicGen } from './Music';
+import type { MusicGen } from './Music';
 /** finite-or-fallback for AudioParam writes (a NaN throws in WebAudio) */
 const F = (v: number, fb: number) => (Number.isFinite(v) ? v : fb);
 
@@ -135,8 +135,10 @@ export class AudioEngine {
     const cic = this.beds.cicada; cic.filter2 = undefined;
     cic.gain.disconnect(); cic.gain.connect(am).connect(this.ambBus); lfo.start();
 
-    this.music = new MusicGen(ctx, this.musicBus, this.reverbIn);
-    this.music.setMode(this.musicMode);
+    void import('./Music').then(({ MusicGen }) => {
+      this.music = new MusicGen(ctx, this.musicBus, this.reverbIn);
+      this.music.setMode(this.musicMode);
+    });
   }
 
   private bed(name: string, buf: AudioBuffer, filters: [BiquadFilterType, number, number][], panned = false) {

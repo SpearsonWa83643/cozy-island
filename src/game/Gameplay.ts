@@ -8,13 +8,14 @@ import { Guide } from './Guide';
 import { TapWalk, type WalkGoal } from './TapWalk';
 import { Dig } from './Dig';
 import { Harvest } from './Harvest';
-import { Puzzles, stoneChestLoot } from './Puzzles';
-import { FriendScreen, ensurePet } from './FriendScreen';
+import type { Puzzles } from './Puzzles';
+import type { FriendScreen } from './FriendScreen';
+import { ensurePet } from './FriendPet';
 import { WEARABLES, CAVE_WEAR } from './Items';
 import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Slot, type Species } from './Items';
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
-import { MapOverlay } from '../ui/MapOverlay';
+import type { MapOverlay } from '../ui/MapOverlay';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
@@ -36,10 +37,12 @@ export class Gameplay implements System {
   walk: TapWalk;
   digger = new Dig();
   harvest!: Harvest;
-  puzzles!: Puzzles;
+  puzzles: Puzzles | null = null;
+  private puzzlesP: Promise<Puzzles> | null = null;
   private digCool = 0; private digMsgT = 0;
   private ray = new THREE.Raycaster();
-  map: MapOverlay;
+  map: MapOverlay | null = null;
+  private mapP: Promise<MapOverlay> | null = null;
   juice: Juice;
   panels: Panels;
   react: TapReact;
@@ -52,7 +55,9 @@ export class Gameplay implements System {
   private camFrom = new THREE.Vector3(); private camLook = new THREE.Vector3();
   private ctx: FollowCtx;
   private lockMove = 0;
-  friend!: FriendScreen;
+  friend: FriendScreen | null = null;
+  private friendP: Promise<FriendScreen> | null = null;
+  private friendHost!: import('./FriendScreen').FriendHost;
   private careT = 0;
   private swimUi: HTMLDivElement;
   private swimTip = false;
@@ -77,18 +82,13 @@ export class Gameplay implements System {
     g.scene.add(this.walk.marker, this.digger.group);
     this.walk.onGiveUp = () => this.juice.pop(g.player.position.add(new THREE.Vector3(0, 1.9, 0)), '🤔', 'emote', 1.2, 20);
     g.input.onStickStart.push(() => this.walk.cancel());
-    // build mode: far pieces in remove mode → walk over, then remove
-    g.build.onFarRemove = (pos, done) => { this.walk.go({ pos: () => pos, reach: 3.2, key: '', arrive: done }); return true; };
     this.guide.enabled = d.guide !== false;
     const root = document.getElementById('hud') ?? document.body;
-    this.map = new MapOverlay(document.body, g.flora);
-    this.map.onClose = () => g.audio.paper();
-    this.map.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
-    this.map.guideOn = this.guide.enabled;
+    // MapOverlay lazy — ensureMap() on first open / prefetchLazy()
     this.juice = new Juice(root, g.camera);
     this.juice.onEquipFromReward = () => { const last = this.lastReward; if (last) { this.equip(WEAR_BY_ID.get(last)!.slot, last); } };
     this.react = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
-    this.react.bind({ fauna: g.fauna, build: g.build, reef: g.reef, camera: g.camera });
+    this.react.bind({ fauna: g.fauna, build: g.build ?? undefined, reef: g.reef, camera: g.camera });
     g.scene.add(this.react.group);
     this.harvest = new Harvest(
       g.flora, g.audio,
@@ -101,35 +101,14 @@ export class Gameplay implements System {
       (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45),
     );
     g.scene.add(this.harvest.group);
-    this.puzzles = new Puzzles(
-      g.flora, g.audio,
-      (h, ms) => this.juice.toast(h, ms),
-      (pos) => {
-        const d = this.save.data;
-        d.puzzles = { ...(d.puzzles ?? {}), stones: true };
-        const loot = stoneChestLoot(d.owned);
-        if (loot) {
-          d.owned[loot.id] = 1; this.lastReward = loot.id;
-          this.juice.pop(pos, loot.icon, 'emote big', 1.8, 60);
-          this.g.audio.chest(loot.rarity); this.g.player.cheer();
-          this.juice.toast(`🎁 The stone chest held a <b>${loot.name}</b>! ✨ <small>(wardrobe)</small>`, 3200);
-        } else {
-          d.shells += 8;
-          this.juice.pop(pos, '🐚', 'emote big', 1.6, 50);
-          this.juice.toast('🎁 The stone chest held <b>+8 🐚</b>!', 2600);
-        }
-        this.save.touch(); this.panels.refreshBadges();
-      },
-      !!d.puzzles?.stones,
-    );
-    g.scene.add(this.puzzles.group);
+    // Puzzles lazy — ensurePuzzles() after ready / prefetchLazy()
     this.panels = new Panels(document.body, {
       save: () => this.save.data,
       equip: (slot, id) => this.equip(slot, id),
       buyDye: (id) => { const dy = DYES.find((x) => x.id === id)!; if (d.shells < dy.cost) { this.juice.toast(`Need 🐚 ${dy.cost} shells for ${dy.name}`); return false; } d.shells -= dy.cost; d.dyes.push(id); this.g.audio.pop(1.5); this.save.touch(); return true; },
       setDye: (id) => { d.dye = id; this.applyOutfit(); this.g.audio.pop(1.2); this.save.touch(); },
       friends: () => this.g.fauna.friends().map((f) => ({ species: f.species, hunger: f.a.hunger, name: ensurePet(d, this.g.fauna.keyOf(f), f.species).name })),
-      visit: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.panels.toggle(null); this.friend.show(f); } },
+      visit: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.panels.toggle(null); void this.ensureFriend().then((fs) => fs.show(f)); } },
       dismiss: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.g.fauna.dismiss(f); this.juice.pop(new THREE.Vector3(f.a.x, f.a.y + 0.9, f.a.z), '👋', 'emote', 1.6, 40); } },
       sheet: (k) => { this.setPreview(k === 'wardrobe'); this.save.touch(); if (!k) this.panels.refreshBadges(); },
       map: () => this.toggleMap(),
@@ -142,8 +121,8 @@ export class Gameplay implements System {
     this.swimUi.innerHTML = '<div class="ring"><span>🏊</span></div><div class="lbl"></div>';
     root.appendChild(this.swimUi);
     this.panels.onAction = () => this.act();
-    // friend close-up screen
-    this.friend = new FriendScreen(g, {
+    // friend close-up screen (lazy — ensureFriend on first open)
+    this.friendHost = {
       save: () => this.save.data,
       touch: () => { this.syncFollowers(); this.save.touch(); },
       toast: (h) => this.juice.toast(h),
@@ -153,7 +132,7 @@ export class Gameplay implements System {
         d.owned[id] = 1; this.lastReward = id; this.save.touch(); this.panels.refreshBadges(); return true;
       },
       refreshBadges: () => this.panels.refreshBadges(),
-    });
+    };
     // restore followers from the last session, gathered around you
     (d.followers ?? []).forEach((k, i) => {
       const ref = g.fauna.byKey(k); if (!ref) return;
@@ -162,7 +141,7 @@ export class Gameplay implements System {
     });
     // contextual action from a tap/click near the target
     g.input.onClick.push((e, drag) => {
-      if (drag || g.build.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend.open) return;
+      if (drag || g.build?.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend?.open) return;
       g.audio.unlock();
       // mount: tap the waiting eagle to hop on, or tap the ground while riding to glide there
       if (this.mount?.active) {
@@ -176,7 +155,7 @@ export class Gameplay implements System {
       }
       // tapping a follower opens its close-up friend screen
       const fr = this.friendAt(e.clientX, e.clientY);
-      if (fr) { this.walk.cancel(false); this.friend.show(fr); return; }
+      if (fr) { this.walk.cancel(false); void this.ensureFriend().then((fs) => fs.show(fr)); return; }
       // seasonal tap reactions (ghosts giggle + twirl, jack-o'-lanterns flare)
       if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
       const lim = g.isTouch ? 70 : 56;
@@ -207,16 +186,20 @@ export class Gameplay implements System {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       const k = e.key.toLowerCase();
       if (this.friend?.open) return;
-      if (k === 'escape') { this.map.hide(); this.panels.toggle(null); }
+      if (k === 'escape') { this.map?.hide(); this.panels.toggle(null); }
       if (k === 'm') { g.audio.unlock(); this.toggleMap(); }
       if (k === 'g') this.setGuide(!this.guide.enabled);
       if (k === 'i') this.panels.toggle('bag');
       if (k === 'o') this.panels.toggle('wardrobe');
     });
-    // restore placed builds
-    for (const b of d.builds) if (b.t >= 0) g.build.placeAt(b.x, b.z, b.t, b.r, b.y);
-    const prevChange = g.build.onChange;
-    g.build.onChange = () => { prevChange(); d.builds = g.build.serialize(); this.save.touch(); };
+    // restore placed builds once BuildMode chunk is ready
+    g.whenBuild((b) => {
+      for (const pb of d.builds) if (pb.t >= 0) b.placeAt(pb.x, pb.z, pb.t, pb.r, pb.y);
+      const prevChange = b.onChange;
+      b.onChange = () => { prevChange(); d.builds = b.serialize(); this.save.touch(); };
+      b.onFarRemove = (pos, done) => { this.walk.go({ pos: () => pos, reach: 3.2, key: '', arrive: done }); return true; };
+      this.react.bind({ build: b });
+    });
     this.treasure.onDug = () => { this.g.audio.chest(0); this.juice.pop(this.treasure.spot.clone().add(new THREE.Vector3(0, 1.2, 0)), '✨', 'emote', 1.2, 50); this.save.touch(); };
     this.applyOutfit();
     this.ctx = {
@@ -293,11 +276,74 @@ export class Gameplay implements System {
   private toggleMap() {
     const d = this.save.data;
     this.g.audio.paper();
-    this.map.toggle({ state: d.map.state, n: d.map.n, x: d.map.x, z: d.map.z, hint: d.map.hint, bottle: { x: this.treasure.bottlePos.x, z: this.treasure.bottlePos.z } });
+    const info = { state: d.map.state, n: d.map.n, x: d.map.x, z: d.map.z, hint: d.map.hint, bottle: { x: this.treasure.bottlePos.x, z: this.treasure.bottlePos.z } };
+    void this.ensureMap().then((m) => m.toggle(info));
+  }
+
+  private ensureMap(): Promise<MapOverlay> {
+    if (this.map) return Promise.resolve(this.map);
+    if (this.mapP) return this.mapP;
+    this.mapP = import('../ui/MapOverlay').then(({ MapOverlay }) => {
+      const m = new MapOverlay(document.body, this.g.flora);
+      m.onClose = () => this.g.audio.paper();
+      m.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
+      m.guideOn = this.guide.enabled;
+      this.map = m;
+      return m;
+    });
+    return this.mapP;
+  }
+
+  private ensureFriend(): Promise<FriendScreen> {
+    if (this.friend) return Promise.resolve(this.friend);
+    if (this.friendP) return this.friendP;
+    this.friendP = import('./FriendScreen').then(({ FriendScreen }) => {
+      const fs = new FriendScreen(this.g, this.friendHost);
+      this.friend = fs;
+      return fs;
+    });
+    return this.friendP;
+  }
+
+  private ensurePuzzles(): Promise<Puzzles> {
+    if (this.puzzles) return Promise.resolve(this.puzzles);
+    if (this.puzzlesP) return this.puzzlesP;
+    this.puzzlesP = import('./Puzzles').then(({ Puzzles, stoneChestLoot }) => {
+      const d = this.save.data;
+      const pz = new Puzzles(
+        this.g.flora, this.g.audio,
+        (h, ms) => this.juice.toast(h, ms),
+        (pos) => {
+          d.puzzles = { ...(d.puzzles ?? {}), stones: true };
+          const loot = stoneChestLoot(d.owned);
+          if (loot) {
+            d.owned[loot.id] = 1; this.lastReward = loot.id;
+            this.juice.pop(pos, loot.icon, 'emote big', 1.8, 60);
+            this.g.audio.chest(loot.rarity); this.g.player.cheer();
+            this.juice.toast(`🎁 The stone chest held a <b>${loot.name}</b>! ✨ <small>(wardrobe)</small>`, 3200);
+          } else {
+            d.shells += 8;
+            this.juice.pop(pos, '🐚', 'emote big', 1.6, 50);
+            this.juice.toast('🎁 The stone chest held <b>+8 🐚</b>!', 2600);
+          }
+          this.save.touch(); this.panels.refreshBadges();
+        },
+        !!d.puzzles?.stones,
+      );
+      this.g.scene.add(pz.group);
+      this.puzzles = pz;
+      return pz;
+    });
+    return this.puzzlesP;
+  }
+
+  /** Prefetch feature chunks (called from Game.start before ready). */
+  prefetchLazy() {
+    return Promise.all([this.ensureMap(), this.ensureFriend(), this.ensurePuzzles()]);
   }
 
   setGuide(on: boolean) {
-    this.guide.enabled = on; this.save.data.guide = on; this.map.guideOn = on; this.save.touch();
+    this.guide.enabled = on; this.save.data.guide = on; if (this.map) this.map.guideOn = on; this.save.touch();
     this.g.audio.pop(on ? 1.3 : 0.8);
     this.juice.toast(on ? '✨ Treasure trail on' : 'Treasure trail off <small>(G / map to turn back on)</small>', 1600);
   }
@@ -583,14 +629,14 @@ export class Gameplay implements System {
   /** shovel: dig right in front of you. At the map's X it digs up the chest; elsewhere a hole and maybe a find. */
   shovel() {
     const g = this.g, d = this.save.data, pl = g.player;
-    if (this.lockMove > 0 || this.previewOn || g.build.active || this.digCool > 0 || pl.swimming || pl.mounted) return false;
+    if (this.lockMove > 0 || this.previewOn || g.build?.active || this.digCool > 0 || pl.swimming || pl.mounted) return false;
     if (g.cave.inside) { if (this.digMsgT <= 0) { this.juice.toast('🪨 The cave floor is solid rock', 1300); this.digMsgT = 2; } g.audio.pop(0.55); this.digCool = 0.5; return false; }
     this.walk.cancel(false);
     const p = pl.position, f = pl.facingYaw;
     const x = p.x + Math.sin(f) * 0.75, z = p.z + Math.cos(f) * 0.75;
     const tr = this.treasure;
     if (tr.state === 'active' && !tr.busy && Math.hypot(tr.spot.x - x, tr.spot.z - z) < 1.9) { this.dig(); this.digCool = 1.2; return true; }
-    const c = this.digger.check(x, z, (bx, bz) => g.build.occupiedAt(bx, bz));
+    const c = this.digger.check(x, z, (bx, bz) => g.build?.occupiedAt(bx, bz) ?? false);
     if (!c.ok) {
       this.digCool = 0.5;
       g.audio.pop(0.55);
@@ -603,7 +649,7 @@ export class Gameplay implements System {
     const surface = c.surface;
     setTimeout(() => {
       this.digger.hole(x, z, surface, f + Math.PI / 2);
-      this.friend.dirtyNear(x, z, 0.08);
+      this.friend?.dirtyNear(x, z, 0.08);
       d.digs = (d.digs ?? 0) + 1;
       const owned = WEARABLES.filter((w) => d.owned[w.id]).length;
       const find = this.digger.roll(x, z, surface, owned, WEARABLES.length);
@@ -728,7 +774,7 @@ export class Gameplay implements System {
     this.careT += dt;
     if (this.careT >= 1) {
       const fr = g.fauna.friends();
-      this.friend.care(this.careT, fr, g.player.swimming);
+      this.friend?.care(this.careT, fr, g.player.swimming);
       this.syncFollowers();
       this.careT = 0; this.save.touch();
     }
@@ -745,18 +791,18 @@ export class Gameplay implements System {
     this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy && !g.cave.inside ? this.treasure.spot : null);
     if (this.lockMove > 0) { this.lockMove -= dt; g.player.enabled = this.lockMove <= 0 && !this.previewOn; }
     // keyboard action
-    if (g.input.pressed.has('e') && !g.build.active && !g.player.mounted) this.act();
-    if (g.input.pressed.has('v') && !this.friend.open) this.mount?.press();
+    if (g.input.pressed.has('e') && !g.build?.active && !g.player.mounted) this.act();
+    if (g.input.pressed.has('v') && !this.friend?.open) this.mount?.press();
     // shovel: F / Dig button, hold to keep digging
     this.digCool -= dt; this.digMsgT -= dt;
-    if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build.active) this.shovel();
+    if ((g.input.pressed.has('f') || g.input.keys.has('f')) && !g.build?.active) this.shovel();
     this.digger.update(dt);
     this.harvest.update(dt);
-    this.puzzles.sense(p, dt);
-    this.puzzles.update(dt);
+    this.puzzles?.sense(p, dt);
+    this.puzzles?.update(dt);
     // contextual target
     this.targetT -= dt;
-    if (this.targetT <= 0) this.target = g.build.active || this.previewOn || g.player.mounted ? null : this.findTarget(p);
+    if (this.targetT <= 0) this.target = g.build?.active || this.previewOn || g.player.mounted ? null : this.findTarget(p);
     const t = this.target;
     this.panels.setAction(t && g.isTouch ? t.icon : null, t?.label ?? '', t?.key ?? '');
     if (!g.isTouch) this.juice.setPrompt(t ? t.pos : null, t ? `<kbd>E</kbd> ${t.label} <span>${t.icon}</span>` : '');
@@ -766,7 +812,7 @@ export class Gameplay implements System {
     this.warmT -= dt;
     if (c > 0 && this.warmT <= 0) { g.audio.warm(c); this.warmT = 2.8 - c * 2.1; }
     this.panels.setMapPulse(c > 0.6 || d.map.state === 'bottle', d.map.state !== 'none');
-    this.map.update(p.x, p.z, g.player.facingYaw, c);
+    this.map?.update(p.x, p.z, g.player.facingYaw, c);
     // hungry followers remind you now and then
     this.remindT -= dt;
     if (this.remindT <= 0) {

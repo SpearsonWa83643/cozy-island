@@ -17,7 +17,7 @@ export class TouchControls {
   private mountBtn: HTMLElement | null = null;
   private mountState = '';
 
-  constructor(private input: Input, private build: BuildMode) {
+  constructor(private input: Input, private getBuild: () => BuildMode | null) {
     document.body.classList.add('touch');
     this.root = document.createElement('div');
     this.root.className = 'touch-ui';
@@ -105,7 +105,7 @@ export class TouchControls {
     tap(dig, () => { this.input.pressed.add('f'); this.input.keys.add('f'); });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dig.addEventListener(ev, () => this.input.keys.delete('f'));
     tap(this.rotateBtn, () => this.input.pressed.add('r'));
-    tap(this.removeBtn, () => this.build.setRemoveMode(!this.build.removeMode));
+    tap(this.removeBtn, () => { const b = this.getBuild(); if (b) b.setRemoveMode(!b.removeMode); });
     this.mountBtn = this.root.querySelector('.mount-btn');
     this.sync();
   }
@@ -137,10 +137,11 @@ export class TouchControls {
 
   /** Reflect build-mode state on the buttons. */
   sync() {
-    const on = this.build.active;
+    const b = this.getBuild();
+    const on = !!b?.active;
     this.root.classList.toggle('building', on);
     this.buildBtn.classList.toggle('on', on);
-    this.removeBtn.classList.toggle('on', this.build.removeMode);
+    this.removeBtn.classList.toggle('on', !!b?.removeMode);
     this.mountBtn?.classList.toggle('hide', on);
   }
 }

@@ -18,7 +18,7 @@ import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { Mount } from '../player/Mount';
-import { BuildMode } from '../build/BuildMode';
+import type { BuildMode } from '../build/BuildMode';
 import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
 import { AudioEngine } from '../audio/Audio';
@@ -42,7 +42,9 @@ export class Game {
   player!: Player;
   rig!: CameraRig;
   mount!: Mount;
-  build!: BuildMode;
+  build: BuildMode | null = null;
+  private buildP: Promise<BuildMode> | null = null;
+  private buildWait: ((b: BuildMode) => void)[] = [];
   flora!: Flora;
   particles!: Particles;
   fauna!: Fauna;
@@ -122,14 +124,13 @@ export class Game {
     this.player = new Player(this.physics, this.input, new THREE.Vector3(SPAWN.x, 0, SPAWN.y));
     this.scene.add(this.player.object);
     this.rig = new CameraRig(this.camera, this.input, this.player);
-    this.build = new BuildMode(this.scene, this.camera, this.terrain, this.physics, this.input, () => this.player.position);
-    this.fauna.blockers = (x, z) => this.build.occupiedAt(x, z);
+    this.fauna.blockers = (x, z) => this.build?.occupiedAt(x, z) ?? false;
 
     // --- Audio hooks ---
     this.player.onStep = (p, run) => {
       const surf = this.surfaceUnder(p);
       this.audio.footstep(surf, run ? 1.25 : 1);
-      this.play?.puzzles.footstep(p, this.player.facingYaw, surf, run);
+      this.play?.puzzles?.footstep(p, this.player.facingYaw, surf, run);
     };
     this.player.onJump = () => this.audio.jump();
     this.player.onLand = (p, impact) => this.audio.land(this.surfaceUnder(p), impact);
@@ -140,8 +141,7 @@ export class Game {
       const p = this.player.position, d = Math.hypot(x - p.x, z - p.z);
       this.audio.splash(this.panOf(x, z), Math.max(0, 1 - d / 40) * (big ? 0.55 : 0.3), big);
     };
-    this.build.onPlace = (type) => this.audio.place(type);
-    this.build.onRemove = () => this.audio.remove();
+    // build SFX / onChange wired in ensureBuild()
     this.fauna.school.onSplash = (x, z, big) => {
       const p = this.player.position, d = Math.hypot(x - p.x, z - p.z);
       this.audio.splash(this.panOf(x, z), Math.max(0, 1 - d / 30) * (big ? 0.5 : 0.3), big);
@@ -154,21 +154,17 @@ export class Game {
     this.hud.bindHand(this.input);
 
     this.hud.onQuality = (q) => this.setQuality(q);
-    this.hud.onSelect = (i) => { if (!this.build.active) this.build.toggle(true); this.build.select(i); };
+    this.hud.onSelect = (i) => { void this.ensureBuild().then((b) => { if (!b.active) b.toggle(true); b.select(i); }); };
     if (this.isTouch) {
-      this.touch = new TouchControls(this.input, this.build);
+      this.touch = new TouchControls(this.input, () => this.build);
       this.rig.sensitivity = 1.4;
     }
-    this.build.onChange = () => {
-      this.hud.setBuild(this.build.active, this.build.selected, this.build.count, this.build.removeMode);
-      this.touch?.sync();
-    };
     this.play = new Gameplay(this, SPAWN);
     lap('gameplay');
     // eagle mount (Call Mount): after Gameplay so toasts / save / walk cancel are ready
     this.mount = new Mount(this.player, this.input, this.rig, {
-      blocked: () => !!this.play.friend?.open || this.build.active || this.play.previewing || this.play.lockMoving,
-      mustLand: () => this.build.active || this.cave.inside,
+      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving,
+      mustLand: () => !!this.build?.active || this.cave.inside,
       toast: (h, ms) => this.play.toast(h, ms),
       sfx: (k) => this.audio.mount(k),
       cancelWalk: () => this.play.walk.cancel(false),
@@ -186,7 +182,7 @@ export class Game {
       const tick = () => {
         const st = this.mount.buttonState;
         btn.classList.toggle('busy', st === 'busy'); btn.classList.toggle('blocked', st === 'blocked');
-        btn.classList.toggle('on', st === 'hop' || st === 'land'); btn.classList.toggle('hide', this.build.active);
+        btn.classList.toggle('on', st === 'hop' || st === 'land'); btn.classList.toggle('hide', !!this.build?.active);
         const ml = btn.querySelector('.ml')!, mi = btn.querySelector('.mi')!;
         if (st === 'land') { mi.textContent = '🛬'; ml.innerHTML = 'Land <kbd>V</kbd>'; }
         else if (st === 'hop') { mi.textContent = '🦅'; ml.innerHTML = 'Hop on <kbd>V</kbd>'; }
@@ -199,8 +195,12 @@ export class Game {
 
     applyThemeCss();
     this.hud.bindDock(() => !!this.play.save.data.panelsOpen, (o) => { this.play.save.data.panelsOpen = o; this.play.save.touch(); });
-    const syncBuild = () => { this.hud.syncBuildables((i) => this.build.available(i)); if (!this.build.available(this.build.selected)) this.build.select(0); };
-    syncBuild(); themeEvents.on(syncBuild);
+    const syncBuild = () => {
+      const b = this.build; if (!b) return;
+      this.hud.syncBuildables((i) => b.available(i));
+      if (!b.available(b.selected)) b.select(0);
+    };
+    themeEvents.on(syncBuild);
     this.dress = new Dress(this);
     this.scene.add(this.dress.group);
     themeEvents.on(() => this.dress.rebuild());
@@ -208,7 +208,7 @@ export class Game {
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
-    this.systems.push(this.player, this.rig, this.mount, this.build, {
+    this.systems.push(this.player, this.rig, this.mount, { update: (dt, t) => this.build?.update(dt) }, {
       update: (dt, t) => {
         this.flora.update(dt);
         this.fauna.update(dt, t, this.play.followCtx);
@@ -231,8 +231,38 @@ export class Game {
     await this.renderer.renderer.compileAsync(this.scene, this.camera);
     lap('compile');
     document.getElementById('loading')?.classList.add('hide');
+    // Phase 0: feature chunks load in parallel (code-split) before we flip ready
+    await Promise.all([this.ensureBuild(), this.play.prefetchLazy()]);
     this.ready = true;
     this.renderer.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  /** Load BuildMode chunk on demand (also called after ready to restore saves). */
+  ensureBuild(): Promise<BuildMode> {
+    if (this.build) return Promise.resolve(this.build);
+    if (this.buildP) return this.buildP;
+    this.buildP = import('../build/BuildMode').then(({ BuildMode }) => {
+      const b = new BuildMode(this.scene, this.camera, this.terrain, this.physics, this.input, () => this.player.position);
+      b.onPlace = (type) => this.audio.place(type);
+      b.onRemove = () => this.audio.remove();
+      b.onChange = () => {
+        this.hud.setBuild(b.active, b.selected, b.count, b.removeMode);
+        this.touch?.sync();
+      };
+      this.build = b;
+      this.hud.syncBuildables((i) => b.available(i));
+      if (!b.available(b.selected)) b.select(0);
+      for (const w of this.buildWait) w(b);
+      this.buildWait.length = 0;
+      return b;
+    });
+    return this.buildP;
+  }
+
+  /** Run once BuildMode is ready (Gameplay restore hooks). */
+  whenBuild(fn: (b: BuildMode) => void) {
+    if (this.build) fn(this.build);
+    else this.buildWait.push(fn);
   }
 
   setQuality(q: Quality) {
@@ -370,8 +400,8 @@ export class Game {
   step(dt: number) {
     this.elapsed += dt;
     // friend close-up: the world is paused; only the studio animates
-    if (this.play?.friend.open) { this.play.friend.update(dt); this.input.endFrame(); return; }
-    if (this.input.pressed.has('b') && !this.cave.inside) this.build.toggle();
+    if (this.play?.friend?.open) { this.play.friend.update(dt); this.input.endFrame(); return; }
+    if (this.input.pressed.has('b') && !this.cave.inside) void this.ensureBuild().then((b) => b.toggle());
     for (const s of this.systems) s.update(dt, this.elapsed);
     this.physics.step(dt);
     this.sky.position.copy(this.camera.position);

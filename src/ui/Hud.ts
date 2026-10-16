@@ -2,7 +2,7 @@ import { setTheme, themeSetting, themeForDate, THEMES, THEME_ORDER, type ThemeSe
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtWin = (w: { from: [number, number]; to: [number, number] }) => `${MON[w.from[0] - 1]} ${w.from[1]} – ${MON[w.to[0] - 1]} ${w.to[1]}`;
 import type { Input, Handedness } from '../core/Input';
-import { BUILDABLES } from '../build/BuildMode';
+import { BUILD_CATALOG } from '../build/catalog';
 import type { Quality } from '../render/Renderer';
 import type { AudioEngine } from '../audio/Audio';
 
@@ -48,7 +48,7 @@ export class Hud {
     for (const q of ['low', 'high'] as Quality[]) this.qBtns[q].addEventListener('click', (e) => { e.stopPropagation(); this.onQuality(q); (e.target as HTMLElement).blur(); });
     this.modeEl = el(`<div class="hud mode off">🔨 Build mode</div>`);
     this.hotbar = el(`<div class="hud hotbar off"></div>`);
-    BUILDABLES.forEach((b, i) => {
+    BUILD_CATALOG.forEach((b, i) => {
       const s = document.createElement('div');
       s.className = 'slot';
       s.innerHTML = `<b>${i + 1}</b>${b.icon}<span>${b.label}</span>`;
@@ -142,7 +142,7 @@ export class Hud {
     this.modeEl.style.background = removing ? '#ff7b7b' : '';
     this.modeEl.textContent = removing
       ? `✖ Remove mode · tap a piece to remove · ${count} placed`
-      : `🔨 Build mode · ${BUILDABLES[selected].label} · ${count} placed`;
+      : `🔨 Build mode · ${BUILD_CATALOG[selected].label} · ${count} placed`;
     this.slots.forEach((s, i) => s.classList.toggle('sel', i === selected));
   }
 
