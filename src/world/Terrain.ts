@@ -187,6 +187,9 @@ export class Terrain {
   vertices: Float32Array;
   private seg = 200;
   indices: Uint32Array;
+  /** vertex heights, row-major (z rows, x cols), (seg+1)² — feeds the physics heightfield */
+  heights: Float32Array;
+  get segments() { return this.seg; }
 
   constructor() {
     const seg = 200;
@@ -242,6 +245,8 @@ export class Terrain {
     this.mesh.name = 'terrain';
 
     this.vertices = new Float32Array(pos.array as Float32Array);
+    this.heights = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) this.heights[i] = pos.getY(i);
     this.indices = new Uint32Array(geo.index!.array);
 
     // Height texture used by the water shader for depth tint + shoreline foam.

@@ -17,7 +17,8 @@
     "test:mount": "node tests/mount.mjs",
     "test:entry": "node tests/entry.mjs",
     "test:pwa": "node tests/pwa.mjs",
-    "test:load": "node tests/load-timing.mjs"
+    "test:load": "node tests/load-timing.mjs",
+    "test:heightfield": "node tests/heightfield.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d": "^0.21.0",

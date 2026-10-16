@@ -3,7 +3,7 @@ import { Physics } from './Physics';
 import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
-import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface } from '../world/Terrain';
+import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface, WORLD_SIZE } from '../world/Terrain';
 import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
 import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
@@ -107,7 +107,8 @@ export class Game {
     this.terrain = new Terrain();
     await lap('terrain');
     this.scene.add(this.terrain.mesh);
-    this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
+    if (params.has('trimesh')) this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
+    else this.physics.addHeightfield(this.terrain.heights, this.terrain.segments, WORLD_SIZE);
     this.water = createWater(this.terrain.heightTexture);
     this.scene.add(this.water);
     await lap('water');
