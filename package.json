@@ -15,7 +15,9 @@
     "perf": "node tests/perf.mjs",
     "test:loop": "node tests/loop.mjs",
     "test:mount": "node tests/mount.mjs",
-    "test:entry": "node tests/entry.mjs"
+    "test:entry": "node tests/entry.mjs",
+    "test:pwa": "node tests/pwa.mjs",
+    "test:load": "node tests/load-timing.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d": "^0.21.0",
