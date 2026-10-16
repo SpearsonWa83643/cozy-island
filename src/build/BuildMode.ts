@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import type RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from '@dimforge/rapier3d';
 import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
 import type { System } from '../core/System';

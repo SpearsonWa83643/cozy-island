@@ -1,15 +1,16 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import type * as RapierNS from '@dimforge/rapier3d';
 
-export type Rapier = typeof RAPIER;
+export type Rapier = typeof RapierNS;
 
-/** Thin wrapper around a Rapier world. */
+/** Thin wrapper around a Rapier world. WASM loads as its own file via vite-plugin-wasm. */
 export class Physics {
-  world!: RAPIER.World;
+  world!: RapierNS.World;
   R!: Rapier;
   async init() {
-    await RAPIER.init();
-    this.R = RAPIER;
-    this.world = new RAPIER.World({ x: 0, y: -20, z: 0 });
+    // Dynamic import so load-timing's "physics" mark includes WASM fetch+init.
+    const mod = await import('@dimforge/rapier3d');
+    this.R = mod;
+    this.world = new mod.World({ x: 0, y: -20, z: 0 });
   }
   addTrimesh(vertices: Float32Array, indices: Uint32Array) {
     const body = this.world.createRigidBody(this.R.RigidBodyDesc.fixed());
@@ -26,7 +27,7 @@ export class Physics {
   addBall(x: number, y: number, z: number, r: number) {
     return this.world.createCollider(this.R.ColliderDesc.ball(r).setTranslation(x, y, z));
   }
-  remove(c: RAPIER.Collider) { this.world.removeCollider(c, false); }
+  remove(c: RapierNS.Collider) { this.world.removeCollider(c, false); }
   step(dt: number) {
     this.world.timestep = Math.min(dt, 1 / 30);
     this.world.step();
