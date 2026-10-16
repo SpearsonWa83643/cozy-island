@@ -23,6 +23,7 @@ import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
 import { AudioEngine } from '../audio/Audio';
 import { Gameplay } from '../game/Gameplay';
+import { beginLoadTiming, type LoadTiming } from './LoadTiming';
 
 const SPAWN = new THREE.Vector2(0, 6);
 
@@ -60,6 +61,7 @@ export class Game {
   heightAt = heightAt;
   coast = { offshore, atOffshore, shoreRadius };
   ready = false;
+  loadTiming!: LoadTiming;
   /** blended biome weights around the player (smoothed) */
   biome = new Float32Array(BIOME_COUNT);
   private timer = new THREE.Timer();
@@ -71,7 +73,8 @@ export class Game {
 
   async start(container: HTMLElement) {
     const params = new URLSearchParams(location.search);
-    const T0 = performance.now(); const lap = (n: string) => { if (params.has('debug')) console.info(`[startup] ${n}: ${(performance.now() - T0).toFixed(0)} ms`); };
+    this.loadTiming = beginLoadTiming();
+    const lap = (n: string) => this.loadTiming.mark(n);
     this.renderer = new Renderer(container, params.has('webgl'));
     this.input = new Input(this.renderer.renderer.domElement);
     await this.physics.init();
@@ -401,5 +404,6 @@ export class Game {
     this.step(dt);
     this.renderer.render(this.scene, this.camera);
     this.hud.tick();
+    this.loadTiming?.firstFrame();
   }
 }

@@ -1,0 +1,94 @@
+// ?debug load-timing overlay smoke (iPad-ish viewport).
+// Usage: node tests/load-timing.mjs [baseUrl]
+// Default: http://localhost:4181/cozy-island/ (tests/subpath-server.mjs on dist/)
+import { chromium, devices } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
+const outDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'screenshots');
+fs.mkdirSync(outDir, { recursive: true });
+
+const OVERALL_MS = 180_000;
+const readyTimer = setTimeout(() => { console.error('TIMEOUT: overall 180s'); __closeBrowser(1); }, OVERALL_MS);
+
+const browser = await chromium.launch({
+  headless: true,
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+});
+const __closeBrowser = async (code) => {
+  clearTimeout(readyTimer);
+  try { await browser.close(); } catch { /* */ }
+  process.exit(code);
+};
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => __closeBrowser(130));
+process.on('uncaughtException', (e) => { console.error(e); __closeBrowser(1); });
+process.on('unhandledRejection', (e) => { console.error(e); __closeBrowser(1); });
+
+const results = {};
+const ok = (name, cond, extra = '') => {
+  results[name] = !!cond;
+  console.log(`${cond ? 'PASS' : 'FAIL'} ${name}${extra ? ' ' + extra : ''}`);
+};
+
+let code = 0;
+try {
+  const dev = devices['iPad Pro 11 landscape'];
+  const ctx = await browser.newContext({ ...dev, deviceScaleFactor: 1, viewport: { width: 1024, height: 768 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(150_000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await page.goto(`${base}?debug&webgl&q=low`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.game?.ready === true, { timeout: 120_000 });
+  // wait for first rendered frame marks
+  await page.waitForFunction(() => {
+    const m = window.__loadTiming?.marks;
+    return m && typeof m.firstFrame === 'number' && m.firstFrame > 0;
+  }, { timeout: 30_000 });
+
+  const shot = path.join(outDir, 'load-timing-debug.png');
+  await page.screenshot({ path: shot, fullPage: false });
+  console.log('screenshot', shot);
+
+  const info = await page.evaluate(() => {
+    const el = document.getElementById('load-timing');
+    const text = el?.textContent ?? '';
+    const marks = window.__loadTiming?.marks ?? {};
+    const msMatch = text.match(/(\d+)\s*ms/);
+    return {
+      hasOverlay: !!el,
+      text,
+      pointerEvents: el ? getComputedStyle(el).pointerEvents : null,
+      marks,
+      enabled: !!window.__loadTiming?.enabled,
+      positiveMs: msMatch ? +msMatch[1] : 0,
+    };
+  });
+  console.log('overlay text:\n' + info.text);
+  console.log('marks', info.marks);
+
+  ok('overlay exists', info.hasOverlay);
+  ok('overlay shows positive ms', info.positiveMs > 0, `(${info.positiveMs})`);
+  ok('pointer-events none', info.pointerEvents === 'none');
+  ok('__loadTiming.enabled', info.enabled);
+  ok('physics mark > 0', (info.marks.physics ?? 0) > 0, `(${info.marks.physics})`);
+  ok('firstFrame mark > 0', (info.marks.firstFrame ?? 0) > 0, `(${info.marks.firstFrame})`);
+  ok('no pageerror', errors.length === 0, errors.slice(0, 2).join('; '));
+
+  // without ?debug, overlay should be absent
+  await page.goto(`${base}?webgl&q=low`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.game?.ready === true, { timeout: 120_000 });
+  const off = await page.evaluate(() => !!document.getElementById('load-timing'));
+  ok('no overlay without debug', !off);
+
+  await ctx.close();
+  code = Object.values(results).every(Boolean) ? 0 : 1;
+} catch (e) {
+  console.error(e);
+  code = 1;
+} finally {
+  await __closeBrowser(code);
+}

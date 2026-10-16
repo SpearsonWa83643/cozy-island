@@ -1,5 +1,8 @@
 import './ui/hud.css';
 import { Game } from './core/Game';
+import { beginLoadTiming } from './core/LoadTiming';
+
+beginLoadTiming();
 
 // Block browser gestures that fight the game on iPad/touch: pinch-zoom,
 // double-tap zoom, scroll/rubber-banding, long-press callouts.
