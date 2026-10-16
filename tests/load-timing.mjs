@@ -40,9 +40,23 @@ try {
   page.setDefaultTimeout(150_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.text().startsWith('[warmup]')) console.log(m.text()); });
 
   await page.goto(`${base}?debug&webgl&q=low`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.game?.ready === true, { timeout: 120_000 });
+  // cozy loader: progress bar + stage text visible while the island warms up
+  await page.waitForFunction(() => {
+    const v = +(document.getElementById('loading')?.getAttribute('aria-valuenow') ?? 0);
+    return v >= 60 || window.game?.ready === true;
+  }, { timeout: 120_000 });
+  const ld = await page.evaluate(() => ({
+    stage: document.getElementById('ld-stage')?.textContent ?? '',
+    pct: +(document.getElementById('loading')?.getAttribute('aria-valuenow') ?? 0),
+    ready: window.game?.ready === true,
+  }));
+  if (!ld.ready) await page.screenshot({ path: path.join(outDir, 'loading-screen-ipad.png') });
+  console.log('loader', ld);
+  await page.waitForFunction(() => window.game?.ready === true, { timeout: 150_000 });
+  const done = await page.evaluate(() => +(document.getElementById('loading')?.getAttribute('aria-valuenow') ?? 0));
   // wait for first rendered frame marks
   await page.waitForFunction(() => {
     const m = window.__loadTiming?.marks;
@@ -76,6 +90,8 @@ try {
   ok('__loadTiming.enabled', info.enabled);
   ok('physics mark > 0', (info.marks.physics ?? 0) > 0, `(${info.marks.physics})`);
   ok('firstFrame mark > 0', (info.marks.firstFrame ?? 0) > 0, `(${info.marks.firstFrame})`);
+  ok('loader shows stage text', ld.ready || ld.stage.length > 0, `(${ld.pct}% ${ld.stage})`);
+  ok('loader reaches 100%', done === 100, `(${done})`);
   ok('no pageerror', errors.length === 0, errors.slice(0, 2).join('; '));
 
   // without ?debug, overlay should be absent

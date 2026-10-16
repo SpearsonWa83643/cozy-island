@@ -8,6 +8,7 @@ import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
 import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
 import { createWater } from '../world/Water';
+import { Loader, nextPaint } from '../ui/Loader';
 import { Flora, fadeCam, fadeTarget } from '../world/Flora';
 import { Particles } from '../world/Particles';
 import { Fauna } from '../world/Fauna';
@@ -72,11 +73,16 @@ export class Game {
   private shore = { dist: 30, pan: 0, t: 0 };
   private forest = { v: 0, t: 0 };
   private tmpW = new Float32Array(BIOME_COUNT);
+  private water!: THREE.Mesh;
 
   async start(container: HTMLElement) {
     const params = new URLSearchParams(location.search);
     this.loadTiming = beginLoadTiming();
-    const lap = (n: string) => this.loadTiming.mark(n);
+    const loader = new Loader();
+    loader.set(0.03, 'start');
+    const P: Record<string, number> = { physics: 0.1, terrain: 0.18, water: 0.24, flora: 0.33, cave: 0.38, fauna: 0.42, reef: 0.48, renderer: 0.55, gameplay: 0.59, dress: 0.63 };
+    /** mark + advance the loading bar; `paint` yields so the bar visibly moves (only at a few heavy points). */
+    const lap = async (n: string, paint = false) => { this.loadTiming.mark(n); loader.set(P[n] ?? 0, n); if (paint) await nextPaint(); };
     this.renderer = new Renderer(container, params.has('webgl'));
     this.input = new Input(this.renderer.renderer.domElement);
     await this.physics.init();
@@ -97,28 +103,29 @@ export class Game {
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
 
-    lap('physics');
+    await lap('physics', true);
     this.terrain = new Terrain();
-    lap('terrain');
+    await lap('terrain');
     this.scene.add(this.terrain.mesh);
     this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
-    this.scene.add(createWater(this.terrain.heightTexture));
-    lap('water');
+    this.water = createWater(this.terrain.heightTexture);
+    this.scene.add(this.water);
+    await lap('water');
     this.flora = new Flora(this.physics, SPAWN);
     this.terrain.bakeAO(this.flora.aoPoints);
-    lap('flora');
+    await lap('flora', true);
     this.cave = new Cave(this.physics);
     this.scene.add(this.cave.outside, this.cave.interior);
-    lap('cave');
+    await lap('cave');
     this.scene.add(this.flora.group);
     this.particles = new Particles();
     this.scene.add(this.particles.group);
     this.fauna = new Fauna(this.flora.flowerSpots);
-    lap('fauna');
+    await lap('fauna');
     this.scene.add(this.fauna.group);
     this.reef = new Reef();
     this.scene.add(this.reef.group);
-    lap('reef');
+    await lap('reef', true);
 
     // --- Actors ---
     this.player = new Player(this.physics, this.input, new THREE.Vector3(SPAWN.x, 0, SPAWN.y));
@@ -148,7 +155,7 @@ export class Game {
     };
 
     await this.renderer.init(this.scene, this.camera);
-    lap('renderer');
+    await lap('renderer', true);
     this.hud = new Hud(this.renderer.backendName);
     this.hud.bindAudio(this.audio);
     this.hud.bindHand(this.input);
@@ -160,7 +167,7 @@ export class Game {
       this.rig.sensitivity = 1.4;
     }
     this.play = new Gameplay(this, SPAWN);
-    lap('gameplay');
+    await lap('gameplay');
     // eagle mount (Call Mount): after Gameplay so toasts / save / walk cancel are ready
     this.mount = new Mount(this.player, this.input, this.rig, {
       blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving,
@@ -204,7 +211,7 @@ export class Game {
     this.dress = new Dress(this);
     this.scene.add(this.dress.group);
     themeEvents.on(() => this.dress.rebuild());
-    lap('dress');
+    await lap('dress', true);
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
@@ -228,13 +235,71 @@ export class Game {
     this.step(1 / 60);
     this.rig.target.copy(this.player.position).add(new THREE.Vector3(0, 1.1, 0));
     this.rig.apply();
-    await this.renderer.renderer.compileAsync(this.scene, this.camera);
-    lap('compile');
-    document.getElementById('loading')?.classList.add('hide');
-    // Phase 0: feature chunks load in parallel (code-split) before we flip ready
-    await Promise.all([this.ensureBuild(), this.play.prefetchLazy()]);
+    // Phase 0: feature chunks download while shaders warm up behind the loading screen
+    const lazy = Promise.all([this.ensureBuild(), this.play.prefetchLazy()]);
+    await this.warmUp(loader);
+    await lap('compile');
+    await lazy;
+    loader.set(1, undefined, 'Ready!');
+    loader.hide();
     this.ready = true;
     this.renderer.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  /**
+   * Progressive shader warm-up (Phase 0, Order 17): reveal the world one group at a time,
+   * compile its pipelines and render one hidden frame, yielding between steps so the
+   * loading bar keeps moving instead of one long freeze on the first visible frame.
+   */
+  private async warmUp(loader: Loader) {
+    const chunks = <T,>(a: T[], n: number) => Array.from({ length: n }, (_, i) => a.slice(Math.floor((i * a.length) / n), Math.floor(((i + 1) * a.length) / n)));
+    const steps: [THREE.Object3D[], string][] = [
+      [[this.terrain.mesh, this.water], 'Warming up the sunshine…'],
+      // flora is the heaviest set of materials: split it so the bar keeps moving
+      ...chunks(this.flora.group.children, 3).map((c, i) => [c, ['Brushing the leaves…', 'Combing the grass…', 'Opening the flowers…'][i]] as [THREE.Object3D[], string]),
+      [[this.player.object, ...this.mount.groups], 'Fluffing your hair…'],
+      [[this.fauna.group, this.particles.group], 'Waking the butterflies…'],
+      [[this.reef.group, this.cave.outside, this.cave.interior], 'Polishing the shells…'],
+      [[this.dress.group], 'Hanging the decorations…'],
+    ];
+    // Hide drawables only (never lights): toggling a light would change the lighting setup
+    // and force every material to recompile again on the next step.
+    const drawables = (roots: THREE.Object3D[]) => {
+      const out: THREE.Object3D[] = [];
+      for (const r of roots) r.traverse((o) => { if ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite) out.push(o); });
+      return out;
+    };
+    const per = steps.map(([g]) => drawables(g));
+    const all = per.flat();
+    const vis = new Map(all.map((o) => [o, o.visible] as const));
+    for (const o of all) o.visible = false;
+    const r = this.renderer.renderer;
+    const p0 = 0.64, p1 = 0.98;
+    // Shader/pipeline compile doesn't depend on resolution, so warm up on a tiny target:
+    // keeps the cost to compile time instead of filling full-res pixels six times.
+    const pr = r.getPixelRatio();
+    r.setPixelRatio(1);
+    r.setSize(96, 72, false);
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        const [group, text] = steps[i];
+        const items = per[i];
+        loader.set(p0 + ((p1 - p0) * i) / steps.length, undefined, text);
+        await nextPaint();
+        for (const o of items) o.visible = vis.get(o)!;
+        const t0 = performance.now();
+        for (const o of group) await r.compileAsync(o, this.camera, this.scene);
+        const t1 = performance.now();
+        this.renderer.render(this.scene, this.camera); // hidden frame: shadow + post pipelines for what's visible so far
+        if (this.loadTiming.enabled) console.log(`[warmup] ${i} compile ${(t1 - t0).toFixed(0)}ms render ${(performance.now() - t1).toFixed(0)}ms`);
+      }
+    } finally {
+      for (const [o, v] of vis) o.visible = v;
+      r.setPixelRatio(pr);
+      this.renderer.resize();
+    }
+    loader.set(p1, undefined, 'Almost there…');
+    await nextPaint();
   }
 
   /** Load BuildMode chunk on demand (also called after ready to restore saves). */

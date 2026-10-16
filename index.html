@@ -8,11 +8,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#9fd4f5" />
   <title>Cozy Island</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏝️</text></svg>" />
 </head>
 <body>
   <div id="app"></div>
-  <div id="loading"><div class="spinner"></div><div>Growing the island…</div></div>
+  <div id="loading" role="progressbar" aria-label="Loading Cozy Island" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="ld-card">
+      <div class="ld-isle" aria-hidden="true"><span class="ld-sun"></span><span class="ld-palm">🌴</span><span class="ld-wave"></span></div>
+      <div class="ld-title">Cozy Island</div>
+      <div class="ld-bar"><i id="ld-fill"></i></div>
+      <div id="ld-stage">Waking up the island…</div>
+    </div>
+  </div>
   <script type="module" src="./src/main.ts"></script>
 </body>
 </html>
