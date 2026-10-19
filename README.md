@@ -12,10 +12,12 @@ Touch / iPad (auto-detected via `pointer: coarse`; force with `?touch=1` / `?tou
 (push to the rim to jog), drag elsewhere to orbit, pinch to zoom, Jump / Build buttons; in build mode tap the ground
 to place, tap the hotbar to pick, Rotate button, Remove toggle (then tap a piece). Touch devices start on Low quality.
 
-    npm run build && npm run serve:subpath   # dist under http://localhost:4181/cozy-island/ (GitHub Pages layout)
+    npm run build && npm run serve:subpath   # dist under http://localhost:4181/cozy-island/ (subpath layout test)
     npm run test:touch                       # iPad + desktop Playwright checks against that server
 
-Deploy: `.github/workflows/deploy.yml` builds with Node 20 and publishes `dist/` to GitHub Pages on push to `main`
+Live: https://cozy-island-be6.pages.dev
+
+Deploy: Cloudflare Pages (project `cozy-island`) builds from this repo on every push to `main` (`npm ci && npm run build`, output `dist`, NODE_VERSION=20). Cache headers live in `public/_headers`. GitHub Pages was retired on 2026-10-19
 (enable Settings → Pages → Source: GitHub Actions). `base: './'` keeps asset URLs relative, so any repo name works.
 
 URL params: `?webgl` forces the WebGL2 backend, `?q=low` starts on Low quality.
