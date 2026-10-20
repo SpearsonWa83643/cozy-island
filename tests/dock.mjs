@@ -1,5 +1,5 @@
 // Clean HUD: corner panels hidden by default, ⚙️ toggles them (animated, persisted); 🎨 theme picker lists Auto +
-// every theme in THEME_ORDER, choice persists, Auto returns to date; seasonal build pieces follow the theme.
+// Auto + the enabled themes (4 seasons + Halloween), choice persists, Auto returns to date; seasonal build pieces follow the theme.
 // Desktop + iPad (?touch=1). Screenshots 54-56. Usage: node tests/dock.mjs [baseUrl] [--skip-desktop] [--skip-ipad]
 import { chromium, devices } from 'playwright';
 import fs from 'node:fs';
@@ -44,9 +44,9 @@ async function run(label, dev, query) {
   // theme picker
   await click('.dock .theme-btn'); await page.waitForFunction(() => +getComputedStyle(document.querySelector('.theme-picker')).opacity > 0.98, null, { timeout: 15000 }).catch(() => {});
   const items = await page.evaluate(() => [...document.querySelectorAll('.tp-item')].map((b) => b.dataset.t).join());
-  ok(`${label}: picker lists Auto + all themes`, items === 'auto,halloween,thanksgiving,christmas,newyear,valentine,easter,spring,summer,autumn,winter', items);
+  ok(`${label}: picker lists Auto + 4 seasons + Halloween`, items === 'auto,halloween,spring,summer,autumn,winter', items);
   ok(`${label}: old stats-panel theme buttons removed`, (await page.evaluate(() => document.querySelectorAll('.stats .th').length)) === 0);
-  if (label === 'ipad') await shot(page, '56-ipad-theme-picker');
+  if (label === 'ipad') await shot(page, '76-ipad-theme-picker-seasons');
   await click('.tp-item[data-t="spring"]'); await page.waitForTimeout(500);
   let s = await page.evaluate(() => ({ id: window.game.themes.current().id, src: window.game.themes.source(), pick: getComputedStyle(document.querySelector('.theme-picker')).opacity, hot: [...document.querySelectorAll('.hotbar .slot')].filter((e) => e.style.display !== 'none').length }));
   ok(`${label}: choose Spring even in October`, s.id === 'spring' && s.src === 'setting', JSON.stringify(s));

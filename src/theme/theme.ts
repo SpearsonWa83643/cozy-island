@@ -2,8 +2,11 @@
 // themeEvents). A theme describes the whole look and feel. The renderer grade, sky + fog, HUD skin, music,
 // decorations ("dress"), critters, collectibles and build pieces all read the active theme and listen for
 // changes, so a switch happens live. New for 3D: each theme can carry a date window, and the active theme is
-// resolved as  URL ?theme=  >  saved setting  >  date window  >  spring.
+// resolved as  URL ?theme=  >  saved setting  >  date window  >  season of the month.
 // Legacy URL/localStorage value 'classic' migrates to 'spring'.
+// Oct 20 2026 (Walker): only the 4 seasons + Halloween are enabled. The other holidays stay fully built but hidden:
+// not in the picker, never picked by Auto, a saved hidden choice reads as Auto. ?theme=<hidden> still works (dev).
+// To re-enable a holiday, add its id to ENABLED_THEMES.
 
 export type ThemeId = 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'thanksgiving' | 'christmas' | 'newyear' | 'valentine' | 'easter';
 export type ThemeSetting = 'auto' | ThemeId;
@@ -81,7 +84,7 @@ const autumn: Theme = {
 };
 
 const winter: Theme = {
-  id: 'winter', name: 'Winter', icon: '❄️', window: { from: [12, 27], to: [2, 29] },
+  id: 'winter', name: 'Winter', icon: '❄️', window: { from: [12, 1], to: [2, 29] }, // Christmas/New Year/Valentine's win inside this when enabled
   grade: { tint: '#e8f4ff', sat: 0.95, vignette: '#a0c8e8' },
   sky: {
     blend: 0.7, zenith: '#6080b0', mid: '#a0b8d8', low: '#d0e0f0', horizon: '#f0f4f8', fog: '#c8d8e8', fogNear: 28, fogFar: 160,
@@ -189,17 +192,27 @@ const easter: Theme = {
 export const THEMES: Record<ThemeId, Theme> = { spring, summer, autumn, winter, halloween, thanksgiving, christmas, newyear, valentine, easter };
 /** holidays first so first-match date windows win over seasons */
 export const THEME_ORDER: ThemeId[] = ['halloween', 'thanksgiving', 'christmas', 'newyear', 'valentine', 'easter', 'spring', 'summer', 'autumn', 'winter'];
+/** themes the player can see and Auto can pick (others are hidden, not deleted) */
+export const ENABLED_THEMES: ReadonlySet<ThemeId> = new Set<ThemeId>(['spring', 'summer', 'autumn', 'winter', 'halloween']);
+export const isEnabled = (id: ThemeId) => ENABLED_THEMES.has(id);
+/** picker order: THEME_ORDER filtered to the enabled themes */
+export const VISIBLE_THEMES: ThemeId[] = THEME_ORDER.filter(isEnabled);
 const SETTING_KEY = 'cozyIsland.theme.v1';
 
-/** which theme's date window contains this date (first match in THEME_ORDER), else spring */
+/** meteorological season by month (safety net if no enabled window matches) */
+export function seasonForDate(d: Date = new Date()): ThemeId {
+  const m = d.getMonth() + 1;
+  return m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+}
+/** which enabled theme's date window contains this date (first match in THEME_ORDER), else the month's season */
 export function themeForDate(d: Date = new Date()): ThemeId {
   const md = (d.getMonth() + 1) * 100 + d.getDate();
-  for (const id of THEME_ORDER) {
+  for (const id of VISIBLE_THEMES) {
     const t = THEMES[id]; const w = t.windowFn ? t.windowFn(d.getFullYear()) : t.window; if (!w) continue;
     const a = w.from[0] * 100 + w.from[1], b = w.to[0] * 100 + w.to[1];
     if (a <= b ? md >= a && md <= b : md >= a || md <= b) return id;
   }
-  return 'spring';
+  return seasonForDate(d);
 }
 const migrate = (v: string): string => (v === 'classic' ? 'spring' : v);
 const isId = (v: unknown): v is ThemeId => typeof v === 'string' && v in THEMES;
@@ -209,7 +222,7 @@ export function loadSetting(): ThemeSetting {
     if (!raw) return 'auto';
     if (raw === 'auto') return 'auto';
     const v = migrate(raw);
-    if (isId(v)) {
+    if (isId(v) && isEnabled(v)) {
       if (raw === 'classic') try { localStorage.setItem(SETTING_KEY, 'spring'); } catch { /* ignore */ }
       return v;
     }
@@ -240,10 +253,10 @@ export let theme: Theme = THEMES[first.id];
 export let themeSource = first.source;
 export let themeSetting: ThemeSetting = loadSetting();
 
-/** switch live (and remember the choice unless it's 'auto') */
+/** switch live and remember the choice (hidden themes switch live for dev but are not saved) */
 export function setTheme(s: ThemeSetting) {
   themeSetting = s;
-  try { localStorage.setItem(SETTING_KEY, s); } catch { /* ignore */ }
+  if (s === 'auto' || isEnabled(s)) try { localStorage.setItem(SETTING_KEY, s); } catch { /* ignore */ }
   const id = s === 'auto' ? themeForDate() : s;
   themeSource = s === 'auto' ? 'date' : 'setting';
   if (theme.id === id) return;

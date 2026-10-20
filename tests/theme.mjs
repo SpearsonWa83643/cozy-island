@@ -37,7 +37,7 @@ async function run(label, dev, q) {
     '2026-03-15', '2026-07-04', '2026-09-15', '2026-10-01', '2026-10-13', '2026-10-31', '2026-11-01',
     '2026-11-02', '2026-11-24', '2026-11-29', '2026-12-15', '2026-12-27', '2026-01-15', '2026-02-20', '2026-09-30',
   ].map((d) => window.game.themes.forDate(d)).join());
-  ok(`${label}: date windows`, dates === 'spring,summer,autumn,halloween,halloween,halloween,halloween,autumn,thanksgiving,autumn,christmas,winter,winter,winter,autumn', dates);
+  ok(`${label}: date windows (hidden holidays fall back to the season)`, dates === 'spring,summer,autumn,halloween,halloween,halloween,halloween,autumn,autumn,autumn,winter,winter,winter,winter,autumn', dates);
   await page.close();
   // 2) ?date= summer → summer; ?theme= forces
   ({ page, errors } = await open(ctx, `?webgl&q=${q}&date=2026-07-04`));
@@ -122,16 +122,23 @@ async function run(label, dev, q) {
     await steps(page, 20);
     await shot(page, '53-ipad-wardrobe-witchhat');
     ok(`${label}: wardrobe equips witch hat`, (await page.evaluate(() => window.game.play.save.data.equipped.hat)) === 'witchhat');
-    // theme picker shows all 7 themes
+    // theme picker shows Auto + the 5 enabled themes (holidays hidden)
     await page.tap('.dock .theme-btn'); await page.waitForTimeout(400);
     const items = await page.evaluate(() => [...document.querySelectorAll('.tp-item')].map((b) => b.dataset.t).join());
-    ok(`${label}: picker lists Auto + 10 themes`, items === 'auto,halloween,thanksgiving,christmas,newyear,valentine,easter,spring,summer,autumn,winter', items);
+    ok(`${label}: picker lists Auto + 4 seasons + Halloween`, items === 'auto,halloween,spring,summer,autumn,winter', items);
     await shot(page, '56b-ipad-all-themes');
   }
   // setting persists
   await page.evaluate(() => { localStorage.setItem('cozyIsland.theme.v1', 'halloween'); });
   await page.goto(base + `?webgl&q=${q}&date=2026-07-04`); await page.waitForFunction(() => window.game?.ready);
   s = await info(page); ok(`${label}: saved setting beats date`, s.id === 'halloween' && s.src === 'setting', JSON.stringify(s));
+  // a saved hidden holiday reads as Auto (date → season)
+  await page.evaluate(() => { localStorage.setItem('cozyIsland.theme.v1', 'christmas'); });
+  await page.goto(base + `?webgl&q=${q}&date=2026-12-15`); await page.waitForFunction(() => window.game?.ready);
+  s = await info(page); ok(`${label}: saved hidden theme (christmas) treated as Auto → winter`, s.id === 'winter' && s.src === 'date', JSON.stringify(s));
+  // ?theme= still reaches hidden holidays (dev links)
+  await page.goto(base + `?webgl&q=${q}&theme=thanksgiving`); await page.waitForFunction(() => window.game?.ready);
+  s = await info(page); ok(`${label}: ?theme=thanksgiving dev link still works`, s.id === 'thanksgiving' && s.src === 'url', JSON.stringify(s));
   await page.evaluate(() => localStorage.setItem('cozyIsland.theme.v1', 'auto'));
   await page.waitForTimeout(300);
   ok(`${label}: no console errors`, errors.length === 0, errors.slice(0, 3).join(' | '));

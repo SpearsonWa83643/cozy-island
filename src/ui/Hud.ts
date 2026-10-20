@@ -1,4 +1,4 @@
-import { setTheme, themeSetting, themeForDate, THEMES, THEME_ORDER, type ThemeSetting } from '../theme/theme';
+import { setTheme, themeSetting, themeForDate, THEMES, VISIBLE_THEMES, type ThemeSetting } from '../theme/theme';
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtWin = (w: { from: [number, number]; to: [number, number] }) => `${MON[w.from[0] - 1]} ${w.from[1]} – ${MON[w.to[0] - 1]} ${w.to[1]}`;
 import type { Input, Handedness } from '../core/Input';
@@ -70,10 +70,10 @@ export class Hud {
     const stop = (e: Event) => e.stopPropagation();
     for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.dock.addEventListener(ev, stop);
     gear.addEventListener('click', (e) => { e.stopPropagation(); const o = !document.body.classList.contains('panels-open'); setOpen(o); save(o); this.closePicker(); gear.blur(); });
-    // picker: Auto + every theme in THEME_ORDER (new themes show up automatically)
+    // picker: Auto + every enabled theme (VISIBLE_THEMES; hidden holidays stay out)
     this.picker = el(`<div class="hud theme-picker" role="menu"><div class="tp-title">🎨 Theme</div>${
       [`<button class="tp-item" data-t="auto"><span class="tpi">📅</span><span><b>Auto</b><small>by date · now ${THEMES[themeForDate()].name}</small></span></button>`,
-        ...THEME_ORDER.map((id) => `<button class="tp-item" data-t="${id}"><span class="tpi">${THEMES[id].icon}</span><span><b>${THEMES[id].name}</b>${THEMES[id].window ? `<small>${fmtWin(THEMES[id].window!)}</small>` : '<small>all year</small>'}</span></button>`)].join('')}</div>`);
+        ...VISIBLE_THEMES.map((id) => `<button class="tp-item" data-t="${id}"><span class="tpi">${THEMES[id].icon}</span><span><b>${THEMES[id].name}</b>${THEMES[id].window ? `<small>${fmtWin(THEMES[id].window!)}</small>` : '<small>all year</small>'}</span></button>`)].join('')}</div>`);
     for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.picker.addEventListener(ev, stop);
     const sync = () => { for (const b of this.picker.querySelectorAll<HTMLButtonElement>('.tp-item')) b.classList.toggle('on', b.dataset.t === themeSetting); tb.textContent = themeSetting === 'auto' ? '🎨' : THEMES[themeSetting].icon; };
     for (const b of this.picker.querySelectorAll<HTMLButtonElement>('.tp-item')) b.addEventListener('click', (e) => { e.stopPropagation(); setTheme(b.dataset.t as ThemeSetting); sync(); setTimeout(() => this.closePicker(), 180); });

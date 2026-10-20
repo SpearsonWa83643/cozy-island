@@ -29,7 +29,7 @@ try {
   await open('spring');
   const dates = await page.evaluate(() => ['2026-12-31', '2027-01-01', '2027-01-03', '2026-02-12', '2026-02-15', '2026-04-02', '2026-04-07', '2027-03-25', '2027-03-30', '2026-12-26']
     .map((d) => window.game.themes.forDate(d)).join());
-  ok(`${label}: holiday date windows`, dates === 'newyear,newyear,winter,valentine,winter,easter,spring,easter,spring,christmas', dates);
+  ok(`${label}: hidden holidays: Auto falls back to the season`, dates === 'winter,winter,winter,winter,winter,spring,spring,spring,spring,winter', dates);
   // New Year
   await open('newyear');
   let s = await page.evaluate(() => { const g = window.game; for (let i = 0; i < 150; i++) g.step(1 / 30); return { id: g.themes.current().id, fw: g.dress.fireworks, sparks: g.dress.fw.length, react: g.dress.reactables.length }; });
