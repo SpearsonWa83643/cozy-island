@@ -186,6 +186,11 @@ export class Game {
       cancelWalk: () => this.play.walk.cancel(false),
       onRide: () => { this.play.save.data.mountRides = (this.play.save.data.mountRides ?? 0) + 1; this.play.save.touch(); },
       openPicker: () => { if (unlockedMounts(sd()).length < 2) return false; this.mountPicker.show(); return true; },
+      tourStops: () => {
+        const out: { x: number; z: number }[] = [this.cave.outsideSpot];
+        const pp = this.dress?.patch; if (pp && (pp.x || pp.z)) out.push({ x: pp.x, z: pp.z });
+        return out;
+      },
     });
     // last picked mount (if still unlocked) is the one Call Mount / V brings
     { const m = mountById(sd().mountId); if (isMountUnlocked(m, sd())) this.mount.select(m.id); }

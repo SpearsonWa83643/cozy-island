@@ -4,8 +4,9 @@ import type { Input } from '../core/Input';
 import type { Player } from './Player';
 import type { CameraRig } from './CameraRig';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
-import { offshore, SWIM_MAX } from '../world/Shore';
+import { offshore, shoreRadius, SWIM_MAX } from '../world/Shore';
 import { mountById, type MountDef, type MountId } from './MountDefs';
+import { BIOME_CENTERS } from '../world/Biomes';
 import { BUILDERS, type MountRig } from './MountArt';
 
 /**
@@ -26,6 +27,9 @@ const ARRIVE_T = 1.7;
 const LEAVE_T = 1.7;
 const HOP_T = 0.42;
 const WAIT_MAX = 30;       // seconds it waits before flying off
+const AUTO_IDLE = 6;       // seconds without flight input before the scenic tour eases in
+const TOUR_SPEED = 7.5;
+const TOUR_PTS = 260;      // resampled loop points (~1.3 m apart)
 
 function hermite(p0: number, v0: number, p1: number, v1: number, t: number) {
   const t2 = t * t, t3 = t2 * t;
@@ -47,6 +51,8 @@ export interface MountHooks {
   onRide: () => void;
   /** Call Mount with several mounts unlocked: open the picker instead (returns true when it opened) */
   openPicker?: () => boolean;
+  /** extra scenic-tour landmarks (cave mouth, pumpkin patch…), read when a tour starts */
+  tourStops?: () => { x: number; z: number }[];
 }
 
 export class Mount implements System {
@@ -66,6 +72,11 @@ export class Mount implements System {
   private hopT = 0; private hopFrom = new THREE.Vector3();
   private seg: Seg | null = null; private segT = 0;
   private t = 0;
+  /** scenic tour: after AUTO_IDLE s with no flight input the mount loops past the landmarks on its own */
+  autopilot = false;
+  tours = 0;
+  private idleT = 0; private autoK = 0; private camHold = 0; private toured = false;
+  private tour: { x: number; z: number }[] = []; private tourI = 0;
   def: MountDef = mountById('eagle');
   private rigs = new Map<MountId, MountRig>();
   private current!: MountRig;
@@ -201,6 +212,7 @@ export class Mount implements System {
     this.player.unseat();
     this.player.teleport(x, z, this.heading);
     this.target = null;
+    this.autopilot = false; this.idleT = 0;
     this.landings++;
     this.rig.mountBoost = 0;
   }
@@ -229,6 +241,43 @@ export class Mount implements System {
       return true;
     }
     return this.phase === 'hop' || this.phase === 'arrive';
+  }
+
+  // ------------------------------------------------------------ scenic tour (autopilot)
+  /** a closed loop round the island: every climate zone, out over the reef, past the cave and the pumpkin patch */
+  private buildTour() {
+    const stops: { x: number; z: number; a: number }[] = [];
+    const add = (x: number, z: number) => stops.push({ x, z, a: Math.atan2(z, x) });
+    // climate zones (skip the meadow in the middle: the loop crosses it on the way round)
+    for (const [x, z] of BIOME_CENTERS.slice(1)) add(x * 1.08, z * 1.08);
+    // out over the coral reef, between the zones
+    for (const th of [0.35, 2.45, 4.4]) { const R = shoreRadius(th) + 7; add(Math.cos(th) * R, Math.sin(th) * R); }
+    for (const p of this.hooks.tourStops?.() ?? []) if (Number.isFinite(p.x) && Number.isFinite(p.z) && Math.hypot(p.x, p.z) > 6) add(p.x, p.z);
+    stops.sort((a, b) => a.a - b.a);
+    const curve = new THREE.CatmullRomCurve3(stops.map((p) => new THREE.Vector3(p.x, 0, p.z)), true, 'centripetal');
+    this.tour = curve.getSpacedPoints(TOUR_PTS).slice(0, TOUR_PTS).map((v) => ({ x: v.x, z: v.z }));
+  }
+  private startTour() {
+    this.buildTour();
+    // join the loop at the nearest point, heading the way we already face
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < this.tour.length; i++) { const p = this.tour[i], d = (p.x - this.gx) ** 2 + (p.z - this.gz) ** 2; if (d < bd) { bd = d; best = i; } }
+    const n = this.tour.length, a = this.tour[best], b = this.tour[(best + 6) % n];
+    const fwd = Math.sin(this.heading) * (b.x - a.x) + Math.cos(this.heading) * (b.z - a.z);
+    if (fwd < 0) this.tour.reverse(), (best = n - 1 - best);
+    this.tourI = best;
+    this.autopilot = true; this.autoK = 0; this.tours++;
+    if (!this.toured) { this.toured = true; this.hooks.toast(`🗺️ Scenic tour! Your ${this.def.short} shows you the island · steer any time to take over`, 3200); }
+  }
+  /** a point a little way ahead on the loop */
+  private tourAim() {
+    const n = this.tour.length;
+    for (let k = 0; k < n; k++) {
+      const p = this.tour[this.tourI];
+      if (Math.hypot(p.x - this.gx, p.z - this.gz) > 7) break;
+      this.tourI = (this.tourI + 1) % n;
+    }
+    return this.tour[this.tourI];
   }
 
   private groundAt(x: number, z: number) { return Math.max(heightAt(x, z), WATER_LEVEL); }
@@ -272,6 +321,13 @@ export class Mount implements System {
     if (en && sm > 0.08 && fx === 0 && fz === 0) { fx = st.x; fz = st.y; analog = Math.min(1, sm / 0.9); }
     const len = Math.hypot(fx, fz);
     const fast = k.has('shift') || sm > 0.92;
+    // any flight input takes the reins back at once; a few idle seconds and the scenic tour eases in
+    const manual = len > 0 || this.target !== null || (en && this.input.pressed.has(' '));
+    if (manual) { this.idleT = 0; this.autopilot = false; }
+    else {
+      this.idleT += dt;
+      if (!this.autopilot && this.idleT > AUTO_IDLE && !this.hooks.blocked()) this.startTour();
+    }
     let want = 0;
     if (len > 0) {
       this.target = null; // manual flying cancels a tapped glide
@@ -284,6 +340,11 @@ export class Mount implements System {
       const dx = this.target.x - this.gx, dz = this.target.z - this.gz, d = Math.hypot(dx, dz);
       if (d < 1.2) this.target = null;
       else { this.turnTo(Math.atan2(dx, dz), dt, 2.6); want = Math.min(FLY_SPEED, d * 1.4); }
+    } else if (this.autopilot) {
+      this.autoK = Math.min(1, this.autoK + dt / 2.5);
+      const p = this.tourAim();
+      this.turnTo(Math.atan2(p.x - this.gx, p.z - this.gz), dt, 0.5 + 1.1 * this.autoK);
+      want = TOUR_SPEED * (0.35 + 0.65 * this.autoK);
     } else this.bank += (0 - this.bank) * Math.min(1, dt * 3);
     this.speed += (want - this.speed) * Math.min(1, dt * (want > this.speed ? 1.8 : 1.4));
     let nx = this.gx + Math.sin(this.heading) * this.speed * dt, nz = this.gz + Math.cos(this.heading) * this.speed * dt;
@@ -329,6 +390,7 @@ export class Mount implements System {
         this.gy += (this.groundAt(this.gx, this.gz) + WAIT_ALT - 0.15 - this.gy) * Math.min(1, dt * 6);
         if (this.hopT >= 1) {
           this.phase = 'ride'; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
+          this.autopilot = false; this.idleT = 0; this.toured = false;
           this.hooks.onRide();
           this.hooks.sfx('flap');
           if (this.rides === 1) this.hooks.toast(`${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
@@ -337,6 +399,10 @@ export class Mount implements System {
       }
       case 'ride':
         this.steer(dt);
+        // gentle tour camera: drift round behind the mount unless you've just looked around yourself
+        if (this.input.dragDX !== 0 || this.input.dragDY !== 0) this.camHold = 3;
+        else this.camHold = Math.max(0, this.camHold - dt);
+        if (this.autopilot && this.camHold <= 0) this.rig.yaw += wrap(this.heading + Math.PI - this.rig.yaw) * Math.min(1, dt * 0.45 * this.autoK);
         break;
       case 'leave':
         if (this.stepSeg(dt)) { this.phase = 'off'; this.object.visible = this.shadow.visible = false; this.seg = null; this.setAlpha(1); return; }
@@ -428,7 +494,7 @@ export class Mount implements System {
       id: this.id, name: this.def.name,
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
-      heading: +this.heading.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
+      heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
       mounted: this.player.mounted, visible: this.object.visible,
     };
   }
