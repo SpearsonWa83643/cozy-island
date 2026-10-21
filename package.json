@@ -19,7 +19,8 @@
     "test:pwa": "node tests/pwa.mjs",
     "test:load": "node tests/load-timing.mjs",
     "test:heightfield": "node tests/heightfield.mjs",
-    "test:autopilot": "node tests/autopilot.mjs"
+    "test:autopilot": "node tests/autopilot.mjs",
+    "test:soundscape": "node tests/soundscape.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d": "^0.21.0",

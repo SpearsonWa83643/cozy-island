@@ -11,6 +11,7 @@
 export type ThemeId = 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'thanksgiving' | 'christmas' | 'newyear' | 'valentine' | 'easter';
 export type ThemeSetting = 'auto' | ThemeId;
 import { NO_SEASON, type SeasonLook } from './Season';
+import type { SoundscapeId } from '../audio/soundscapes';
 export type DressId = 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'thanksgiving' | 'christmas' | 'newyear' | 'valentine' | 'easter' | null;
 export type MusicMode = 'classic' | 'spooky' | 'festive';
 
@@ -31,7 +32,10 @@ export interface Theme {
   } | null;
   /** HUD skin: CSS custom properties + a body class (hud.css: body.theme-<id>) */
   ui: { accent: string; accentDark: string; panel: string; ink: string };
+  /** legacy music flavour (used when the theme has no dedicated soundscape yet) */
   music: MusicMode;
+  /** the theme's own soundscape (src/audio/soundscapes.ts); crossfades on theme switch */
+  soundscape?: SoundscapeId;
   /** extra ambience: owl hoots, wind boost (0..1) */
   ambience: { owls: number; wind: number };
   /** decorations module ("dress") to build for this theme */
@@ -52,7 +56,7 @@ const spring: Theme = {
   grade: { tint: '#ffffff', sat: 1.12, vignette: '#ffeedb' },
   sky: null,
   ui: { accent: '#f2a93b', accentDark: '#c9802a', panel: 'rgba(255,250,240,.88)', ink: '#4a3b2f' },
-  music: 'classic', ambience: { owls: 0, wind: 0 }, dress: 'spring',
+  music: 'classic', soundscape: 'spring', ambience: { owls: 0, wind: 0 }, dress: 'spring',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['flowerbox'],
   season: { leaf: ['#6cc24a', '#8ad05a', '#ffc0d8'], leafK: 0.12, snow: 0, grass: '#f4ffe8', ground: null, groundK: 0 },
 };
@@ -65,7 +69,7 @@ const summer: Theme = {
     sun: '#fff0c0', sunI: 1.55, hemiSky: '#a8d8ff', hemiGround: '#c8b080', hemiI: 1.05, sunGlow: 0.7, moon: 0.15, stars: 0.1,
   },
   ui: { accent: '#f0b429', accentDark: '#d4880a', panel: 'rgba(255,252,240,.9)', ink: '#4a3a20' },
-  music: 'classic', ambience: { owls: 0, wind: 0.15 }, dress: 'summer',
+  music: 'classic', soundscape: 'summer', ambience: { owls: 0, wind: 0.15 }, dress: 'summer',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['sunflower'],
   season: { leaf: ['#3f9e34', '#58b23c', '#7cc23e'], leafK: 0.25, snow: 0, grass: '#f6f8dc', ground: '#8cc04a', groundK: 0.15, water: ['#6ff2da', '#1ab0c8', '#0a4a8a'], waterK: 0.4 },
 };

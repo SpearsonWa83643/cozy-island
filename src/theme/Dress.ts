@@ -6,6 +6,7 @@ import { mulberry32 } from '../world/noise';
 import { theme, type Theme } from './theme';
 import { applyGrade } from '../render/Renderer';
 import { updateSeason, snapSeason } from './Season';
+import { soundscapeFor } from '../audio/soundscapes';
 import type { Game } from '../core/Game';
 
 /**
@@ -108,7 +109,7 @@ export class Dress {
     this.reactables = []; this.fx = []; this.fxMesh = null; this.wiggle = [];
     this.eggs = []; this.eggsFound = 0; this.fw = []; this.fwMesh = null; this.fwNext = 1.5; this.skyL = []; this.skyLMesh = null; this.balloons = []; this.balloonMesh = null;
     applyGrade(theme.grade);
-    this.g.audio.setThemeAudio(theme.music, theme.ambience.owls, theme.ambience.wind);
+    this.g.audio.setSoundscape(soundscapeFor(theme));
     const d = theme.dress;
     if (d === 'halloween') this.buildHalloween(theme);
     else if (d === 'spring') this.buildSpring(theme);

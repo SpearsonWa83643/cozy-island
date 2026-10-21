@@ -1,6 +1,7 @@
 import { Biome } from '../world/Biomes';
 import type { Surface } from '../world/Terrain';
 import type { MusicGen } from './Music';
+import { MIX_KEYS, type Mix, type MusicFlavor, type Soundscape } from './soundscapes';
 /** finite-or-fallback for AudioParam writes (a NaN throws in WebAudio) */
 const F = (v: number, fb: number) => (Number.isFinite(v) ? v : fb);
 
@@ -41,9 +42,38 @@ export class AudioEngine {
   private white!: AudioBuffer; private pink!: AudioBuffer; private brown!: AudioBuffer;
   private beds: Record<string, { gain: GainNode; pan?: StereoPannerNode; filter?: BiquadFilterNode; filter2?: BiquadFilterNode; level: number }> = {};
   private music: MusicGen | null = null;
-  /** theme ambience: owl hoots + extra wind */
-  private owls = 0; private windBoost = 0; private nextOwl = 0; private musicMode: 'classic' | 'spooky' | 'festive' = 'classic';
-  setThemeAudio(music: 'classic' | 'spooky' | 'festive', owls: number, wind: number) { this.musicMode = music; this.owls = owls; this.windBoost = wind; this.music?.setMode(music); }
+  /** theme soundscape: music flavour + ambience layer mix. `mix` eases toward `target` (~3 s crossfade). */
+  private nextOwl = 0; private nextBee = 0; private musicMode: MusicFlavor = 'classic';
+  private target: Mix = { owls: 0, wind: 0, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0 };
+  private mix: Mix = { ...this.target };
+  private musicFade: GainNode | null = null; private swapTimer = 0; private lastTick = 0;
+  /** active soundscape id (debug / tests) */
+  soundscapeId = 'none';
+  get musicFlavor() { return this.musicMode; }
+  /** current (crossfading) layer mix (debug / tests) */
+  get layerMix(): Readonly<Mix> { return this.mix; }
+  setSoundscape(s: Soundscape) {
+    const first = this.soundscapeId === 'none';
+    this.soundscapeId = s.id;
+    for (const k of MIX_KEYS) this.target[k] = s[k];
+    if (first || !this.started) { this.mix = { ...this.target }; }
+    if (s.music === this.musicMode) return;
+    this.musicMode = s.music;
+    const ctx = this.ctx, fade = this.musicFade;
+    if (!ctx || !fade || !this.music || first || !this.started) { this.music?.setMode(s.music); return; }
+    // music crossfade: dip ~1.4 s, swap flavour at the bottom, rise ~1.6 s
+    const t = ctx.currentTime;
+    fade.gain.cancelScheduledValues(t); fade.gain.setValueAtTime(fade.gain.value, t); fade.gain.linearRampToValueAtTime(0.0001, t + 1.4);
+    clearTimeout(this.swapTimer);
+    this.swapTimer = window.setTimeout(() => {
+      this.music?.setMode(this.musicMode);
+      const t2 = ctx.currentTime; fade.gain.cancelScheduledValues(t2); fade.gain.setValueAtTime(0.0001, t2); fade.gain.linearRampToValueAtTime(1, t2 + 1.6);
+    }, 1450);
+  }
+  /** legacy entry point (kept for older callers) */
+  setThemeAudio(music: MusicFlavor, owls: number, wind: number) {
+    this.setSoundscape({ id: `legacy-${music}`, music, owls, wind, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0 });
+  }
   /** a soft, friendly "hoo-hoo" from somewhere in the trees */
   owl() {
     const t = this.go(); if (t < 0) return;
@@ -135,8 +165,9 @@ export class AudioEngine {
     const cic = this.beds.cicada; cic.filter2 = undefined;
     cic.gain.disconnect(); cic.gain.connect(am).connect(this.ambBus); lfo.start();
 
+    this.musicFade = ctx.createGain(); this.musicFade.gain.value = 1; this.musicFade.connect(this.musicBus);
     void import('./Music').then(({ MusicGen }) => {
-      this.music = new MusicGen(ctx, this.musicBus, this.reverbIn);
+      this.music = new MusicGen(ctx, this.musicFade!, this.reverbIn);
       this.music.setMode(this.musicMode);
     });
   }
@@ -203,6 +234,11 @@ export class AudioEngine {
     const ctx = this.ctx, l = this.listen;
     if (!ctx || ctx.state !== 'running' || !l) return;
     const t = ctx.currentTime, w = l.biome;
+    // soundscape crossfade: each layer eases toward the theme's target over ~3 s
+    // (time-based, so a slow/throttled timer still finishes on time: time constant 0.75 s → ~98% after 3 s)
+    const dt = Math.min(1, Math.max(0, t - this.lastTick)); this.lastTick = t; const kx = 1 - Math.exp(-dt / 0.75);
+    for (const k of MIX_KEYS) { const d = this.target[k] - this.mix[k]; this.mix[k] = Math.abs(d) < 0.01 ? this.target[k] : this.mix[k] + d * kx; }
+    const m = this.mix;
     this.music?.tick(w);
     // underground: the island fades away, the cave hums, drips echo
     const cv = l.cave ?? 0; this.caveAmt = cv; this.outdoor = 1 - cv;
@@ -214,7 +250,7 @@ export class AudioEngine {
     this.swell += 0.1;
     const sw = 0.55 + 0.45 * Math.sin(this.swell * 0.85) * Math.sin(this.swell * 0.31 + 1);
     const near = Math.max(0, 1 - l.shoreDist / 34);
-    const ocean = 0.04 + near * near * 0.9;
+    const ocean = (0.04 + near * near * 0.9) * m.surf;
     this.setBed('ocean', ocean * (0.55 + sw * 0.6), 0.35);
     this.setBed('wash', ocean * Math.max(0, sw - 0.55) * 1.4, 0.25);
     this.beds.ocean.filter!.frequency.setTargetAtTime(380 + sw * 420, t, 0.4);
@@ -223,13 +259,14 @@ export class AudioEngine {
     // wind in grass; high alpine howl
     const gust = 0.6 + 0.4 * Math.sin(t * 0.37) * Math.sin(t * 0.13 + 2);
     const alt = Math.min(1, Math.max(0, (l.altitude - 3) / 8));
-    if (this.owls && (l.cave ?? 0) < 0.5 && t > this.nextOwl) { if (this.nextOwl) this.owl(); this.nextOwl = t + 14 + Math.random() * 22 / this.owls; }
-    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12 + this.windBoost * 0.09) * gust * (1 - (l.swim ?? 0) * 0.6), 0.5);
+    if (m.owls > 0.02 && (l.cave ?? 0) < 0.5 && t > this.nextOwl) { if (this.nextOwl) this.owl(); this.nextOwl = t + 14 + Math.random() * 22 / m.owls; }
+    this.setBed('wind', (0.05 + l.grass * 0.16 + alt * 0.12 + m.wind * 0.09) * gust * (1 - (l.swim ?? 0) * 0.6), 0.5);
     this.beds.wind.filter!.frequency.setTargetAtTime(420 + gust * 500, t, 0.6);
     this.setBed('howl', w[Biome.Alpine] * (0.04 + alt * 0.2) * gust, 0.7);
     this.beds.howl.filter!.frequency.setTargetAtTime(380 + Math.sin(t * 0.21) * 160 + alt * 200, t, 0.8);
     this.setBed('rustle', (l.forest * 0.05 + w[Biome.Autumn] * 0.07) * Math.max(0, gust - 0.35), 0.3);
-    this.setBed('cicada', w[Biome.Desert] * 0.05 * (0.6 + 0.4 * Math.sin(t * 0.2)), 1.2);
+    // summer: a cicada drone in the trees everywhere, swelling in slow waves
+    this.setBed('cicada', (w[Biome.Desert] * 0.05 + m.cicadas * (0.012 + l.forest * 0.03) * (1 - w[Biome.Alpine])) * (0.6 + 0.4 * Math.sin(t * 0.2)), 1.2);
     this.setBed('marsh', w[Biome.Marsh] * 0.12, 1);
     // swimming: the surf muffles, the reef hums and fizzes, the odd bubble rises
     const swim = l.swim ?? 0, reef = l.reef ?? 0;
@@ -239,17 +276,34 @@ export class AudioEngine {
 
     // discrete critters
     this.eventClock += 0.1;
-    const birdRate = (0.12 + l.forest * 0.5) * (w[Biome.Meadow] + w[Biome.Autumn] + w[Biome.Tropical] * 1.1 + w[Biome.Marsh] * 0.6 + w[Biome.Alpine] * 0.25);
+    const birdRate = m.birds * (0.12 + l.forest * 0.5) * (w[Biome.Meadow] + w[Biome.Autumn] + w[Biome.Tropical] * 1.1 + w[Biome.Marsh] * 0.6 + w[Biome.Alpine] * 0.25);
     if (Math.random() < this.outdoor) {
     if (Math.random() < birdRate * 0.12) this.bird(w);
-    if (Math.random() < near * 0.012) this.gull();
+    if (Math.random() < near * 0.012 * m.gulls) this.gull();
     const cricket = w[Biome.Meadow] * 0.5 + w[Biome.Marsh] * 0.6 + w[Biome.Desert] * 0.4 + w[Biome.Tropical] * 0.3;
-    if (Math.random() < cricket * 0.09) this.cricket();
+    if (Math.random() < cricket * 0.09 * m.crickets) this.cricket();
+    // spring: a bumblebee drifts past now and then (meadows and flowers most)
+    if (m.bees > 0.05 && t > this.nextBee && (l.swim ?? 0) < 0.3) { if (this.nextBee) this.bee(); this.nextBee = t + (9 + Math.random() * 16) / (m.bees * (0.5 + w[Biome.Meadow] + l.grass * 0.5)); }
     if (Math.random() < w[Biome.Marsh] * 0.07) this.frog();
     if (Math.random() < w[Biome.Autumn] * 0.012) this.woodpecker();
     }
   }
 
+  /** a fuzzy bumblebee buzzing past from one side to the other */
+  bee() {
+    const t = this.go(); if (t < 0) return;
+    const ctx = this.ctx!, dur = rand(1.6, 2.6), from = Math.random() < 0.5 ? -0.9 : 0.9;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 1.2;
+    let last: AudioNode = g;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.setValueAtTime(from, t); p.pan.linearRampToValueAtTime(-from * rand(0.4, 1), t + dur); g.connect(p); last = p; }
+    last.connect(this.ambBus);
+    const f = rand(190, 240);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t);
+    o.frequency.linearRampToValueAtTime(f * rand(1.06, 1.14), t + dur * 0.45); o.frequency.linearRampToValueAtTime(f * rand(0.88, 0.95), t + dur); // doppler-ish
+    const v = ctx.createOscillator(); v.frequency.value = rand(9, 14); const vd = ctx.createGain(); vd.gain.value = f * 0.03; v.connect(vd).connect(o.frequency);
+    o.connect(lp).connect(g); o.start(t); o.stop(t + dur + 0.05); v.start(t); v.stop(t + dur + 0.05);
+  }
   /** a single echoing water drip in the cave */
   private drip() {
     const t = this.go(); if (t < 0) return;
