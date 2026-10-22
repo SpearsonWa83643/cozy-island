@@ -24,12 +24,12 @@ try {
   await page.tap('.mount-btn');
   let s = await waitPhase('ride');
   ok('riding', s.phase === 'ride' && s.mounted, JSON.stringify(s));
-  await step(60 * 3);
+  await step(60 * 1);
   s = await snap();
   ok('no autopilot before idle delay', !s.autopilot, JSON.stringify(s));
-  await step(60 * 4);
+  await step(60 * 2);
   s = await snap();
-  ok('autopilot eases in after ~6 s idle', s.autopilot && s.tours === 1, JSON.stringify(s));
+  ok('autopilot eases in after ~2 s idle', s.autopilot && s.tours === 1, JSON.stringify(s));
   const toast = await page.evaluate(() => document.body.innerText.includes('Scenic tour'));
   ok('scenic tour toast shown', toast);
   const start = s.pos, yaw0 = await page.evaluate(() => window.game.rig.yaw);

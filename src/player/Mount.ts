@@ -27,7 +27,7 @@ const ARRIVE_T = 1.7;
 const LEAVE_T = 1.7;
 const HOP_T = 0.42;
 const WAIT_MAX = 30;       // seconds it waits before flying off
-const AUTO_IDLE = 6;       // seconds without flight input before the scenic tour eases in
+const AUTO_IDLE = 2;       // seconds without flight input before the scenic tour eases in
 const TOUR_SPEED = 7.5;
 const TOUR_PTS = 260;      // resampled loop points (~1.3 m apart)
 
