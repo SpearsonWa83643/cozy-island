@@ -43,8 +43,8 @@ export class AudioEngine {
   private beds: Record<string, { gain: GainNode; pan?: StereoPannerNode; filter?: BiquadFilterNode; filter2?: BiquadFilterNode; level: number }> = {};
   private music: MusicGen | null = null;
   /** theme soundscape: music flavour + ambience layer mix. `mix` eases toward `target` (~3 s crossfade). */
-  private nextOwl = 0; private nextBee = 0; private musicMode: MusicFlavor = 'classic';
-  private target: Mix = { owls: 0, wind: 0, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0 };
+  private nextOwl = 0; private nextBee = 0; private nextChime = 0; private nextSpook = 0; private musicMode: MusicFlavor = 'classic';
+  private target: Mix = { owls: 0, wind: 0, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0, leaves: 0, chimes: 0, spooks: 0 };
   private mix: Mix = { ...this.target };
   private musicFade: GainNode | null = null; private swapTimer = 0; private lastTick = 0;
   /** active soundscape id (debug / tests) */
@@ -72,7 +72,7 @@ export class AudioEngine {
   }
   /** legacy entry point (kept for older callers) */
   setThemeAudio(music: MusicFlavor, owls: number, wind: number) {
-    this.setSoundscape({ id: `legacy-${music}`, music, owls, wind, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0 });
+    this.setSoundscape({ id: `legacy-${music}`, music, owls, wind, birds: 1, gulls: 1, crickets: 1, surf: 1, bees: 0, cicadas: 0, leaves: 0, chimes: 0, spooks: 0 });
   }
   /** a soft, friendly "hoo-hoo" from somewhere in the trees */
   owl() {
@@ -264,7 +264,8 @@ export class AudioEngine {
     this.beds.wind.filter!.frequency.setTargetAtTime(420 + gust * 500, t, 0.6);
     this.setBed('howl', w[Biome.Alpine] * (0.04 + alt * 0.2) * gust, 0.7);
     this.beds.howl.filter!.frequency.setTargetAtTime(380 + Math.sin(t * 0.21) * 160 + alt * 200, t, 0.8);
-    this.setBed('rustle', (l.forest * 0.05 + w[Biome.Autumn] * 0.07) * Math.max(0, gust - 0.35), 0.3);
+    // autumn: dry leaves skitter on every gust (forests most)
+    this.setBed('rustle', (l.forest * 0.05 + w[Biome.Autumn] * 0.07 + m.leaves * (0.03 + l.forest * 0.05)) * Math.max(0, gust - 0.35 + m.leaves * 0.12), 0.3);
     // summer: a cicada drone in the trees everywhere, swelling in slow waves
     this.setBed('cicada', (w[Biome.Desert] * 0.05 + m.cicadas * (0.012 + l.forest * 0.03) * (1 - w[Biome.Alpine])) * (0.6 + 0.4 * Math.sin(t * 0.2)), 1.2);
     this.setBed('marsh', w[Biome.Marsh] * 0.12, 1);
@@ -285,10 +286,37 @@ export class AudioEngine {
     // spring: a bumblebee drifts past now and then (meadows and flowers most)
     if (m.bees > 0.05 && t > this.nextBee && (l.swim ?? 0) < 0.3) { if (this.nextBee) this.bee(); this.nextBee = t + (9 + Math.random() * 16) / (m.bees * (0.5 + w[Biome.Meadow] + l.grass * 0.5)); }
     if (Math.random() < w[Biome.Marsh] * 0.07) this.frog();
-    if (Math.random() < w[Biome.Autumn] * 0.012) this.woodpecker();
+    if (Math.random() < w[Biome.Autumn] * 0.012 + m.leaves * 0.004) this.woodpecker();
+    // winter: a distant wind chime tinkles on a gust; halloween: a friendly ghost "woo" drifts by
+    if (m.chimes > 0.05 && t > this.nextChime && gust > 0.6) { if (this.nextChime) this.windChime(); this.nextChime = t + (10 + Math.random() * 18) / m.chimes; }
+    if (m.spooks > 0.05 && t > this.nextSpook && (l.swim ?? 0) < 0.3) { if (this.nextSpook) this.ghostWoo(); this.nextSpook = t + (16 + Math.random() * 26) / m.spooks; }
     }
   }
 
+  /** a few glassy wind-chime tinkles from somewhere off to the side (winter) */
+  windChime() {
+    const t = this.go(); if (t < 0) return;
+    const pan = Math.random() * 1.6 - 0.8, base = [76, 79, 81, 83, 86, 88];
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const at = t + i * rand(0.12, 0.38), f = 440 * Math.pow(2, (base[Math.floor(Math.random() * base.length)] - 69) / 12);
+      const d = this.sfx(pan, 0.05 * rand(0.6, 1), 0.7);
+      this.tone('sine', f, at, 1.8, d, 1, 0.003); this.tone('sine', f * 2.76, at, 0.7, d, 0.25, 0.003);
+    }
+  }
+  /** a soft, friendly ghost "wooOOooo": a breathy sine glide with wobble (halloween; cute, not scary) */
+  ghostWoo() {
+    const t = this.go(); if (t < 0) return;
+    const ctx = this.ctx!, dur = rand(1.8, 2.8), from = Math.random() < 0.5 ? -0.8 : 0.8, f = rand(420, 560);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + dur * 0.35); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    let last: AudioNode = g;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.setValueAtTime(from, t); p.pan.linearRampToValueAtTime(-from * 0.5, t + dur); g.connect(p); last = p; }
+    last.connect(this.ambBus); const s = ctx.createGain(); s.gain.value = 0.8; last.connect(s).connect(this.reverbIn);
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f * 0.8, t); o.frequency.exponentialRampToValueAtTime(f * 1.25, t + dur * 0.4); o.frequency.exponentialRampToValueAtTime(f * 0.7, t + dur);
+    const v = ctx.createOscillator(); v.frequency.value = rand(5, 6.5); const vd = ctx.createGain(); vd.gain.value = f * 0.025; v.connect(vd).connect(o.frequency);
+    o.connect(g); o.start(t); o.stop(t + dur + 0.05); v.start(t); v.stop(t + dur + 0.05);
+  }
   /** a fuzzy bumblebee buzzing past from one side to the other */
   bee() {
     const t = this.go(); if (t < 0) return;

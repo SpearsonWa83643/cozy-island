@@ -82,7 +82,7 @@ const autumn: Theme = {
     sun: '#ffb070', sunI: 1.2, hemiSky: '#e8c090', hemiGround: '#8a6040', hemiI: 0.9, sunGlow: 0.45, moon: 0.35, stars: 0.25,
   },
   ui: { accent: '#e07030', accentDark: '#a05020', panel: 'rgba(255,246,232,.9)', ink: '#4a3020' },
-  music: 'classic', ambience: { owls: 0.3, wind: 0.35 }, dress: 'autumn',
+  music: 'classic', soundscape: 'autumn', ambience: { owls: 0.3, wind: 0.35 }, dress: 'autumn',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['haybale'],
   season: { leaf: ['#ea8a2a', '#d24a26', '#f0c040'], leafK: 0.85, snow: 0, grass: '#f2d29a', ground: '#b8a055', groundK: 0.45, water: ['#8fe0c8', '#2a9ab0', '#0e4a78'], waterK: 0.55 },
 };
@@ -95,7 +95,7 @@ const winter: Theme = {
     sun: '#e8f0ff', sunI: 0.95, hemiSky: '#c0d8f0', hemiGround: '#e8eef4', hemiI: 0.85, sunGlow: 0.25, moon: 0.7, stars: 0.9,
   },
   ui: { accent: '#6a9fd8', accentDark: '#3a6aa0', panel: 'rgba(240,248,255,.9)', ink: '#2a3a50' },
-  music: 'classic', ambience: { owls: 0.2, wind: 0.4 }, dress: 'winter',
+  music: 'classic', soundscape: 'winter', ambience: { owls: 0.2, wind: 0.4 }, dress: 'winter',
   critters: { bats: false, ghosts: false }, collectibles: { candy: false, wear: [] }, build: ['snowman'],
   season: { leaf: ['#4e7a62', '#5c8670', '#6a8e7c'], leafK: 0.5, snow: 0.9, grass: '#d8f0e8', ground: '#eef3fa', groundK: 0.9, water: ['#b8e8f0', '#4aa0c8', '#1a4a7a'], waterK: 0.85 },
 };
@@ -109,7 +109,7 @@ const halloween: Theme = {
     sun: '#ffb070', sunI: 1.15, hemiSky: '#a58ad8', hemiGround: '#5a3a4a', hemiI: 0.95, sunGlow: 0.35, moon: 1, stars: 0.8,
   },
   ui: { accent: '#ff8a2a', accentDark: '#7a4ab8', panel: 'rgba(42,30,64,.86)', ink: '#fff1e0' },
-  music: 'spooky', ambience: { owls: 1, wind: 0.6 }, dress: 'halloween',
+  music: 'spooky', soundscape: 'halloween', ambience: { owls: 1, wind: 0.6 }, dress: 'halloween',
   critters: { bats: true, ghosts: true },
   collectibles: { candy: true, wear: HALLOWEEN_WEAR },
   build: ['jackolantern', 'spookylamp'],

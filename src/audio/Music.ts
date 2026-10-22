@@ -45,14 +45,14 @@ const pick = (items: [string, number][]) => { let s = 0; for (const [, w] of ite
  */
 export class MusicGen {
   /** 'classic' major pentatonic, 'spooky' minor celesta, 'festive' bright chimes, 'spring' airy flute + kalimba in G,
-   *  'summer' lazy warm marimba in F (soundscapes.ts) */
+   *  'summer' lazy warm marimba in F, 'autumn' mellow guitar plucks in D, 'winter' slow music box in E (soundscapes.ts) */
   mode: MusicFlavor = 'classic';
   setMode(m: MusicFlavor) {
     if (m === this.mode) return;
     this.mode = m; this.motif = []; this.phraseLeft = 0;
-    this.key = m === 'spooky' ? 62 : m === 'festive' || m === 'spring' ? 67 : m === 'summer' ? 65 : KEYS[0];
+    this.key = m === 'spooky' ? 62 : m === 'festive' || m === 'spring' ? 67 : m === 'summer' ? 65 : m === 'autumn' ? 62 : m === 'winter' ? 64 : KEYS[0];
     this.chord = m === 'spooky' ? 'i' : 'I'; this.chordsInKey = 0;
-    this.beat = 60 / (m === 'spring' ? 76 : m === 'summer' ? 64 : 68);
+    this.beat = 60 / (m === 'spring' ? 76 : m === 'summer' ? 64 : m === 'autumn' ? 62 : m === 'winter' ? 56 : 68);
     // fresh pad bus so the old flavour's long chords fade out instead of ringing into the new one
     const t = this.ctx.currentTime, old = this.padBus;
     old.gain.cancelScheduledValues(t); old.gain.setValueAtTime(old.gain.value, t); old.gain.linearRampToValueAtTime(0.0001, t + 0.6);
@@ -111,6 +111,8 @@ export class MusicGen {
     }
     this.chord = pick((sp ? MNEXT : NEXT)[this.chord] ?? (sp ? MNEXT.i : NEXT.I));
     if (this.mode === 'summer' && this.chord === 'V' && Math.random() < 0.6) this.chord = 'IVadd9'; // lazy, no pull home
+    if (this.mode === 'autumn' && (this.chord === 'I' || this.chord === 'V') && Math.random() < 0.4) this.chord = Math.random() < 0.6 ? 'vi' : 'ii'; // bittersweet
+    if (this.mode === 'winter' && this.chord === 'V' && Math.random() < 0.7) this.chord = 'Isus'; // still, suspended
     const notes = (sp ? MCHORDS : CHORDS)[this.chord];
     // voice: root low, others spread in a gentle open voicing; drop random tones for variety
     const base = this.key - 12;
@@ -120,7 +122,7 @@ export class MusicGen {
       this.padVoice(mtof(m), at + i * rand(0.05, 0.4), dur + 3, i === 0 ? 0.11 : 0.06);
     });
     // alpine / marsh: add an airy high fifth shimmer
-    if (Math.random() < 0.3 + w[Biome.Alpine] * 0.4) this.padVoice(mtof(base + notes[0] + 31), at + 2, dur, 0.02);
+    if (Math.random() < 0.3 + w[Biome.Alpine] * 0.4 + (this.mode === 'winter' ? 0.4 : 0)) this.padVoice(mtof(base + notes[0] + 31), at + 2, dur, 0.02);
     this.nextChordAt = at + dur;
   }
 
@@ -153,6 +155,8 @@ export class MusicGen {
       else if (this.mode === 'festive') this.instrument = r < 0.55 ? 'chime' : r < 0.85 ? 'celesta' : 'pluck';
       else if (this.mode === 'spring') this.instrument = r < 0.45 ? 'flute' : r < 0.78 ? 'kalimba' : 'chime';
       else if (this.mode === 'summer') this.instrument = r < 0.6 ? 'marimba' : r < 0.85 ? 'pluck' : 'kalimba';
+      else if (this.mode === 'autumn') this.instrument = r < 0.6 ? 'pluck' : r < 0.82 ? 'flute' : 'kalimba';
+      else if (this.mode === 'winter') this.instrument = r < 0.55 ? 'celesta' : r < 0.9 ? 'chime' : 'flute';
       else this.instrument = r < chimeBias ? 'chime' : r < chimeBias + kalBias ? 'kalimba' : 'pluck';
       if (this.motif.length && Math.random() < 0.45) {
         const shift = Math.floor(rand(-2, 3));
