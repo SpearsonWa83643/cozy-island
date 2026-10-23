@@ -70,8 +70,13 @@ body.touch .qbtn { padding: 9px 16px; }
 .tbtn.down { transform: translateY(3px); box-shadow: 0 2px 0 rgba(160,120,80,.35); }
 .tbtn.on { background: #ffd166; }
 .tbtn.remove.on { background: #ff7b7b; color: #fff; }
-.tbtn.rotate, .tbtn.remove { display: none; }
-.touch-ui.building .tbtn.rotate, .touch-ui.building .tbtn.remove { display: flex; }
+.tbtn.rotate, .tbtn.remove, .tbtn.undo { display: none; }
+.touch-ui.building .tbtn.rotate, .touch-ui.building .tbtn.remove, .touch-ui.building .tbtn.undo { display: flex; }
+.tbtn .ri { font-style: normal; display: inline-block; transform: rotate(var(--rot, 0deg)); transition: transform .25s var(--spring, ease-out); }
+.tbtn.undo.dim { opacity: .5; }
+/* building: Rotate / Undo / Remove on a row above Dig / Build / Jump (3 wide) so the stack never climbs into Map/Bag/Wardrobe */
+.touch-ui.building .tbtns { grid-template-columns: repeat(3, 76px); }
+.tbtn.undo.nope { animation: mp-wiggle .4s; }
 body.touch .hotbar { bottom: max(24px, env(safe-area-inset-bottom)); }
 body.touch .slot { width: 70px; height: 70px; }
 body.touch .mode { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px); }

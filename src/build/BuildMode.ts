@@ -83,6 +83,9 @@ export class BuildMode implements System {
   private ghostMatOk = new THREE.MeshStandardNodeMaterial({ color: '#9effa8', transparent: true, opacity: 0.55, emissive: '#3aff6a', emissiveIntensity: 0.35, depthWrite: false });
   private ghostMatBad = new THREE.MeshStandardNodeMaterial({ color: '#ff8a8a', transparent: true, opacity: 0.55, emissive: '#ff3a3a', emissiveIntensity: 0.35, depthWrite: false });
   private placed: Placed[] = [];
+  /** pieces placed this session, newest last (Undo pops these) */
+  private history: Placed[] = [];
+  private ghostYaw = 0;
   private raycaster = new THREE.Raycaster();
   private target = new THREE.Vector3();
   private hoverPlaced: Placed | null = null;
@@ -161,6 +164,7 @@ export class BuildMode implements System {
     this.ghost = g;
     this.scene.add(g);
     this.ghostValid = true;
+    this.ghostYaw = this.rotation;
     this.ghostMatState = true;
     this.applyGhostMat(true);
   }
@@ -222,7 +226,7 @@ export class BuildMode implements System {
   place(): boolean {
     if (!this.active || !this.ghostValid) return false;
     const ok = this.placeAt(this.target.x, this.target.z, this.selected, this.rotation, this.target.y);
-    if (ok) this.onPlace(this.selected);
+    if (ok) { this.history.push(this.placed[this.placed.length - 1]); if (this.history.length > 50) this.history.shift(); this.onPlace(this.selected); this.onChange(); }
     return ok;
   }
 
@@ -246,6 +250,31 @@ export class BuildMode implements System {
   /** placed pieces as plain data (for saving) */
   serialize() {
     return this.placed.map((p) => ({ x: +p.obj.position.x.toFixed(3), y: +p.obj.position.y.toFixed(3), z: +p.obj.position.z.toFixed(3), t: BUILDABLES.indexOf(p.def), r: +p.obj.rotation.y.toFixed(4) }));
+  }
+
+  /** turn the next piece a quarter turn (touch Rotate button / R key) */
+  rotate() { this.rotation = (this.rotation + Math.PI / 2) % (Math.PI * 2); this.onChange(); }
+
+  /** current yaw of the ghost preview (it eases toward `rotation`) */
+  get previewYaw() { return this.ghostYaw; }
+
+  /** true if there is a placed-this-session piece to take back */
+  get canUndo() { return this.history.some((p) => this.placed.includes(p)); }
+
+  /** Undo: take back the most recent piece still standing (touch Undo button / Ctrl+Z). */
+  undo(): boolean {
+    while (this.history.length) {
+      const p = this.history.pop()!;
+      if (!this.placed.includes(p)) continue;
+      this.group.remove(p.obj);
+      this.physics.remove(p.collider);
+      this.placed = this.placed.filter((x) => x !== p);
+      if (this.hoverPlaced === p) this.hoverPlaced = null;
+      this.onRemove();
+      this.onChange();
+      return true;
+    }
+    return false;
   }
 
   /** hook: return true to take over a far remove (walk there first) */
@@ -277,7 +306,8 @@ export class BuildMode implements System {
     if (!this.active) return;
     const i = this.input;
     for (let n = 1; n <= BUILDABLES.length; n++) if (i.pressed.has(String(n))) this.select(n - 1);
-    if (i.pressed.has('r')) { this.rotation += Math.PI / 2; }
+    if (i.pressed.has('r')) this.rotate();
+    if (i.pressed.has('z') && (i.keys.has('control') || i.keys.has('meta'))) this.undo();
     if (i.pressed.has('x')) this.removeHovered();
     if (i.wheel !== 0 && i.keys.has('control')) this.select(this.selected + i.wheel);
 
@@ -285,7 +315,10 @@ export class BuildMode implements System {
     if (this.ghost) {
       this.ghost.visible = ok && !this.removeMode;
       this.ghost.position.copy(this.target);
-      this.ghost.rotation.y = this.rotation;
+      // ghost swings round to the new rotation so the turn is easy to see
+      let dy = this.rotation - this.ghostYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      this.ghostYaw += dy * Math.min(1, dt * 14);
+      this.ghost.rotation.y = this.ghostYaw;
       const valid = ok && this.isValid();
       this.ghostValid = valid;
       if (valid !== this.ghostMatState) { this.ghostMatState = valid; this.applyGhostMat(valid); }

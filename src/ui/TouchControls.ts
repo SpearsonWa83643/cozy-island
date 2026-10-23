@@ -3,7 +3,7 @@ import type { BuildMode } from '../build/BuildMode';
 
 /**
  * On-screen controls for touch devices: left virtual joystick, Jump / Build
- * buttons, and in build mode Rotate + Remove toggle. Camera orbit (drag) and
+ * buttons, and in build mode Rotate, Undo (last piece) + Remove toggle. Camera orbit (drag) and
  * pinch zoom are handled by Input on the canvas itself.
  */
 export class TouchControls {
@@ -14,6 +14,7 @@ export class TouchControls {
   private buildBtn: HTMLElement;
   private removeBtn: HTMLElement;
   private rotateBtn: HTMLElement;
+  private undoBtn: HTMLElement | null = null;
   private mountBtn: HTMLElement | null = null;
   private mountState = '';
 
@@ -26,7 +27,8 @@ export class TouchControls {
       <button class="eye-btn" aria-label="Look around (hold and drag)"><span class="eye-ball"><span class="eye-pupil"></span></span></button>
       <button class="mount-btn" aria-label="Call Mount"><span class="mi">🦅</span><span class="ml">Call Mount</span></button>
       <div class="tbtns">
-        <button class="tbtn rotate" aria-label="Rotate piece">⟳<span>Rotate</span></button>
+        <button class="tbtn rotate" aria-label="Rotate piece"><i class="ri">⟳</i><span>Rotate</span></button>
+        <button class="tbtn undo" aria-label="Undo last piece">↶<span>Undo</span></button>
         <button class="tbtn remove" aria-label="Remove mode">✖<span>Remove</span></button>
         <button class="tbtn dig" aria-label="Dig (hold to keep digging)">🪏<span>Dig</span></button>
         <button class="tbtn build" aria-label="Build mode">🔨<span>Build</span></button>
@@ -104,7 +106,10 @@ export class TouchControls {
     const dig = this.root.querySelector<HTMLElement>('.dig')!;
     tap(dig, () => { this.input.pressed.add('f'); this.input.keys.add('f'); });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dig.addEventListener(ev, () => this.input.keys.delete('f'));
-    tap(this.rotateBtn, () => this.input.pressed.add('r'));
+    tap(this.rotateBtn, () => { const b = this.getBuild(); if (b) b.rotate(); else this.input.pressed.add('r'); });
+    const undoBtn = this.root.querySelector<HTMLElement>('.undo')!;
+    this.undoBtn = undoBtn;
+    tap(undoBtn, () => { const b = this.getBuild(); if (b && !b.undo()) { undoBtn.classList.remove('nope'); void undoBtn.offsetWidth; undoBtn.classList.add('nope'); } });
     tap(this.removeBtn, () => { const b = this.getBuild(); if (b) b.setRemoveMode(!b.removeMode); });
     this.mountBtn = this.root.querySelector('.mount-btn');
     this.sync();
@@ -144,6 +149,9 @@ export class TouchControls {
     this.root.classList.toggle('building', on);
     this.buildBtn.classList.toggle('on', on);
     this.removeBtn.classList.toggle('on', !!b?.removeMode);
+    this.undoBtn?.classList.toggle('dim', !b?.canUndo);
+    const deg = b ? Math.round((b.rotation * 180 / Math.PI) % 360) : 0;
+    this.rotateBtn.style.setProperty('--rot', `${deg}deg`);
     this.mountBtn?.classList.toggle('hide', on);
   }
 }
