@@ -333,14 +333,20 @@ export class Terrain {
     }
     if (want) {
       want.sort((a, b) => this.chunkDist(a, x, z) - this.chunkDist(b, x, z));
-      // memory cap: make room by evicting loaded tiles that are out of range (least recently used first);
-      // tiles in range are never evicted, so a cap below the in-range count can't thrash
-      const need = Math.min(want.length, budget);
-      if (this.stats.loaded + need > this.tileCap) {
-        const spare = this.chunks.filter((c) => c.loaded && c.lastUsed < now).sort((a, b) => a.lastUsed - b.lastUsed);
-        for (const ch of spare) { if (this.stats.loaded + need <= this.tileCap) break; this.unloadChunk(ch, true); }
+      // memory cap: make room by evicting out-of-range tiles (least recently used first), then in-range tiles
+      // farther than the one we want (farthest first). Never evicts a nearer tile, so it can't thrash.
+      let cands: { ch: TerrainChunk; d: number; out: boolean }[] | null = null;
+      for (let k = 0; k < want.length && k < budget; k++) {
+        const ch = want[k], dw = this.chunkDist(ch, x, z);
+        if (this.stats.loaded >= this.tileCap) {
+          cands ??= this.chunks.filter((c) => c.loaded).map((c) => ({ ch: c, d: this.chunkDist(c, x, z), out: c.lastUsed < now }))
+            .sort((p, q) => (p.out !== q.out ? (p.out ? -1 : 1) : p.out ? p.ch.lastUsed - q.ch.lastUsed : q.d - p.d));
+          const v = cands.find((c) => c.ch.loaded);
+          if (!v || (!v.out && v.d <= dw)) break;
+          this.unloadChunk(v.ch, true);
+        }
+        this.loadChunk(ch);
       }
-      for (let k = 0; k < need && this.stats.loaded < this.tileCap; k++) this.loadChunk(want[k]);
     }
   }
 

@@ -4,7 +4,7 @@
 import { chromium, devices } from 'playwright';
 const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const kill = setTimeout(() => { console.error('TIMEOUT 480s'); browser.close().finally(() => process.exit(1)); }, 480_000);
+const kill = setTimeout(() => { console.error('TIMEOUT 700s'); browser.close().finally(() => process.exit(1)); }, 700_000);
 let pass = true;
 const ok = (n, c, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'} ${n} ${x}`); if (!c) pass = false; };
 async function load(q) {
@@ -51,6 +51,23 @@ try {
   ok('ipad: tap walks with streamed terrain', tap.walking, JSON.stringify(tap));
   ok('no errors (stream)', t.errors.length === 0, t.errors.slice(0, 3).join(' | '));
   await t.ctx.close();
+
+  // cap pressure: cap 1, crossing a tile border → the tile under the camera wins, the other is evicted, no thrash
+  const c = await load('stream=20&tilecap=1');
+  const cr = await c.page.evaluate(() => {
+    const T = window.game.terrain; const names = () => T.chunks.filter((ch) => ch.loaded).map((ch) => ch.mesh.name);
+    for (let k = 0; k < 6; k++) T.stream(0, 0); const a = names();
+    for (let k = 0; k < 6; k++) T.stream(45, 0); const b = names(); const ev = T.stats.evictions;
+    for (let k = 0; k < 20; k++) T.stream(45, 0); const loadsAfter = T.stats.loads;
+    for (let k = 0; k < 20; k++) T.stream(45, 0);
+    return { a, b, ev, stable: T.stats.loads === loadsAfter, peak: T.stats.peak };
+  });
+  console.log('cap', JSON.stringify(cr));
+  ok('cap: centre tile at origin', cr.a.length === 1 && cr.a[0] === 'terrain-1-1', cr.a.join(','));
+  ok('cap: tile under camera wins after crossing', cr.b.length === 1 && cr.b[0] === 'terrain-2-1' && cr.ev >= 1, `${cr.b.join(',')} evictions=${cr.ev}`);
+  ok('cap: no thrash', cr.stable && cr.peak <= 1, `peak=${cr.peak}`);
+  ok('no errors (cap)', c.errors.length === 0, c.errors.slice(0, 3).join(' | '));
+  await c.ctx.close();
 } catch (e) { console.error(e); pass = false; }
 clearTimeout(kill); await browser.close();
 console.log(pass ? 'ALL PASS' : 'SOME FAILED'); process.exit(pass ? 0 : 1);
