@@ -12,12 +12,15 @@ interface Tile { ci: number; cj: number; i0: number; i1: number; j0: number; j1:
  * Flying mounts never touch the terrain collider (they follow the analytic height function).
  * Call `update()` with the player's position before every physics step.
  */
+/** ring-neighbour heightfield colliders built per update (the player's own tile is always built at once) */
+const PHYS_BUILDS_PER_STEP = 2;
 export class PhysicsChunks {
   readonly tiles: Tile[] = [];
   readonly per: number;
   private cx = Number.NaN; private cz = Number.NaN;
   /** colliders created / removed since start (debug + tests) */
   stats = { added: 0, removed: 0 };
+  private pend = false;
   constructor(private physics: Physics, private grid: Float32Array, private seg: number, private size: number, tileSize = PHYS_CHUNK_SIZE, private ring = PHYS_RING,
     /** grid centre (world xz); islets (Order 42a) sit off the origin */ private ox = 0, private oz = 0, /** drop every collider once the player is this far outside the grid (m); Infinity = never */ private dropBeyond = Infinity) {
     this.per = Math.max(1, Math.round(size / tileSize));
@@ -41,13 +44,19 @@ export class PhysicsChunks {
   update(x: number, z: number, force = false) {
     if (!this.near(x, z)) { if (!Number.isNaN(this.cx)) this.clear(); return; }
     const { ci, cj } = this.tileOf(x, z);
-    if (!force && ci === this.cx && cj === this.cz) return;
-    this.cx = ci; this.cz = cj;
-    // add first, then remove: the ground under the player is never missing for a step
+    if (!force && !this.pend && ci === this.cx && cj === this.cz) return;
+    // add first, then remove: the ground under the player is never missing for a step. The player's own tile is
+    // always built now; ring neighbours at most PHYS_BUILDS_PER_STEP per call (Order 42c: arriving at an islet built
+    // all 9 heightfields in one frame, a ~140 ms hitch on the iPad test). Until the ring is complete `pend` stays set,
+    // so the next step carries on (pend).
+    const own = this.tiles.find((t) => t.ci === ci && t.cj === cj);
+    if (own && !own.col) { own.col = this.build(own); this.stats.added++; }
+    let budget = force ? Infinity : PHYS_BUILDS_PER_STEP, pending = false;
     for (const t of this.tiles) {
       const near = Math.abs(t.ci - ci) <= this.ring && Math.abs(t.cj - cj) <= this.ring;
-      if (near && !t.col) { t.col = this.build(t); this.stats.added++; }
+      if (near && !t.col) { if (budget-- > 0) { t.col = this.build(t); this.stats.added++; } else pending = true; }
     }
+    this.pend = pending; this.cx = ci; this.cz = cj;
     for (const t of this.tiles) {
       const near = Math.abs(t.ci - ci) <= this.ring && Math.abs(t.cj - cj) <= this.ring;
       if (!near && t.col) { const b = t.col.parent(); if (b) this.physics.world.removeRigidBody(b); else this.physics.remove(t.col); t.col = null; this.stats.removed++; }
