@@ -78,6 +78,8 @@ export class Player implements System {
   private airVy = 0;
   /** swimming state + 0..1 blend for the animation */
   swimming = false;
+  /** solid props in the water (shipwreck hull) where the shoreline anti-stuck hop must not push you through */
+  solidNear: ((x: number, z: number) => boolean) | null = null;
   swimBlend = 0;
   /** 0..1 how hard the current is pulling (UI stamina ring) */
   current = 0;
@@ -251,7 +253,7 @@ export class Player implements System {
     // anti-stuck: wanted to move but barely did for a while (wedged at the shoreline, a rock, a follower)
     const want = Math.hypot(desired.x, desired.z), got = Math.hypot(mv.x, mv.z);
     // (only around the waterline, so walls and placed blocks stay solid)
-    if (len > 0 && want > 0.01 && got < want * 0.15 && this.depth > -0.35) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
+    if (len > 0 && want > 0.01 && got < want * 0.15 && this.depth > -0.35 && !this.solidNear?.(t.x, t.z)) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt * 2);
     if (this.stuckT > 0.8) {
       this.stuckT = 0;
       // free the capsule: a small hop along the wished direction, biased toward the beach, never below ground or the float line

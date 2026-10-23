@@ -30,7 +30,7 @@ export class MapOverlay {
   private pts = new Map<number, { x: number; y: number }>();
   private pinch0 = 0; private zoom0 = 1;
 
-  constructor(parent: HTMLElement, private flora: Flora, private landmarks: { x: number; z: number; label: string; icon: 'lighthouse' }[] = []) {
+  constructor(parent: HTMLElement, private flora: Flora, private landmarks: { x: number; z: number; label: string; icon: 'lighthouse' | 'ship' }[] = []) {
     this.el = document.createElement('div');
     this.el.className = 'map-overlay';
     this.el.innerHTML = `<div class="map-stage"><div class="map-paper"><canvas></canvas><div class="map-x"></div><div class="map-me"></div></div></div>
@@ -189,6 +189,17 @@ export class MapOverlay {
     for (const lm of this.landmarks) {
       const x = toPx(lm.x), y = toPx(lm.z);
       g.save(); g.strokeStyle = INK; g.lineWidth = 1.6;
+      if (lm.icon === 'ship') {
+        // little sunken ship: tilted hull, mast + sail, a dotted X for the chest
+        g.translate(x, y); g.rotate(-0.18);
+        g.fillStyle = '#9a6634'; g.beginPath(); g.moveTo(-14, -2); g.lineTo(14, -2); g.lineTo(9, 7); g.lineTo(-10, 7); g.closePath(); g.fill(); g.stroke();
+        g.beginPath(); g.moveTo(0, -2); g.lineTo(0, -22); g.stroke();
+        g.fillStyle = '#f6efe0'; g.beginPath(); g.moveTo(1, -20); g.lineTo(11, -8); g.lineTo(1, -6); g.closePath(); g.fill(); g.stroke();
+        g.strokeStyle = 'rgba(40,110,160,0.8)'; g.beginPath(); g.moveTo(-18, 3); g.quadraticCurveTo(-12, 0, -6, 3); g.quadraticCurveTo(0, 6, 6, 3); g.quadraticCurveTo(12, 0, 18, 3); g.stroke();
+        g.rotate(0.18); g.translate(-x, -y);
+        g.fillStyle = 'rgba(90,58,34,0.85)'; g.font = `18px ${HAND}`; g.textAlign = 'center'; g.fillText(lm.label, x, y + 24);
+        g.restore(); continue;
+      }
       g.fillStyle = 'rgba(255,240,170,0.55)'; g.beginPath(); g.moveTo(x, y - 22); g.lineTo(x + 26, y - 30); g.lineTo(x + 26, y - 14); g.closePath(); g.fill();
       g.fillStyle = '#f6efe0'; g.beginPath(); g.moveTo(x - 6, y + 6); g.lineTo(x - 4, y - 18); g.lineTo(x + 4, y - 18); g.lineTo(x + 6, y + 6); g.closePath(); g.fill(); g.stroke();
       g.fillStyle = 'rgba(200,60,50,0.85)'; g.fillRect(x - 5.2, y - 6, 10.4, 5); g.fillRect(x - 4.4, y - 15, 8.8, 4);

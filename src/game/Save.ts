@@ -17,6 +17,9 @@ export interface SaveData {
   caved?: boolean;
   /** visited the Lighthouse Point lookout */
   lookout?: boolean;
+  /** Shipwreck Cove: visited (welcome toast shown) / chest looted */
+  wreckSeen?: boolean;
+  wreckChest?: boolean;
   shells: number;
   candy?: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)

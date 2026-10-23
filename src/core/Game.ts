@@ -17,6 +17,7 @@ import { Fauna } from '../world/Fauna';
 import { Reef } from '../world/Reef';
 import { Cave } from '../world/Cave';
 import { Lighthouse } from '../world/Lighthouse';
+import { Shipwreck } from '../world/Shipwreck';
 import { Atmosphere } from '../world/Atmosphere';
 import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
@@ -61,6 +62,7 @@ export class Game {
   reef!: Reef;
   cave!: Cave;
   lighthouse!: Lighthouse;
+  wreck!: Shipwreck;
   /** height fog + aerial perspective (TSL fog node driven by `fog`) */
   atmos!: Atmosphere;
   get fogState() { return this.fog; }
@@ -137,6 +139,8 @@ export class Game {
     this.scene.add(this.cave.outside, this.cave.interior);
     this.lighthouse = new Lighthouse(this.physics, this.flora);
     this.scene.add(this.lighthouse.group);
+    this.wreck = new Shipwreck(this.physics);
+    this.scene.add(this.wreck.group);
     await lap('cave');
     this.scene.add(this.flora.group);
     this.particles = new Particles();
@@ -150,6 +154,7 @@ export class Game {
 
     // --- Actors ---
     this.player = new Player(this.physics, this.input, new THREE.Vector3(SPAWN.x, 0, SPAWN.y));
+    this.player.solidNear = (x, z) => this.wreck.nearHull(x, z);
     this.scene.add(this.player.object);
     this.rig = new CameraRig(this.camera, this.input, this.player);
     this.fauna.blockers = (x, z) => this.build?.occupiedAt(x, z) ?? false;
@@ -204,7 +209,7 @@ export class Game {
       onRide: () => { this.play.save.data.mountRides = (this.play.save.data.mountRides ?? 0) + 1; this.play.save.touch(); },
       openPicker: () => { if (unlockedMounts(sd()).length < 2) return false; this.mountPicker.show(); return true; },
       tourStops: () => {
-        const out: { x: number; z: number }[] = [this.cave.outsideSpot, this.lighthouse.tourSpot];
+        const out: { x: number; z: number }[] = [this.cave.outsideSpot, this.lighthouse.tourSpot, this.wreck.tourSpot];
         const pp = this.dress?.patch; if (pp && (pp.x || pp.z)) out.push({ x: pp.x, z: pp.z });
         return out;
       },
@@ -258,6 +263,7 @@ export class Game {
         this.reef.update(dt, t, this.player.position, this.player.swimming, Math.min(1, this.player.speed / 2.5));
     this.cave.update(dt, t, this.player.position);
         this.lighthouse.update(dt);
+        this.wreck.update(dt, t, this.player.position);
         this.dress.update(dt, t);
       },
     }, this.play);

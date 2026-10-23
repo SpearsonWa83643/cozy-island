@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-build-undo';
+export const VERSION = '2026-10-23-shipwreck';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'New area: Shipwreck Cove! An old ship broke in two on the reef off the tropical beach. Swim through the gap, past the fish and sunbeams, and open the captain\'s chest for the Captain Hat. It\'s on your map and the scenic tour too.' },
   { icon: 'wood', text: 'Building got easier on iPad: tap Undo to take back your last piece, and Rotate now spins the glowing preview so you can see which way it will face.' },
   { icon: 'star', text: 'New mount: the Dragonfly! Dig up the Shimmer Wing from a treasure chest in the Misty Marsh, then zip around on shimmering, humming wings.' },
   { icon: 'star', text: 'Softer horizons: distant hills fade into a seasonal haze, and low mist settles in the valleys and over the sea. Fly up on a mount to see it.' },

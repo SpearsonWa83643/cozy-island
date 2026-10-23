@@ -292,7 +292,7 @@ export class Gameplay implements System {
     if (this.map) return Promise.resolve(this.map);
     if (this.mapP) return this.mapP;
     this.mapP = import('../ui/MapOverlay').then(({ MapOverlay }) => {
-      const m = new MapOverlay(document.body, this.g.flora, [{ x: this.g.lighthouse.pos.x, z: this.g.lighthouse.pos.z, label: 'Lighthouse Pt.', icon: 'lighthouse' }]);
+      const m = new MapOverlay(document.body, this.g.flora, [{ x: this.g.lighthouse.pos.x, z: this.g.lighthouse.pos.z, label: 'Lighthouse Pt.', icon: 'lighthouse' }, { x: this.g.wreck.pos.x, z: this.g.wreck.pos.z, label: 'Shipwreck Cove', icon: 'ship' }]);
       m.onClose = () => this.g.audio.paper();
       m.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
       m.guideOn = this.guide.enabled;
@@ -405,6 +405,8 @@ export class Gameplay implements System {
     if (st === 'dug' && p.distanceTo(tr.chestPos) < 2.2) return { kind: 'open', icon: '🎁', label: 'Open', key: 'open:chest', pos: tr.chestPos.clone().add(new THREE.Vector3(0, 1.0, 0)), run: () => this.openChest() };
     if (st === 'active') { const sp = tr.spot; if (Math.hypot(p.x - sp.x, p.z - sp.z) < 1.7) return { kind: 'dig', icon: '⛏️', label: 'Dig', key: 'dig:spot', pos: sp.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.dig() }; }
     if (st === 'bottle' && Math.hypot(p.x - tr.bottlePos.x, p.z - tr.bottlePos.z) < 1.8) return { kind: 'take', icon: '🍾', label: 'Take', key: 'take:bottle', pos: tr.bottlePos.clone().add(new THREE.Vector3(0, 0.6, 0)), run: () => this.takeBottle() };
+    const wk = this.g.wreck;
+    if (wk && !wk.opened && wk.chestDist(p.x, p.z) < 1.9) return { kind: 'open', icon: '🎁', label: 'Open Chest', key: 'open:wreck', pos: wk.chest.clone().add(new THREE.Vector3(0, 0.9, 0)), run: () => this.openWreckChest() };
     const sb = this.g.reef.nearestBottle(p.x, p.z, 1.9);
     if (sb) return { kind: 'take', icon: '🍾', label: 'Take Bottle', key: 'take:seabottle', pos: new THREE.Vector3(sb.x, 0.6, sb.z), run: () => this.takeSeaBottle(sb) };
     const an = this.g.fauna.nearestFeedable(p.x, p.z, 2.5);
@@ -450,6 +452,7 @@ export class Gameplay implements System {
     if (st === 'bottle') cands.push({ key: 'take:bottle', pos: () => tr.bottlePos, y: tr.bottlePos.y + 0.2, reach: 1.1 });
     if (st === 'dug') cands.push({ key: 'open:chest', pos: () => tr.chestPos, y: tr.chestPos.y + 0.4, reach: 1.4 });
     if (st === 'active' && Math.hypot(tr.spot.x - pt.x, tr.spot.z - pt.z) < 2.5) cands.push({ key: 'dig:spot', pos: () => tr.spot, y: tr.spot.y + 0.1, reach: 0.9 });
+    if (g.wreck && !g.wreck.opened) cands.push({ key: 'open:wreck', pos: () => g.wreck.chest, y: g.wreck.chest.y + 0.2, reach: 1.2 });
     for (const b of g.reef.bottles) if (b.active) cands.push({ key: 'take:seabottle', pos: () => b, y: 0.1, reach: 1.1 });
     const an = g.fauna.nearestFeedable(pt.x, pt.z, 2.2);
     if (an && this.bestFood(an.species as Species)) cands.push({ key: 'feed:', pos: () => an.a, y: an.a.y + 0.4, reach: 1.6 });
@@ -593,6 +596,19 @@ export class Gameplay implements System {
     this.save.touch(); this.panels.refreshBadges();
   }
 
+  /** Shipwreck Cove chest: the Captain Hat (or another sea wearable / shells if you have them all) */
+  openWreckChest() {
+    const g = this.g, d = this.save.data;
+    if (!g.wreck.open()) return;
+    d.wreckChest = true; d.wreckSeen = true; this.save.touch();
+    const pos = g.wreck.chest.clone();
+    const why = 'The old captain\'s chest! Inside:';
+    if (!d.owned.captain) { if (this.giveThemeWear(pos, ['captain'], why)) return; }
+    if (this.giveThemeWear(pos, SEA_WEAR, why)) return;
+    d.shells += 8; this.save.touch(); g.audio.chest(1);
+    this.juice.pop(pos.add(new THREE.Vector3(0, 0.6, 0)), '🐚 +8', 'emote big', 1.6, 50);
+    this.juice.toast(`${why} <b>+8 🐚</b>`);
+  }
   private takeBottle() {
     this.treasure.takeBottle();
     this.g.audio.paper(); this.g.audio.chest(1);
@@ -827,6 +843,9 @@ export class Gameplay implements System {
         else { const ep = c.exitPt; if (Math.hypot(p.x - ep.x, p.z - ep.z) < 1.3) this.caveTransition(false); }
       }
     }
+    // Shipwreck Cove: restore the looted chest, and welcome on the first swim-by
+    { const wk = g.wreck; if (d.wreckChest && !wk.opened) wk.setOpened(true);
+      if (!d.wreckSeen && !g.cave.inside && Math.hypot(p.x - wk.pos.x, p.z - wk.pos.z) < 7) { d.wreckSeen = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('⚓ <b>Shipwreck Cove</b> — an old ship broke in two on the reef. Swim through the gap and look for the captain\'s chest!', 4200); } }
     // Lighthouse Point lookout: first visit gets a little welcome
     if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
     this.forage.update(dt, p);
