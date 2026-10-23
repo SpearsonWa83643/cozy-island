@@ -4,13 +4,15 @@ import type { Input } from '../core/Input';
 import type { Player } from './Player';
 import type { CameraRig } from './CameraRig';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
-import { offshore, shoreRadius, SWIM_MAX } from '../world/Shore';
+import { offshore, shoreRadius, atOffshore, SWIM_MAX } from '../world/Shore';
 import { mountById, type MountDef, type MountId } from './MountDefs';
 import { BIOME_CENTERS } from '../world/Biomes';
 import { BUILDERS, type MountRig } from './MountArt';
 
 /**
- * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy, unicorn and dragonfly (MountDefs.ts / MountArt.ts).
+ * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy, unicorn and dragonfly (MountDefs.ts / MountArt.ts),
+ * and the sea turtle (Sea Pearl from the Shipwreck Cove chest): a swimming mount that glides at the surface,
+ * dives over the reef on Jump, and can't go up onto land (rig.swim).
  * Adapted from 2D Master's mount (src/mount/mount.ts + defs.ts). With more than one unlocked, Call Mount opens a picker.
  * Call Mount → the eagle swoops in on a Hermite curve and hovers beside you → Hop on (button / tap the eagle / V)
  * → fly with the same joystick / WASD (Shift or stick rim = faster, Space = big flap up, tap the ground = glide there)
@@ -30,6 +32,13 @@ const WAIT_MAX = 30;       // seconds it waits before flying off
 const AUTO_IDLE = 2;       // seconds without flight input before the scenic tour eases in
 const TOUR_SPEED = 7.5;
 const TOUR_PTS = 260;      // resampled loop points (~1.3 m apart)
+// swimming mounts (sea turtle)
+const SWIM_SPEED = 5.5;
+const SWIM_FAST = 8.5;
+const SWIM_TOUR = 5;
+const SURF = WATER_LEVEL - 0.14;   // body centre while gliding at the surface
+const DIVE_T = 3.2;        // seconds under on one Jump
+const SHALLOW = 0.55;      // needs at least this much water under it
 
 function hermite(p0: number, v0: number, p1: number, v1: number, t: number) {
   const t2 = t * t, t3 = t2 * t;
@@ -77,6 +86,8 @@ export class Mount implements System {
   tours = 0;
   private idleT = 0; private autoK = 0; private camHold = 0; private toured = false;
   private tour: { x: number; z: number }[] = []; private tourI = 0;
+  /** swimming mount: seconds of dive left, eased dive depth 0..1, times it dived */
+  private diveT = 0; dive = 0; dives = 0; blockedT = 0;
   def: MountDef = mountById('eagle');
   private rigs = new Map<MountId, MountRig>();
   private current!: MountRig;
@@ -136,6 +147,15 @@ export class Mount implements System {
     return this.canCall() ? 'call' : 'blocked';
   }
   canCall() { return this.phase === 'off' && !this.player.inCave && !this.hooks.blocked(); }
+  /** the selected mount swims (sea turtle) rather than flies */
+  get swims() { return !!this.current.swim; }
+  /** water depth under a point (0 on land) */
+  private depthAt(x: number, z: number) { return Math.max(0, WATER_LEVEL - heightAt(x, z)); }
+  /** a swimming mount can only come to you in or right by the sea */
+  nearWater() {
+    const p = this.player.position;
+    return this.player.swimming || this.depthAt(p.x, p.z) > 0.2 || offshore(p.x, p.z) > -4;
+  }
 
   /** the one Mount button / V key: Call → Hop on → Land */
   press() {
@@ -156,6 +176,7 @@ export class Mount implements System {
       return false;
     }
     if (id && id !== this.id) this.select(id);
+    if (this.swims) return this.callSwim();
     this.calls++;
     const p = this.player.position;
     // swoop in from behind the camera's right shoulder, high and wide, ending hovering just beside you
@@ -178,6 +199,34 @@ export class Mount implements System {
     this.glideAmt = 1; this.glide = 0;
     this.hooks.sfx('call');
     this.hooks.toast(`${this.def.icon} Here comes your ${this.def.short}!`, 1500);
+    return true;
+  }
+
+  /** sea turtle: swims up from the deep and surfaces in the water just beside you */
+  private callSwim() {
+    if (!this.nearWater()) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} lives in the sea — walk down to the water and call it there`, 2400); return false; }
+    this.calls++;
+    const p = this.player.position;
+    const ang = Math.atan2(p.z, p.x);
+    // surface spot: a little further out to sea than you, in water deep enough to float in
+    const to = { x: p.x, z: p.z };
+    for (let off = Math.max(offshore(p.x, p.z) + 1.6, 1.2), i = 0; i < 14; i++, off += 0.8) {
+      atOffshore(ang, off, to);
+      if (this.depthAt(to.x, to.z) > SHALLOW + 0.15 && Math.hypot(to.x - p.x, to.z - p.z) > 1.2) break;
+    }
+    if (this.player.swimming || this.depthAt(p.x, p.z) > SHALLOW + 0.3) { const side = this.rig.yaw; to.x = p.x + Math.cos(side) * 1.7; to.z = p.z - Math.sin(side) * 1.7; if (this.depthAt(to.x, to.z) < SHALLOW) { to.x = p.x; to.z = p.z; atOffshore(ang, offshore(p.x, p.z) + 1.7, to); } }
+    const from = atOffshore(ang + 0.35, Math.max(offshore(to.x, to.z) + 14, 8));
+    const h0 = Math.atan2(to.x - from.x, to.z - from.z), v0 = 9;
+    const h1 = Math.atan2(p.x - to.x, p.z - to.z) + Math.PI / 2;
+    this.seg = { x0: from.x, z0: from.z, y0: WATER_LEVEL - 1.6, vx0: Math.sin(h0) * v0, vz0: Math.cos(h0) * v0, x1: to.x, z1: to.z, y1: SURF, vx1: Math.sin(h1) * 1.5, vz1: Math.cos(h1) * 1.5, T: ARRIVE_T * 1.5, ease: (t) => t * t * (3 - 2 * t) };
+    this.segT = 0;
+    this.gx = from.x; this.gy = WATER_LEVEL - 1.6; this.gz = from.z; this.heading = h0;
+    this.phase = 'arrive'; this.dive = 1; this.diveT = 0;
+    this.setAlpha(1);
+    this.object.visible = true; this.shadow.visible = false;
+    this.glideAmt = 0; this.glide = 0;
+    this.hooks.sfx('call');
+    this.hooks.toast(`${this.def.icon} Your ${this.def.short} is swimming over!`, 1500);
     return true;
   }
 
@@ -221,6 +270,15 @@ export class Mount implements System {
   }
 
   private startLeave(fast = false) {
+    if (this.swims) {
+      // paddle out to sea and dive out of sight
+      const a = Math.atan2(this.gz, this.gx), out = atOffshore(a + 0.25, Math.max(offshore(this.gx, this.gz) + 12, 10));
+      const h = Math.atan2(out.x - this.gx, out.z - this.gz), sp = Math.max(this.speed, 2);
+      this.seg = { x0: this.gx, z0: this.gz, y0: this.gy, vx0: Math.sin(this.heading) * sp, vz0: Math.cos(this.heading) * sp,
+        x1: out.x, z1: out.z, y1: WATER_LEVEL - 2.4, vx1: Math.sin(h) * 6, vz1: Math.cos(h) * 6, T: fast ? 1.0 : LEAVE_T * 1.3, ease: (t) => t * t };
+      this.segT = 0; this.phase = 'leave'; this.hooks.sfx('leave');
+      return;
+    }
     const ang = this.heading + 0.5;
     const sp = Math.max(this.speed, 4);
     this.seg = { x0: this.gx, z0: this.gz, y0: this.gy, vx0: Math.sin(this.heading) * sp, vz0: Math.cos(this.heading) * sp,
@@ -251,6 +309,15 @@ export class Mount implements System {
   private buildTour() {
     const stops: { x: number; z: number; a: number }[] = [];
     const add = (x: number, z: number) => stops.push({ x, z, a: Math.atan2(z, x) });
+    if (this.swims) {
+      // sea turtle: a lap of the reef just off the beach, swinging past any sea landmark (the wreck)
+      for (let i = 0; i < 18; i++) { const th = (i / 18) * Math.PI * 2; const q = atOffshore(th, 9.5); add(q.x, q.z); }
+      for (const p of this.hooks.tourStops?.() ?? []) if (Number.isFinite(p.x) && Number.isFinite(p.z) && this.depthAt(p.x, p.z) > 1.2) add(p.x, p.z);
+      stops.sort((a, b) => a.a - b.a);
+      const c = new THREE.CatmullRomCurve3(stops.map((p) => new THREE.Vector3(p.x, 0, p.z)), true, 'centripetal');
+      this.tour = c.getSpacedPoints(TOUR_PTS).slice(0, TOUR_PTS).map((v) => ({ x: v.x, z: v.z }));
+      return;
+    }
     // climate zones (skip the meadow in the middle: the loop crosses it on the way round)
     for (const [x, z] of BIOME_CENTERS.slice(1)) add(x * 1.08, z * 1.08);
     // out over the coral reef, between the zones
@@ -270,7 +337,7 @@ export class Mount implements System {
     if (fwd < 0) this.tour.reverse(), (best = n - 1 - best);
     this.tourI = best;
     this.autopilot = true; this.autoK = 0; this.tours++;
-    if (!this.toured) { this.toured = true; this.hooks.toast(`🗺️ Scenic tour! Your ${this.def.short} shows you the island · steer any time to take over`, 3200); }
+    if (!this.toured) { this.toured = true; this.hooks.toast(this.swims ? `🗺️ Reef tour! Your ${this.def.short} swims you round the island · steer any time to take over` : `🗺️ Scenic tour! Your ${this.def.short} shows you the island · steer any time to take over`, 3200); }
   }
   /** a point a little way ahead on the loop */
   private tourAim() {
@@ -295,7 +362,7 @@ export class Mount implements System {
     this.gz = hermite(s.z0, s.vz0 * s.T, s.z1, s.vz1 * s.T, t);
     this.gy = s.y0 + (s.y1 - s.y0) * s.ease(t);
     // never clip the terrain on the way in
-    this.gy = Math.max(this.gy, this.groundAt(this.gx, this.gz) + 0.6);
+    this.gy = Math.max(this.gy, this.swims ? heightAt(this.gx, this.gz) + 0.35 : this.groundAt(this.gx, this.gz) + 0.6);
     const dx = this.gx - px, dz = this.gz - pz, d = Math.hypot(dx, dz);
     if (dt > 0) this.speed = d / dt;
     if (d > 0.002) this.turnTo(Math.atan2(dx, dz), dt, 8);
@@ -338,16 +405,16 @@ export class Mount implements System {
       const cy = Math.cos(this.rig.yaw), sy = Math.sin(this.rig.yaw);
       const mx = fx * cy + fz * sy, mz = -fx * sy + fz * cy;
       this.turnTo(Math.atan2(mx, mz), dt, 3.2 * (this.current.turn ?? 1));
-      want = (fast ? FLY_FAST : FLY_SPEED) * Math.max(0.35, analog);
+      want = (this.swims ? (fast ? SWIM_FAST : SWIM_SPEED) : (fast ? FLY_FAST : FLY_SPEED)) * Math.max(0.35, analog);
     } else if (this.target) {
       const dx = this.target.x - this.gx, dz = this.target.z - this.gz, d = Math.hypot(dx, dz);
       if (d < 1.2) this.target = null;
-      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6 * (this.current.turn ?? 1)); want = Math.min(FLY_SPEED, d * 1.4); }
+      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6 * (this.current.turn ?? 1)); want = Math.min(this.swims ? SWIM_SPEED : FLY_SPEED, d * 1.4); }
     } else if (this.autopilot) {
       this.autoK = Math.min(1, this.autoK + dt / 2.5);
       const p = this.tourAim();
       this.turnTo(Math.atan2(p.x - this.gx, p.z - this.gz), dt, 0.5 + 1.1 * this.autoK);
-      want = TOUR_SPEED * (0.35 + 0.65 * this.autoK);
+      want = (this.swims ? SWIM_TOUR : TOUR_SPEED) * (0.35 + 0.65 * this.autoK);
     } else this.bank += (0 - this.bank) * Math.min(1, dt * 3);
     const ac = this.current.accel ?? 1;
     this.speed += (want - this.speed) * Math.min(1, dt * ac * (want > this.speed ? 1.8 : 1.4));
@@ -355,6 +422,18 @@ export class Mount implements System {
     // soft leash: past the reef the wind turns you back toward the island
     const off = offshore(nx, nz);
     if (off > SWIM_MAX + 6) { const r = Math.hypot(nx, nz) || 1, push = Math.min(1, (off - SWIM_MAX - 6) / 6) * 8 * dt; nx -= (nx / r) * push; nz -= (nz / r) * push; }
+    if (this.swims) {
+      // never up onto the beach: slide along the shallows, or stop and nose about
+      const ok = (x: number, z: number) => this.depthAt(x, z) > SHALLOW;
+      if (!ok(nx, nz)) {
+        if (ok(nx, this.gz)) nz = this.gz; else if (ok(this.gx, nz)) nx = this.gx; else { nx = this.gx; nz = this.gz; this.speed *= 0.5; }
+        this.blockedT += dt; this.target = null;
+        if (!this.autopilot && this.blockedT > 0.4 && this.blockedT - dt <= 0.4) this.hooks.toast(`${this.def.icon} Too shallow for your ${this.def.short} — tap <b>Land</b> to wade ashore`, 2000);
+      } else this.blockedT = Math.max(0, this.blockedT - dt);
+      this.gx = nx; this.gz = nz;
+      this.swimHeight(dt, en && this.input.pressed.has(' '));
+      return;
+    }
     this.gx = nx; this.gz = nz;
     // Space: one big flap upward (eases back down)
     if (en && this.input.pressed.has(' ')) { this.boost = Math.min(6, this.boost + 3.2); this.hooks.sfx('flap'); this.glide = 0; }
@@ -367,6 +446,17 @@ export class Mount implements System {
     this.gy = Math.max(this.gy, this.groundAt(this.gx, this.gz) + 1.4);
   }
 
+  /** sea turtle height: bobbing at the surface, or a dive over the reef on Jump */
+  private swimHeight(dt: number, jump: boolean) {
+    if (jump && this.diveT <= 0) { this.diveT = DIVE_T; this.dives++; this.hooks.sfx('flap'); if (this.dives === 1) this.hooks.toast(`🫧 Under we go! Look at the reef — you'll pop back up in a moment`, 2400); }
+    this.diveT = Math.max(0, this.diveT - dt);
+    this.dive += ((this.diveT > 0 ? 1 : 0) - this.dive) * Math.min(1, dt * 1.6);
+    const room = Math.max(0, WATER_LEVEL - heightAt(this.gx, this.gz) - 0.75);
+    const wy = SURF - Math.min(1.7, room) * this.dive + Math.sin(this.t * 1.6) * 0.04 * (1 - this.dive);
+    this.gy += (wy - this.gy) * Math.min(1, dt * 2.5);
+    this.gy = Math.max(this.gy, heightAt(this.gx, this.gz) + 0.3);
+  }
+
   update(dt: number) {
     if (this.phase === 'off') return;
     this.t += dt;
@@ -374,30 +464,34 @@ export class Mount implements System {
     if (this.carrying && (this.player.inCave || this.hooks.mustLand())) { this.dropNow(); }
     switch (this.phase) {
       case 'arrive':
-        if (this.stepSeg(dt)) { this.phase = 'wait'; this.waitT = 0; this.speed = 0; this.hooks.sfx('land'); }
+        if (this.stepSeg(dt)) { this.phase = 'wait'; this.waitT = 0; this.speed = 0; this.dive = 0; this.hooks.sfx('land'); }
         break;
       case 'wait': {
         this.waitT += dt;
         // hover beside you, turning to keep you in view
         const p = this.player.position;
-        const wy = this.groundAt(this.gx, this.gz) + WAIT_ALT + Math.sin(this.t * 2.1) * 0.08;
+        const wy = this.swims ? SURF + Math.sin(this.t * 1.6) * 0.05 : this.groundAt(this.gx, this.gz) + WAIT_ALT + Math.sin(this.t * 2.1) * 0.08;
         this.gy += (wy - this.gy) * Math.min(1, dt * 3);
-        // drift to stay close if you wander a little
+        // drift to stay close if you wander a little (a swimmer only through water)
         const dx = p.x - this.gx, dz = p.z - this.gz, d = Math.hypot(dx, dz);
-        if (d > 3.2) { const k = Math.min(1, dt * 1.5) * (d - 2.2) / d; this.gx += dx * k; this.gz += dz * k; this.turnTo(Math.atan2(dx, dz), dt, 3); }
+        if (d > 3.2) {
+          const k = Math.min(1, dt * 1.5) * (d - 2.2) / d, nx = this.gx + dx * k, nz = this.gz + dz * k;
+          if (!this.swims || this.depthAt(nx, nz) > SHALLOW) { this.gx = nx; this.gz = nz; }
+          this.turnTo(Math.atan2(dx, dz), dt, 3);
+        }
         this.bank += (0 - this.bank) * Math.min(1, dt * 3);
-        if (this.waitT > WAIT_MAX || d > 18 || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and flew off. Call it again any time!`, 2000); this.startLeave(); }
+        if (this.waitT > WAIT_MAX || d > (this.swims ? 22 : 18) || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and ${this.swims ? 'swam' : 'flew'} off. Call it again any time!`, 2000); this.startLeave(); }
         break;
       }
       case 'hop': {
         this.hopT = Math.min(1, this.hopT + dt / HOP_T);
-        this.gy += (this.groundAt(this.gx, this.gz) + WAIT_ALT - 0.15 - this.gy) * Math.min(1, dt * 6);
+        this.gy += ((this.swims ? SURF - 0.06 : this.groundAt(this.gx, this.gz) + WAIT_ALT - 0.15) - this.gy) * Math.min(1, dt * 6);
         if (this.hopT >= 1) {
           this.phase = 'ride'; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
-          this.autopilot = false; this.idleT = 0; this.toured = false;
+          this.autopilot = false; this.idleT = 0; this.toured = false; this.diveT = 0;
           this.hooks.onRide();
           this.hooks.sfx('flap');
-          if (this.rides === 1) this.hooks.toast(`${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
+          if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
         }
         break;
       }
@@ -413,7 +507,7 @@ export class Mount implements System {
         if (this.segT > 0.55) this.setAlpha(1 - (this.segT - 0.55) / 0.45);
         break;
     }
-    this.alt = this.gy - this.groundAt(this.gx, this.gz);
+    this.alt = this.gy - (this.swims ? WATER_LEVEL : this.groundAt(this.gx, this.gz));
     this.draw(dt);
     this.rig.mountBoost += ((this.phase === 'ride' ? 1.2 : 0) - this.rig.mountBoost) * Math.min(1, dt * 2);
     if (this.carrying) this.seatRider();
@@ -425,9 +519,9 @@ export class Mount implements System {
     // wing hum (dragonfly): a soft buzz every couple of seconds while it's about
     if (this.current.buzz && ph !== 'leave') { this.buzzT -= dt; if (this.buzzT <= 0) { this.buzzT = 1.6 + Math.random() * 1.4; this.hooks.sfx('buzz'); } }
     // gliding now and then on a ride, wings held in a soaring V
-    if (ph === 'ride' && this.boost < 0.5) { this.nextGlide -= dt; if (this.nextGlide <= 0 && this.glide <= 0) { this.glide = 1.6 + Math.random(); this.nextGlide = 4 + Math.random() * 4; } }
+    if (ph === 'ride' && this.boost < 0.5 && !this.swims) { this.nextGlide -= dt; if (this.nextGlide <= 0 && this.glide <= 0) { this.glide = 1.6 + Math.random(); this.nextGlide = 4 + Math.random() * 4; } }
     if (this.glide > 0) this.glide -= dt;
-    const gWant = (this.glide > 0 && this.speed > 3) || (ph === 'arrive' && this.segT < 0.55) ? 1 : 0;
+    const gWant = this.swims ? 0 : (this.glide > 0 && this.speed > 3) || (ph === 'arrive' && this.segT < 0.55) ? 1 : 0;
     this.glideAmt += (gWant - this.glideAmt) * Math.min(1, dt * 4);
     const rate = ph === 'wait' ? 2.6 : ph === 'hop' ? 3.4 : ph === 'leave' ? 2.6 : ph === 'arrive' ? 1.4 : this.boost > 0.5 ? 2.8 : 1.5 + this.speed * 0.04;
     this.flapRate += (rate * this.current.rate - this.flapRate) * Math.min(1, dt * 5);
@@ -442,9 +536,9 @@ export class Mount implements System {
     // a little forward sweep on the downstroke
     this.wingL.rotation.y = -Math.sin(this.flap) * 0.12; this.wingR.rotation.y = Math.sin(this.flap) * 0.12;
     const bob = -Math.sin(this.flap) * 0.07 * (1 - this.glideAmt);
-    this.object.position.set(this.gx, this.gy + bob, this.gz);
+    this.object.position.set(this.gx, this.gy + (this.swims ? 0 : bob), this.gz);
     // pitch: nose up while hovering / braking, level at speed
-    const pitch = ph === 'wait' || ph === 'hop' ? -0.25 : THREE.MathUtils.clamp(-0.25 + this.speed * 0.022, -0.25, 0.1);
+    const pitch = this.swims ? (ph === 'leave' ? 0.3 : ph === 'arrive' ? -0.2 * this.segT : ph === 'ride' ? (this.diveT > 0 && this.dive < 0.85 ? 0.28 : this.diveT <= 0 && this.dive > 0.12 ? -0.22 : 0) : 0) : ph === 'wait' || ph === 'hop' ? -0.25 : THREE.MathUtils.clamp(-0.25 + this.speed * 0.022, -0.25, 0.1);
     this.object.rotation.set(0, 0, 0);
     this.object.rotateY(this.heading);
     this.object.rotateX(pitch);
@@ -455,6 +549,7 @@ export class Mount implements System {
       this.tail.rotation.x = ph === 'wait' ? 0.25 : -0.05;
     }
     this.current.animate?.(this.t, dt, ph, this.speed, this.flap);
+    if (this.swims) { this.shadow.visible = false; return; }
     this.legs.position.y = this.alt < 2.2 ? -0.06 : 0.06;
     // head looks at you while waiting, into the turn while flying
     if (ph === 'wait') {
@@ -502,7 +597,7 @@ export class Mount implements System {
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
-      mounted: this.player.mounted, visible: this.object.visible,
+      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, blocked: +this.blockedT.toFixed(2),
     };
   }
 }

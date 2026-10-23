@@ -2,7 +2,7 @@
 // The bald eagle is free; the others unlock when their treasure turns up in a treasure chest.
 import type { SaveData } from '../game/Save';
 
-export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn' | 'dragonfly';
+export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn' | 'dragonfly' | 'sea_turtle';
 
 // no emoji fits a pterodactyl or a cloud puppy, so they get little inline SVG icons (1em, inline in text)
 const svg = (inner: string) => `<svg class="mico" viewBox="0 0 40 40" aria-hidden="true">${inner}</svg>`;
@@ -21,6 +21,12 @@ const DRAGONFLY_SVG = svg('<g stroke="#4b8fb0" stroke-width="1.2" fill="#d8f4ff"
   + '<circle cx="16.2" cy="8.2" r=".9" fill="#fff"/><circle cx="22.2" cy="8.2" r=".9" fill="#fff"/>');
 const WING_SVG = svg('<path d="M6 30 C8 14 22 5 35 6 C31 16 21 27 6 30Z" fill="#d8f4ff" stroke="#4b8fb0" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 29 C15 22 23 15 33 8 M14 25 L18 16 M21 20 L26 12" fill="none" stroke="#8fc8e6" stroke-width="1.1"/>'
   + '<path d="M10 26 C16 21 22 16 30 10" fill="none" stroke="#c9a6ff" stroke-width="2" stroke-linecap="round" opacity=".7"/><path d="M33 22 L34.2 25 L37 26 L34.2 27 L33 30 L31.8 27 L29 26 L31.8 25Z" fill="#fff6b0" stroke="#e0b13a" stroke-width="1"/>');
+
+const TURTLE_SVG = svg('<g fill="#7fc98a" stroke="#2f7a52" stroke-width="1.5" stroke-linejoin="round"><path d="M9 14 L1 9 L5 17Z"/><path d="M31 14 L39 9 L35 17Z"/><path d="M10 28 L4 34 L12 31Z"/><path d="M30 28 L36 34 L28 31Z"/><ellipse cx="20" cy="5.5" rx="4.6" ry="4.2"/></g>'
+  + '<ellipse cx="20" cy="21" rx="12" ry="13" fill="#4fa36a" stroke="#2f6a45" stroke-width="1.6"/><path d="M20 10 L26 15 L26 25 L20 30 L14 25 L14 15Z" fill="#8bd39a" stroke="#2f6a45" stroke-width="1.2"/>'
+  + '<path d="M14 15 L9 13 M26 15 L31 13 M14 25 L9 28 M26 25 L31 28" stroke="#2f6a45" stroke-width="1.2"/><circle cx="18" cy="4.6" r="1" fill="#1d2a20"/><circle cx="22" cy="4.6" r="1" fill="#1d2a20"/>');
+const PEARL_SVG = svg('<path d="M3 26 C6 12 34 12 37 26 C30 22 10 22 3 26Z" fill="#f4c6d8" stroke="#b3708f" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 26 C9 37 31 37 37 26 C30 30 10 30 3 26Z" fill="#e9a6c2" stroke="#b3708f" stroke-width="1.5" stroke-linejoin="round"/>'
+  + '<circle cx="20" cy="23" r="7" fill="#fbf7ff" stroke="#b6b0d6" stroke-width="1.3"/><circle cx="17.5" cy="20.5" r="2.2" fill="#fff"/><path d="M33 4 L34.2 7 L37 8 L34.2 9 L33 12 L31.8 9 L29 8 L31.8 7Z" fill="#fff6b0" stroke="#e0b13a" stroke-width="1"/>');
 
 export interface MountTreasure { id: string; name: string; icon: string; blurb: string }
 
@@ -60,13 +66,21 @@ export const MOUNTS: MountDef[] = [
     treasure: { id: 'shimmer_wing', name: 'Shimmer Wing', icon: WING_SVG, blurb: 'It hums! Call Mount to ride a dragonfly!' },
     hint: 'Find the Shimmer Wing in a Misty Marsh treasure chest', blurb: 'A zippy, shimmery marsh flyer!',
   },
+  {
+    id: 'sea_turtle', name: 'Sea Turtle', short: 'sea turtle', icon: TURTLE_SVG,
+    treasure: { id: 'sea_pearl', name: 'Sea Pearl', icon: PEARL_SVG, blurb: 'It glows like the sea! Call Mount by the water to ride a sea turtle!' },
+    hint: "Find the Sea Pearl in the captain's chest at Shipwreck Cove", blurb: 'A gentle swimmer that dives over the reef!',
+  },
 ];
+
+/** treasures that never come from dug-up chests: they have their own spot (sea_pearl: the Shipwreck Cove chest) */
+export const SPECIAL_TREASURES = new Set(['sea_pearl']);
 
 /** treasures that only turn up in one climate zone's chests (index into BIOME_NAMES: 5 = Misty Marsh) */
 export const TREASURE_BIOME: Record<string, number> = { shimmer_wing: 5 };
 
 /** mount treasures in the order chests hand them out */
-export const MOUNT_TREASURES = MOUNTS.filter((m) => m.treasure).map((m) => m.treasure!.id);
+export const MOUNT_TREASURES = MOUNTS.filter((m) => m.treasure && !SPECIAL_TREASURES.has(m.treasure.id)).map((m) => m.treasure!.id);
 
 export function mountById(id: string | undefined | null): MountDef {
   return MOUNTS.find((m) => m.id === id) ?? MOUNTS[0];

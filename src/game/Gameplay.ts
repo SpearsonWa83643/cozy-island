@@ -22,7 +22,7 @@ import { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
 import { showWhatsNew } from '../ui/whatsnewNote';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
-import { addTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
+import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
@@ -599,13 +599,19 @@ export class Gameplay implements System {
     this.save.touch(); this.panels.refreshBadges();
   }
 
-  /** Shipwreck Cove chest: the Captain Hat (or another sea wearable / shells if you have them all) */
+  /** Shipwreck Cove chest: the Sea Pearl (sea turtle mount) and the Captain Hat; later another sea wearable / shells */
   openWreckChest() {
     const g = this.g, d = this.save.data;
     if (!g.wreck.open()) return;
     d.wreckChest = true; d.wreckSeen = true; this.save.touch();
     const pos = g.wreck.chest.clone();
     const why = 'The old captain\'s chest! Inside:';
+    if (!hasTreasure(d, 'sea_pearl')) {
+      // the hat goes straight to the wardrobe (toast), the pearl gets the big "New mount!" card
+      if (!d.owned.captain) this.giveThemeWear(pos, ['captain'], why);
+      this.givePearl(pos);
+      return;
+    }
     if (!d.owned.captain) { if (this.giveThemeWear(pos, ['captain'], why)) return; }
     if (this.giveThemeWear(pos, SEA_WEAR, why)) return;
     d.shells += 8; this.save.touch(); g.audio.chest(1);
@@ -756,6 +762,25 @@ export class Gameplay implements System {
     this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), this.rewardDelay);
   }
 
+  /** the Sea Pearl from the wreck chest: unlocks the sea turtle (no map in this chest) */
+  private givePearl(pos: THREE.Vector3) {
+    const d = this.save.data, m = mountForTreasure('sea_pearl')!, t = m.treasure!;
+    addTreasure(d, t.id); d.mountId = m.id; this.lastReward = t.id;
+    if (this.mount && this.mount.phase === 'off') this.mount.select(m.id);
+    this.save.touch();
+    this.g.audio.chest(5); this.g.player.cheer();
+    this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.9, 0)), '🫧', 'emote big', 1.8, 60);
+    window.clearTimeout(this.rewardTimer);
+    this.pendingReward = () => {
+      this.pendingReward = null;
+      const card = this.juice.reward(t.icon, t.name, 'New mount!', '#ff7eb6',
+        `<b>${m.icon} ${m.name}</b> unlocked! ${t.blurb}`, () => { this.panels.refreshBadges(); this.juice.toast(`${m.icon} Tap <b>Call Mount</b> in the water to ride your ${m.short} · <b>Jump</b> to dive`, 3200); },
+        { action: 'Ride it!', onAction: () => { setTimeout(() => this.mount?.call(m.id), 250); } });
+      card.classList.add('r4', 'mount-reward');
+    };
+    this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), this.rewardDelay + 600);
+  }
+
   /** a chest with a mount treasure: unlocks that mount, auto-selects it, "Ride it!" calls it */
   private openMountChest(tid: string) {
     const d = this.save.data, m = mountForTreasure(tid)!, t = m.treasure!;
@@ -847,7 +872,7 @@ export class Gameplay implements System {
       }
     }
     // Shipwreck Cove: restore the looted chest, and welcome on the first swim-by
-    { const wk = g.wreck; if (d.wreckChest && !wk.opened) wk.setOpened(true);
+    { const wk = g.wreck; if (d.wreckChest && !wk.opened && hasTreasure(d, 'sea_pearl')) wk.setOpened(true); // older saves: the chest shuts again until the pearl is found
       if (!d.wreckSeen && !g.cave.inside && Math.hypot(p.x - wk.pos.x, p.z - wk.pos.z) < 7) { d.wreckSeen = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('⚓ <b>Shipwreck Cove</b> — an old ship broke in two on the reef. Swim through the gap and look for the captain\'s chest!', 4200); } }
     // Lighthouse Point lookout: first visit gets a little welcome
     if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
@@ -886,7 +911,7 @@ export class Gameplay implements System {
     }
     // swimming: current ring + a friendly first-time tip
     const pl = g.player;
-    const showMeter = pl.swimming && pl.offshoreDist > 7;
+    const showMeter = pl.swimming && !pl.mounted && pl.offshoreDist > 7; // riding the sea turtle: no tiring current
     this.swimUi.classList.toggle('show', showMeter);
     if (showMeter) {
       const energy = 1 - pl.current;

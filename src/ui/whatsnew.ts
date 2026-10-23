@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-paths';
+export const VERSION = '2026-10-23-turtle';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'New mount: the Sea Turtle! The captain\'s chest at Shipwreck Cove now holds a glowing Sea Pearl. Call your turtle by the water, glide along the surface, and tap Jump to dive over the reef. Already opened the chest? It\'s closed again, with the pearl inside.' },
   { icon: 'wood', text: 'New in Build Mode: stone path tiles, wooden stairs you can climb, and a little arched bridge to carry you over a stream or pond. On iPad, swipe the piece bar sideways to find them.' },
   { icon: 'heart', text: 'Mountain goats have moved onto Alpine Peak! Watch them hop from ledge to ledge on the steep slopes, then feed one clover to make a new friend.' },
   { icon: 'star', text: 'New area: Shipwreck Cove! An old ship broke in two on the reef off the tropical beach. Swim through the gap, past the fish and sunbeams, and open the captain\'s chest for the Captain Hat. It\'s on your map and the scenic tour too.' },
@@ -20,5 +21,5 @@ export const ITEMS: WhatsNewItem[] = [
   { icon: 'heart', text: 'Steer any time to take the reins back. Rest a few seconds and the tour picks up again.' },
   { icon: 'wood', text: 'Themes trimmed to the four seasons plus Halloween.' },
   { icon: 'star', text: 'New mounts! Treasure chests hide a Pterodactyl Egg, a Cloud Tuft and a Rainbow Horseshoe.' },
-  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy, unicorn or dragonfly.' },
+  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy, unicorn, dragonfly or sea turtle.' },
 ];

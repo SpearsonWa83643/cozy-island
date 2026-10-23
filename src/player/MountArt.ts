@@ -28,6 +28,8 @@ export interface MountRig {
   turn?: number; accel?: number;
   /** hums its wings: periodic buzz sound while it's about */
   buzz?: boolean;
+  /** swims at the sea surface instead of flying (sea turtle): flippers on the wing hinges, no shadow */
+  swim?: boolean;
   animate?: (t: number, dt: number, phase: RigPhase, speed: number, flap: number) => void;
 }
 
@@ -382,4 +384,62 @@ function dragonfly(): MountRig {
   return finish(r, 1.5);
 }
 
-export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly };
+// ------------------------------------------------------------ sea turtle (sea_pearl, Shipwreck Cove)
+function seaTurtle(): MountRig {
+  const k = new Kit(), r = empty('sea_turtle', k);
+  const shell = k.m('#4f9a62', 0.55), shellHi = k.m('#7cc489', 0.5), rim = k.m('#3b7a4c', 0.6), belly = k.m('#f1dfa0', 0.7),
+    skin = k.m('#8fcf9c', 0.6), skinDk = k.m('#5d9f72', 0.65), pearl = k.m('#fbf4ff', 0.15, false, 0.35);
+  const { body, head, tail, legs } = r;
+  r.seat.set(0, 0.33, -0.04); r.amp = 0.75; r.rate = 0.42; r.shadow = 0; r.fanTail = false; r.swim = true;
+  r.turn = 0.8; r.accel = 0.8;
+  // domed shell with a ring of rim plates and lighter scutes on top, cream plastron underneath
+  body.add(k.mesh(k.sph(0.62, 18, 12), shell, [0, 0, 0], [1, 0.42, 1.15]));
+  body.add(k.mesh(k.sph(0.58, 16, 10), belly, [0, -0.07, 0.02], [0.95, 0.22, 1.08]));
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    body.add(k.mesh(k.sph(0.12, 8, 6), rim, [Math.sin(a) * 0.6, -0.03, Math.cos(a) * 0.69], [1.1, 0.45, 1.1]));
+  }
+  body.add(k.mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.06, 6), shellHi, [0, 0.25, 0.02]));
+  for (const [x, z] of [[0, 0.34], [0, -0.32], [0.3, 0.14], [-0.3, 0.14], [0.3, -0.16], [-0.3, -0.16]] as [number, number][])
+    body.add(k.mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.05, 6), shellHi, [x, 0.2 - Math.hypot(x, z) * 0.12, z], [1, 1, 1], [z * -0.5, 0, x * 0.6]));
+  // a little glowing pearl tucked on the shell's back, where you sit
+  body.add(k.mesh(k.sph(0.05, 10, 8), pearl, [0, 0.28, -0.3]));
+  // head on a short neck, big friendly eyes and a smile
+  head.position.set(0, 0.04, 0.72);
+  head.add(k.mesh(new THREE.CapsuleGeometry(0.11, 0.14, 4, 10).rotateX(Math.PI / 2), skin, [0, -0.02, -0.08]));
+  head.add(k.mesh(k.sph(0.18, 14, 10), skin, [0, 0.03, 0.1], [0.95, 0.8, 1.1]));
+  for (const s of [-1, 1]) head.add(k.mesh(k.sph(0.035, 8, 6), skinDk, [s * 0.08, 0.13, 0.12], [1, 0.5, 1]));
+  eyes(k, head, 0.1, 0.07, 0.22, 0.045);
+  head.add(k.mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 12, Math.PI), skinDk, [0, -0.04, 0.27], [1, 1, 1], [0, 0, Math.PI]));
+  for (const s of [-1, 1]) head.add(k.mesh(k.sph(0.03, 8, 6), k.m('#ffb3c7', 0.8, false), [s * 0.13, -0.01, 0.2], [1, 0.6, 0.6]));
+  // long front flippers on the wing hinges (they row like a sea turtle's), tips curl on the tip hinges
+  const flipper = (len: number, w: number, s: number) => k.membrane([[0, w * 0.5], [len * 0.4, w * 0.62], [len * 0.85, w * 0.25], [len, -w * 0.05], [len * 0.7, -w * 0.3], [0, -w * 0.45]].map(([x, z]) => [s * x, z] as [number, number]), 0.06);
+  for (const [root, tip, s] of [[r.wingL, r.tipL, 1], [r.wingR, r.tipR, -1]] as [THREE.Group, THREE.Group, number][]) {
+    root.position.set(s * 0.46, -0.06, 0.38); root.rotation.y = s * 0.55;
+    root.add(k.mesh(flipper(0.5, 0.26, s), skin, [0, 0, 0]));
+    tip.position.set(s * 0.5, 0, 0); root.add(tip);
+    tip.add(k.mesh(flipper(0.34, 0.16, s), skin, [0, 0, -0.01]));
+    tip.add(k.mesh(k.sph(0.035, 6, 5), skinDk, [s * 0.12, 0.03, 0.02]));
+  }
+  // small back flippers paddle on the legs group, a stubby tail
+  const back: THREE.Group[] = [];
+  for (const s of [-1, 1]) {
+    const g = new THREE.Group(); g.position.set(s * 0.36, -0.06, -0.58); g.rotation.y = s * -0.6;
+    g.add(k.mesh(flipper(0.3, 0.2, s), skin, [0, 0, 0])); legs.add(g); back.push(g);
+  }
+  tail.position.set(0, -0.03, -0.72);
+  tail.add(k.mesh(new THREE.ConeGeometry(0.06, 0.18, 6).rotateX(-Math.PI / 2), skin, [0, 0, -0.06]));
+  // back flippers paddle half a stroke behind, the head bobs and peeks round, the pearl twinkles
+  r.animate = (t, _dt, ph, speed, flap) => {
+    const p = Math.cos(flap - Math.PI * 0.5) * (ph === 'wait' ? 0.18 : 0.3);
+    back[0].rotation.z = -p; back[1].rotation.z = p;
+    back[0].rotation.x = back[1].rotation.x = Math.sin(flap) * 0.15;
+    head.position.y = 0.04 + Math.sin(t * 1.4) * 0.025 + (ph === 'wait' ? 0.04 : 0);
+    head.position.z = 0.72 + Math.min(0.06, speed * 0.008);
+    tail.rotation.y = Math.sin(t * 2.2) * 0.25;
+    pearl.emissiveIntensity = 0.3 + Math.sin(t * 2.6) * 0.15;
+  };
+  return finish(r, 1.6);
+}
+
+export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle };
