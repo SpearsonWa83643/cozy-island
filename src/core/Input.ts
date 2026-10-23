@@ -50,12 +50,19 @@ export class Input {
     document.body.dataset.hand = this.hand;
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      // Ctrl/Cmd+Z: a one-shot 'undo' press keyed on the physical key (works on any layout, and
+      // never sticks: macOS drops the 'z' keyup while Cmd is held, so we don't track it in keys)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.code === 'KeyZ' || e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        this.pressed.add('undo');
+        return;
+      }
       const k = e.key.toLowerCase();
       if (!this.keys.has(k)) this.pressed.add(k);
       this.keys.add(k);
       if (k === ' ') e.preventDefault();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
+    window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); this.keys.delete(k); if (k === 'meta') this.keys.clear(); });
     window.addEventListener('blur', () => { this.keys.clear(); this.ptrs.clear(); this.stickPtr = null; this.stickUi.on = this.stickUi.active = false; this.stick.x = this.stick.y = 0; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {

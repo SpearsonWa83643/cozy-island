@@ -53,6 +53,13 @@ try {
   await tapSel('.tbtn.undo');
   ps = await pieces();
   ok('Undo takes back the last piece only', ps.length === 2 && !ps.some((p) => p.x === -1), JSON.stringify(ps));
+  // keyboard: Ctrl+Z and Cmd+Z each undo one piece (twice in a row, no stuck keys)
+  await tapWorld(-1, 4); await tapWorld(0, 4);
+  ok('re-placed two pieces for the keyboard check', (await pieces()).length === 4);
+  await page.keyboard.press('Control+z'); await frames(3);
+  ok('Ctrl+Z undoes one piece', (await pieces()).length === 3);
+  await page.keyboard.press('Meta+z'); await frames(3);
+  ok('Cmd+Z undoes the next piece', (await pieces()).length === 2 && !(await pieces()).some((p) => p.x === -1 || p.x === 0), JSON.stringify(await pieces()));
   // four rotate taps wrap back to 0 (no runaway angle)
   for (let i = 0; i < 3; i++) await tapSel('.tbtn.rotate');
   ok('rotation wraps after a full turn', Math.abs(await page.evaluate(() => window.game.build.rotation)) < 1e-6);

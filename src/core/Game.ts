@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { Physics } from './Physics';
+import { PhysicsChunks } from './PhysicsChunks';
 import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
@@ -40,6 +41,8 @@ export class Game {
   camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
   renderer!: Renderer;
   physics = new Physics();
+  /** streamed terrain colliders (null with ?trimesh / ?fullphys) */
+  physChunks: PhysicsChunks | null = null;
   input!: Input;
   systems: System[] = [];
   sun!: THREE.DirectionalLight;
@@ -122,7 +125,8 @@ export class Game {
     await lap('terrain');
     this.scene.add(this.terrain.mesh);
     if (params.has('trimesh')) this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
-    else this.physics.addHeightfield(this.terrain.heights, this.terrain.segments, WORLD_SIZE);
+    else if (params.has('fullphys')) this.physics.addHeightfield(this.terrain.heights, this.terrain.segments, WORLD_SIZE);
+    else { this.physChunks = new PhysicsChunks(this.physics, this.terrain.heights, this.terrain.segments, WORLD_SIZE); this.physChunks.update(SPAWN.x, SPAWN.y); }
     this.water = createWater(this.terrain.heightTexture);
     this.scene.add(this.water);
     await lap('water');
@@ -520,7 +524,10 @@ export class Game {
     // friend close-up: the world is paused; only the studio animates
     if (this.play?.friend?.open) { this.play.friend.update(dt); this.input.endFrame(); return; }
     if (this.input.pressed.has('b') && !this.cave.inside) void this.ensureBuild().then((b) => b.toggle());
+    // terrain colliders follow the player (before the character controller and again before the step)
+    { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
     for (const s of this.systems) s.update(dt, this.elapsed);
+    { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
     this.physics.step(dt);
     this.sky.position.copy(this.camera.position);
     const p = this.player.position;

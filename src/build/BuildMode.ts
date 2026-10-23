@@ -307,7 +307,7 @@ export class BuildMode implements System {
     const i = this.input;
     for (let n = 1; n <= BUILDABLES.length; n++) if (i.pressed.has(String(n))) this.select(n - 1);
     if (i.pressed.has('r')) this.rotate();
-    if (i.pressed.has('z') && (i.keys.has('control') || i.keys.has('meta'))) this.undo();
+    if (i.pressed.has('undo')) this.undo();
     if (i.pressed.has('x')) this.removeHovered();
     if (i.wheel !== 0 && i.keys.has('control')) this.select(this.selected + i.wheel);
 

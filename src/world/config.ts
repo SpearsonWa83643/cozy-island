@@ -22,6 +22,10 @@ export const WORLD_SIZE = 196;
 export const WORLD_HALF = WORLD_SIZE / 2;
 /** target terrain tile size (metres); tiles are vertex-aligned so the real size is ~WORLD_SIZE / round(WORLD_SIZE / CHUNK_SIZE) */
 export const CHUNK_SIZE = 64;
+/** terrain physics tile size (metres); only the ring of tiles around the player has a collider (Order 36) */
+export const PHYS_CHUNK_SIZE = 32;
+/** tiles kept on each side of the player's tile: 1 = a 3x3 ring */
+export const PHYS_RING = 1;
 /** ocean plane extent (metres) */
 export const OCEAN_SIZE = 1200;
 /** world half-size shown on the paper map */
