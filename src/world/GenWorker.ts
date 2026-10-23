@@ -132,14 +132,21 @@ export async function generateIsletGrid(k: number, timeoutMs = 15000): Promise<{
     const w = new Worker(new URL('./gen.worker.ts', import.meta.url), { type: 'module' });
     try {
       const grid = await new Promise<Float32Array>((resolve, reject) => {
-        const timer = window.setTimeout(() => reject(new Error(`timeout ${timeoutMs}ms`)), timeoutMs);
-        w.onmessage = (e: MessageEvent<GenReply>) => { clearTimeout(timer); if (e.data.data) resolve(e.data.data); else reject(new Error(e.data.error ?? 'no data')); };
-        w.onerror = (ev) => { clearTimeout(timer); reject(new Error(ev.message || 'worker error')); };
+        // count only time the main thread was free to hear back (a long blocking frame / test loop
+        // mustn't look like a dead worker): 250 ms ticks, each capped at 300 ms
+        let waited = 0, last = performance.now();
+        const timer = window.setInterval(() => {
+          const now = performance.now(); waited += Math.min(300, now - last); last = now;
+          if (waited >= timeoutMs) { clearInterval(timer); reject(new Error(`timeout ${timeoutMs}ms`)); }
+        }, 250);
+        w.onmessage = (e: MessageEvent<GenReply>) => { clearInterval(timer); if (e.data.data) resolve(e.data.data); else reject(new Error(e.data.error ?? 'no data')); };
+        w.onerror = (ev) => { clearInterval(timer); reject(new Error(ev.message || 'worker error')); };
         w.postMessage({ id: 1, kind: 'height', region } satisfies GenRequest);
       });
       return { grid, mode: 'worker', ms: performance.now() - t0 };
     } catch (err) {
-      console.warn('[gen] islet worker failed, using main thread:', err);
+      // handled: the islet is still generated (on the main thread), so not a warning on a slow device
+      console.info('[gen] islet worker failed, using main thread:', err);
     } finally { w.terminate(); }
   }
   return { grid: sampleHeights(region), mode: 'main', ms: performance.now() - t0 };
