@@ -68,3 +68,21 @@ export function randomIslandPoint(rnd: () => number, k = 1, out = { x: 0, z: 0 }
   const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * ISLAND_RADIUS * k;
   out.x = Math.cos(a) * d; out.z = Math.sin(a) * d; return out;
 }
+
+/**
+ * The generated archipelago (Walker, Oct 23: "generated and a cluster of islands"). Each islet is a
+ * separate generated height field outside the main grid, streamed in near the camera (Order 42).
+ * x/z = centre (world m), r = mean shoreline radius (m), peak = central knoll height (m).
+ */
+export interface IsletDef { id: string; name: string; x: number; z: number; r: number; seed: number; peak: number }
+export const ISLETS: IsletDef[] = [
+  // Blossom Isle (Order 42): ~120 m across, ~270 m from the centre (~210 m of open sea) to the north-east, past Lighthouse Point
+  { id: 'blossom', name: 'Blossom Isle', x: 190, z: -190, r: 66, seed: 4242, peak: 6.5 },
+];
+/** islet height-field extent (m, square around the islet centre) and grid spacing (m) */
+export const ISLET_SIZE = 184; // islet boxes must not overlap the main grid (|x|,|z| <= WORLD_HALF)
+export const ISLET_RES = 1;
+/** islets start generating when the camera is this close to their centre (m) */
+export const ISLET_GEN_RADIUS = STREAM_RADIUS + 120;
+/** flying mounts may roam this far past the nearest shore (m); swimmers keep the reef leash */
+export const FLY_LEASH = 85;

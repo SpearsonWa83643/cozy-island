@@ -4,7 +4,8 @@ import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
 import type { System } from '../core/System';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
-import { offshore, SWIM_SOFT, SWIM_MAX } from '../world/Shore';
+import { SWIM_SOFT, SWIM_MAX, nearestLand } from '../world/Shore';
+const LAND = { off: 0, cx: 0, cz: 0, islet: -1 };
 import { mat } from '../world/Models';
 import { Outfit, type Sockets } from './Wearables';
 
@@ -224,11 +225,13 @@ export class Player implements System {
     const t = this.body.translation();
     const feet = t.y - HALF_H - RADIUS;
     // soft swim boundary: past SWIM_SOFT a gentle current carries you back toward the beach (no invisible wall)
-    this.offshoreDist = this.depth > 0.2 && !this.inCave ? offshore(t.x, t.z) : -1;
+    // nearest landmass (main island or an archipelago islet, Order 42a): the current carries you back to *that* beach
+    const land = this.depth > 0.2 && !this.inCave ? nearestLand(t.x, t.z, LAND) : null;
+    this.offshoreDist = land ? land.off : -1;
     this.current = smooth(SWIM_SOFT, SWIM_MAX, this.offshoreDist);
-    if (this.current > 0) {
-      const r = Math.hypot(t.x, t.z) || 1, push = this.current * 3.4 + smooth(SWIM_MAX, SWIM_MAX + 5, this.offshoreDist) * 6;
-      mx -= (t.x / r) * push; mz -= (t.z / r) * push;
+    if (this.current > 0 && land) {
+      const rx = t.x - land.cx, rz = t.z - land.cz, r = Math.hypot(rx, rz) || 1, push = this.current * 3.4 + smooth(SWIM_MAX, SWIM_MAX + 5, this.offshoreDist) * 6;
+      mx -= (rx / r) * push; mz -= (rz / r) * push;
     }
     if (this.swimming) {
       // buoyancy: ease the feet toward the float line with a gentle bob

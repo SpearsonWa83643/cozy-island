@@ -4,7 +4,7 @@
  * generation Web Worker (gen.worker.ts) — same code, same seeds → bit-identical output.
  */
 import { Noise2D } from './noise';
-import { ISLAND_SCALE, BASE_RADIUS, ISLAND_RADIUS, BASE_CENTERS, BASE_POND } from './config';
+import { ISLAND_SCALE, BASE_RADIUS, ISLAND_RADIUS, BASE_CENTERS, BASE_POND, ISLETS, OUT_OF_WORLD_DEPTH, type IsletDef } from './config';
 
 export const BIOME_COUNT = 6;
 /** must match the Biome enum in Biomes.ts */
@@ -94,12 +94,14 @@ export function heightRaw(wx: number, wz: number): number {
  * A rectangular block of grid samples: columns i ∈ [i0, i0+w), rows j ∈ [j0, j0+h) of a square grid
  * with `res` m spacing whose sample (0,0) sits at world (-size/2, -size/2).
  */
-export interface GenRegion { size: number; res: number; i0: number; j0: number; w: number; h: number }
+export interface GenRegion { size: number; res: number; i0: number; j0: number; w: number; h: number; /** sample islet #k (grid centred on the islet) instead of the main island */ islet?: number }
 
 /** heights for a region, row-major */
 export function sampleHeights(r: GenRegion, out = new Float32Array(r.w * r.h)) {
+  const d = r.islet != null ? ISLETS[r.islet] : null;
   for (let j = 0; j < r.h; j++) for (let i = 0; i < r.w; i++) {
-    out[j * r.w + i] = heightRaw((r.i0 + i) * r.res - r.size / 2, (r.j0 + j) * r.res - r.size / 2);
+    const x = (r.i0 + i) * r.res - r.size / 2, z = (r.j0 + j) * r.res - r.size / 2;
+    out[j * r.w + i] = d ? isletHeightRaw(d, x + d.x, z + d.z) : heightRaw(x, z);
   }
   return out;
 }
@@ -111,4 +113,35 @@ export function sampleBiomes(r: GenRegion, out = new Float32Array(r.w * r.h * BI
     out.set(tmp, (j * r.w + i) * BIOME_COUNT);
   }
   return out;
+}
+
+// ---------------------------------------------------------------- archipelago islets (Order 42)
+const isletNoise = new Map<number, Noise2D>();
+function nz(seed: number) { let n = isletNoise.get(seed); if (!n) isletNoise.set(seed, (n = new Noise2D(seed))); return n; }
+/** wobbly shoreline radius of an islet along an angle (m) */
+export function isletShoreR(d: IsletDef, ang: number) {
+  const n = nz(d.seed);
+  return d.r * (1 + 0.16 * n.noise(Math.cos(ang) * 1.4 + 5, Math.sin(ang) * 1.4 + 5) + 0.07 * n.noise(Math.cos(ang) * 3.2 + 11, Math.sin(ang) * 3.2 + 11));
+}
+/**
+ * Analytic islet height at a world position: a soft rolling island with a central knoll, a sandy rim,
+ * a shallow reef shelf and a drop to the open-sea floor (clamped to OUT_OF_WORLD_DEPTH so the islet's
+ * grid edge meets the open sea without a step).
+ */
+export function isletHeightRaw(d: IsletDef, wx: number, wz: number): number {
+  const n = nz(d.seed), m = nz(d.seed + 1);
+  const x = wx - d.x, z = wz - d.z;
+  const R = isletShoreR(d, Math.atan2(z, x));
+  const r = Math.hypot(x, z) / R;
+  const land = smooth(1.0, 0.8, r);
+  const hill = smooth(0.95, 0.2, r);
+  const rolling = n.fbm(x * 0.04 + 3, z * 0.04 - 7, 4) * 0.5 + 0.5;
+  const kx = x + d.r * 0.12, kz = z - d.r * 0.08, ks = d.r * 0.3;
+  const knoll = Math.exp(-(kx * kx + kz * kz) / (2 * ks * ks));
+  const bumps = m.fbm(x * 0.13, z * 0.13, 3) * 0.22;
+  let h = land * 1.0 + hill * (rolling * 2.0 + knoll * d.peak + bumps);
+  const past = Math.max(0, r - 1.0) * R;
+  const shelf = 1.6 + m.fbm(x * 0.16 + 40, z * 0.16 - 20, 2) * 0.4 * smooth(0, 4, past) + smooth(10, 22, past) * 2.6;
+  h -= (1 - land) * shelf;
+  return Math.max(h, OUT_OF_WORLD_DEPTH);
 }

@@ -1,14 +1,14 @@
 import * as THREE from 'three/webgpu';
 import {
-  cameraPosition, clamp, color, cos, dot, float, max, mix, mx_noise_float, normalize,
+  cameraPosition, clamp, color, step, vec2, cos, dot, float, max, mix, mx_noise_float, normalize,
   positionLocal, positionWorld, pow, sin, smoothstep, texture, time, transformNormalToView, vec3,
 } from 'three/tsl';
-import { WORLD_SIZE, OCEAN_SIZE } from './config';
+import { WORLD_SIZE, OCEAN_SIZE, ISLETS, ISLET_SIZE } from './config';
 import { skyU } from './Sky';
 import { waterDeep, waterK, waterMid, waterShallow } from '../theme/Season';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
-export function createWater(heightTex: THREE.Texture): THREE.Mesh {
+export function createWater(heightTex: THREE.Texture, isletTex: THREE.Texture[] = []): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(OCEAN_SIZE, OCEAN_SIZE, 220, 220);
   geo.rotateX(-Math.PI / 2);
   const t = time;
@@ -36,7 +36,14 @@ export function createWater(heightTex: THREE.Texture): THREE.Mesh {
   mat.normalNode = transformNormalToView(nWorld);
 
   const uvH = w.xz.div(WORLD_SIZE).add(0.5);
-  const h = texture(heightTex, uvH).r.mul(10).sub(4);
+  let h = texture(heightTex, uvH).r.mul(10).sub(4);
+  // archipelago islets (Order 42a): their own height maps, only inside each islet's box
+  isletTex.forEach((tex, k) => {
+    const d = ISLETS[k];
+    const uvI = w.xz.sub(vec2(d.x, d.z)).div(ISLET_SIZE).add(0.5);
+    const inside = step(0, uvI.x).mul(step(uvI.x, 1)).mul(step(0, uvI.y)).mul(step(uvI.y, 1));
+    h = max(h, texture(tex, uvI).r.mul(10).sub(4).mul(inside).add(inside.oneMinus().mul(-10)));
+  });
   const depth = clamp(h.negate(), 0, 6);
 
   // Classic island palette (clearer shallows, richer deep blue); season uniforms tint toward theme water when waterK > 0

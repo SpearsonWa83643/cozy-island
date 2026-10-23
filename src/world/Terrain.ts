@@ -3,12 +3,13 @@ import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_flo
 import { Biome, BiomeField, BIOME_COUNT } from './Biomes';
 import { seasonGround } from '../theme/Season';
 
-import { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE, STREAM_RADIUS, STREAM_HYSTERESIS, TILE_CAP } from './config';
+import { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL, CHUNK_SIZE, STREAM_RADIUS, STREAM_HYSTERESIS, TILE_CAP } from './config';
 // re-exported for existing importers; the source of truth is ./config
 export { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL };
 
 // height + biome maths live in the pure generation core (shared with the gen worker, Order 39a)
 import { heightRaw, noise, noiseB, smooth } from './gen';
+import { isletHeightAt } from './isletGrid';
 export { heightRaw, smooth };
 
 // ---- cached height grid (0.5 m) with bilinear lookup ----
@@ -31,7 +32,8 @@ export function setHeightGrid(g: Float32Array) {
 export function heightAt(x: number, z: number): number {
   if (!grid) buildGrid();
   let fx = (x + WORLD_SIZE / 2) / GRID_RES, fz = (z + WORLD_SIZE / 2) / GRID_RES;
-  if (fx < 0 || fz < 0 || fx >= GRID_N - 1 || fz >= GRID_N - 1) return OUT_OF_WORLD_DEPTH;
+  // outside the main grid: archipelago islets (Order 42) or the open-sea floor
+  if (fx < 0 || fz < 0 || fx >= GRID_N - 1 || fz >= GRID_N - 1) return isletHeightAt(x, z);
   const i = Math.floor(fx), j = Math.floor(fz);
   fx -= i; fz -= j;
   const g = grid!, a = j * GRID_N + i;
@@ -163,6 +165,8 @@ export class Terrain {
   /** vertex heights, row-major (z rows, x cols), (seg+1)² — feeds the physics heightfield */
   heights: Float32Array;
   get segments() { return this.seg; }
+  /** shared terrain material (islets reuse it so they get the same detail shading + season tint) */
+  material!: THREE.MeshStandardNodeMaterial;
 
   constructor() {
     const seg = 200;
@@ -192,6 +196,7 @@ export class Terrain {
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+    this.material = mat;
     // Procedural detail layer (no textures): grass clumps, sand ripples, rock strata, snow/sand glints.
     const mk = attribute('mask', 'vec4');
     const pw = positionWorld;

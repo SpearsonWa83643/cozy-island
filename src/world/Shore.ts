@@ -1,5 +1,7 @@
 import { heightAt } from './Terrain';
 import { WORLD_HALF } from './config';
+import { ISLETS } from './config';
+import { isletOffshore } from './isletGrid';
 
 /** Outer shoreline radius per angle (the island is star-shaped enough for this), for swim limits and reef placement. */
 const BINS = 720;
@@ -28,3 +30,16 @@ export function atOffshore(ang: number, off: number, out = { x: 0, z: 0 }) {
 }
 /** the swim limit: past this the current gently pulls you back */
 export const SWIM_SOFT = 12, SWIM_MAX = 19;
+
+/**
+ * Nearest landmass (Order 42a): the main island or an archipelago islet. `off` = metres past that
+ * shore (negative = on land), (cx, cz) = its centre, for currents / leashes that push back to land.
+ */
+export function nearestLand(x: number, z: number, out = { off: 0, cx: 0, cz: 0, islet: -1 }) {
+  out.off = offshore(x, z); out.cx = 0; out.cz = 0; out.islet = -1;
+  for (let k = 0; k < ISLETS.length; k++) {
+    const o = isletOffshore(k, x, z);
+    if (o < out.off) { out.off = o; out.cx = ISLETS[k].x; out.cz = ISLETS[k].z; out.islet = k; }
+  }
+  return out;
+}

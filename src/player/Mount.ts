@@ -4,7 +4,9 @@ import type { Input } from '../core/Input';
 import type { Player } from './Player';
 import type { CameraRig } from './CameraRig';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
-import { offshore, shoreRadius, atOffshore, SWIM_MAX } from '../world/Shore';
+import { offshore, shoreRadius, atOffshore, nearestLand, SWIM_MAX } from '../world/Shore';
+import { FLY_LEASH } from '../world/config';
+const LAND = { off: 0, cx: 0, cz: 0, islet: -1 };
 import { mountById, type MountDef, type MountId } from './MountDefs';
 import { BIOME_CENTERS } from '../world/Biomes';
 import { BUILDERS, type MountRig } from './MountArt';
@@ -420,8 +422,9 @@ export class Mount implements System {
     this.speed += (want - this.speed) * Math.min(1, dt * ac * (want > this.speed ? 1.8 : 1.4));
     let nx = this.gx + Math.sin(this.heading) * this.speed * dt, nz = this.gz + Math.cos(this.heading) * this.speed * dt;
     // soft leash: past the reef the wind turns you back toward the island
-    const off = offshore(nx, nz);
-    if (off > SWIM_MAX + 6) { const r = Math.hypot(nx, nz) || 1, push = Math.min(1, (off - SWIM_MAX - 6) / 6) * 8 * dt; nx -= (nx / r) * push; nz -= (nz / r) * push; }
+    // fliers may cross open sea to the archipelago islets (Order 42a); swimmers keep the reef leash
+    const land = nearestLand(nx, nz, LAND), leash = this.swims ? SWIM_MAX + 6 : FLY_LEASH;
+    if (land.off > leash) { const rx = nx - land.cx, rz = nz - land.cz, r = Math.hypot(rx, rz) || 1, push = Math.min(1, (land.off - leash) / 6) * 8 * dt; nx -= (rx / r) * push; nz -= (rz / r) * push; }
     if (this.swims) {
       // never up onto the beach: slide along the shallows, or stop and nose about
       const ok = (x: number, z: number) => this.depthAt(x, z) > SHALLOW;

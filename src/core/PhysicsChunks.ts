@@ -18,7 +18,8 @@ export class PhysicsChunks {
   private cx = Number.NaN; private cz = Number.NaN;
   /** colliders created / removed since start (debug + tests) */
   stats = { added: 0, removed: 0 };
-  constructor(private physics: Physics, private grid: Float32Array, private seg: number, private size: number, tileSize = PHYS_CHUNK_SIZE, private ring = PHYS_RING) {
+  constructor(private physics: Physics, private grid: Float32Array, private seg: number, private size: number, tileSize = PHYS_CHUNK_SIZE, private ring = PHYS_RING,
+    /** grid centre (world xz); islets (Order 42a) sit off the origin */ private ox = 0, private oz = 0, /** drop every collider once the player is this far outside the grid (m); Infinity = never */ private dropBeyond = Infinity) {
     this.per = Math.max(1, Math.round(size / tileSize));
     const cuts = Array.from({ length: this.per + 1 }, (_, k) => Math.round((k * seg) / this.per));
     for (let cj = 0; cj < this.per; cj++) for (let ci = 0; ci < this.per; ci++)
@@ -28,9 +29,17 @@ export class PhysicsChunks {
   /** tile column/row containing world (x, z), clamped to the grid */
   tileOf(x: number, z: number) {
     const f = (v: number) => Math.max(0, Math.min(this.per - 1, Math.floor(((v + this.size / 2) / this.size) * this.per)));
-    return { ci: f(x), cj: f(z) };
+    return { ci: f(x - this.ox), cj: f(z - this.oz) };
+  }
+  /** true when (x, z) is within `dropBeyond` m of the grid */
+  near(x: number, z: number) { const h = this.size / 2 + this.dropBeyond; return Math.abs(x - this.ox) <= h && Math.abs(z - this.oz) <= h; }
+  /** remove every collider (player far away) */
+  clear() {
+    for (const t of this.tiles) if (t.col) { const b = t.col.parent(); if (b) this.physics.world.removeRigidBody(b); else this.physics.remove(t.col); t.col = null; this.stats.removed++; }
+    this.cx = this.cz = Number.NaN;
   }
   update(x: number, z: number, force = false) {
+    if (!this.near(x, z)) { if (!Number.isNaN(this.cx)) this.clear(); return; }
     const { ci, cj } = this.tileOf(x, z);
     if (!force && ci === this.cx && cj === this.cz) return;
     this.cx = ci; this.cz = cj;
@@ -51,7 +60,7 @@ export class PhysicsChunks {
     // Rapier: column-major, rows along z, cols along x
     for (let ix = 0; ix <= nx; ix++) for (let iz = 0; iz <= nz; iz++) heights[iz + ix * (nz + 1)] = this.grid[(t.j0 + iz) * n + (t.i0 + ix)];
     const w = nx * step, d = nz * step;
-    const cx = -this.size / 2 + (t.i0 + nx / 2) * step, cz = -this.size / 2 + (t.j0 + nz / 2) * step;
+    const cx = this.ox - this.size / 2 + (t.i0 + nx / 2) * step, cz = this.oz - this.size / 2 + (t.j0 + nz / 2) * step;
     const R = this.physics.R;
     const body = this.physics.world.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(cx, 0, cz));
     return this.physics.world.createCollider(R.ColliderDesc.heightfield(nz, nx, heights, { x: w, y: 1, z: d }), body);

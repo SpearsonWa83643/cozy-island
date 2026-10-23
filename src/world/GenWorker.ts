@@ -11,7 +11,8 @@
  */
 import { GRID_N, GRID_RES, heightGridReady, setHeightGrid, biomes, heightRaw } from './Terrain';
 import { sampleHeights, sampleBiomes, BIOME_COUNT, type GenRegion } from './gen';
-import { WORLD_SIZE } from './config';
+import { WORLD_SIZE, ISLET_SIZE, ISLET_RES } from './config';
+import { ISLET_N } from './isletGrid';
 import type { GenReply, GenRequest } from './gen.worker';
 
 export const GEN_WORKER_DEFAULT = true;
@@ -118,4 +119,28 @@ export async function pregenerateWorld(timeoutMs = 20000): Promise<GenStats> {
     console.warn('[gen] worker generation failed, using main thread:', err);
     return (genStats = { mode: 'fallback', workers: 0, ms: performance.now() - t0, workerMs: 0, error: String(err) });
   }
+}
+
+/**
+ * Order 42a: generate one archipelago islet's height grid off the main thread (one worker, one job;
+ * ~34k samples). Falls back to the main thread on ?gen=main, no Worker support, an error or a timeout.
+ */
+export async function generateIsletGrid(k: number, timeoutMs = 15000): Promise<{ grid: Float32Array; mode: 'worker' | 'main'; ms: number }> {
+  const t0 = performance.now();
+  const region: GenRegion = { size: ISLET_SIZE, res: ISLET_RES, i0: 0, j0: 0, w: ISLET_N, h: ISLET_N, islet: k };
+  if (genMode() !== 'main' && typeof Worker !== 'undefined') {
+    const w = new Worker(new URL('./gen.worker.ts', import.meta.url), { type: 'module' });
+    try {
+      const grid = await new Promise<Float32Array>((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error(`timeout ${timeoutMs}ms`)), timeoutMs);
+        w.onmessage = (e: MessageEvent<GenReply>) => { clearTimeout(timer); if (e.data.data) resolve(e.data.data); else reject(new Error(e.data.error ?? 'no data')); };
+        w.onerror = (ev) => { clearTimeout(timer); reject(new Error(ev.message || 'worker error')); };
+        w.postMessage({ id: 1, kind: 'height', region } satisfies GenRequest);
+      });
+      return { grid, mode: 'worker', ms: performance.now() - t0 };
+    } catch (err) {
+      console.warn('[gen] islet worker failed, using main thread:', err);
+    } finally { w.terminate(); }
+  }
+  return { grid: sampleHeights(region), mode: 'main', ms: performance.now() - t0 };
 }

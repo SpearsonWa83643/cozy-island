@@ -19,8 +19,10 @@ import { Reef } from '../world/Reef';
 import { Cave } from '../world/Cave';
 import { Lighthouse } from '../world/Lighthouse';
 import { Shipwreck } from '../world/Shipwreck';
+import { Islets, isletWaterTexture } from '../world/Islet';
+import { ISLETS } from '../world/config';
 import { Atmosphere } from '../world/Atmosphere';
-import { offshore, atOffshore, shoreRadius } from '../world/Shore';
+import { offshore, atOffshore, shoreRadius, nearestLand } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
@@ -64,6 +66,8 @@ export class Game {
   cave!: Cave;
   lighthouse!: Lighthouse;
   wreck!: Shipwreck;
+  /** archipelago islets (Order 42): generated + streamed in near the camera */
+  islets!: Islets;
   /** height fog + aerial perspective (TSL fog node driven by `fog`) */
   atmos!: Atmosphere;
   get fogState() { return this.fog; }
@@ -78,7 +82,7 @@ export class Game {
   readonly isTouch = detectTouch();
   /** debug/test helper */
   heightAt = heightAt;
-  coast = { offshore, atOffshore, shoreRadius };
+  coast = { offshore, atOffshore, shoreRadius, nearestLand };
   ready = false;
   loadTiming!: LoadTiming;
   /** how the world grids were generated (Order 39a) */
@@ -86,7 +90,7 @@ export class Game {
   /** blended biome weights around the player (smoothed) */
   biome = new Float32Array(BIOME_COUNT);
   private timer = new THREE.Timer();
-  private elapsed = 0;
+  elapsed = 0;
   private fog = new THREE.Fog('#cfe3ea', 70, 330);
   private shore = { dist: 30, pan: 0, t: 0 };
   private forest = { v: 0, t: 0 };
@@ -139,7 +143,11 @@ export class Game {
     if (params.has('trimesh')) this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
     else if (params.has('fullphys')) this.physics.addHeightfield(this.terrain.heights, this.terrain.segments, WORLD_SIZE);
     else { this.physChunks = new PhysicsChunks(this.physics, this.terrain.heights, this.terrain.segments, WORLD_SIZE); this.physChunks.update(SPAWN.x, SPAWN.y); }
-    this.water = createWater(this.terrain.heightTexture);
+    const isletTex = ISLETS.map(() => isletWaterTexture());
+    this.water = createWater(this.terrain.heightTexture, isletTex);
+    this.islets = new Islets(this.terrain.material, this.physics, isletTex);
+    if (params.get('islet') === 'off') this.islets.radius = -1;
+    this.scene.add(this.islets.group);
     this.scene.add(this.water);
     await lap('water');
     this.flora = new Flora(this.physics, SPAWN);
@@ -543,8 +551,9 @@ export class Game {
     // terrain colliders follow the player (before the character controller and again before the step)
     { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
     { const cp = this.camera.position; this.terrain.stream(cp.x, cp.z); }
+    { const cp = this.camera.position, pp = this.player.position; if (this.islets.radius >= 0 && this.elapsed > 4) this.islets.update(cp.x, cp.z, pp.x, pp.z); } // after the first-load settle (Order 42a)
     for (const s of this.systems) s.update(dt, this.elapsed);
-    { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
+    { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); this.islets.physUpdate(pp.x, pp.z); }
     this.physics.step(dt);
     this.sky.position.copy(this.camera.position);
     const p = this.player.position;
