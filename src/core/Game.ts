@@ -84,7 +84,7 @@ export class Game {
     this.loadTiming = beginLoadTiming();
     const loader = new Loader();
     loader.set(0.03, 'start');
-    const P: Record<string, number> = { physics: 0.1, terrain: 0.18, water: 0.24, flora: 0.33, cave: 0.38, fauna: 0.42, reef: 0.48, renderer: 0.55, gameplay: 0.59, dress: 0.63 };
+    const P: Record<string, number> = { physics: 0.1, terrain: 0.18, water: 0.24, flora: 0.33, cave: 0.38, fauna: 0.42, reef: 0.48, renderer: 0.55, gameplay: 0.59, dress: 0.63, compile: 0.98, settle: 0.99 };
     /** mark + advance the loading bar; `paint` yields so the bar visibly moves (only at a few heavy points). */
     const lap = async (n: string, paint = false) => { this.loadTiming.mark(n); loader.set(P[n] ?? 0, n); if (paint) await nextPaint(); };
     this.renderer = new Renderer(container, params.has('webgl'));
@@ -259,6 +259,8 @@ export class Game {
     await this.warmUp(loader);
     await lap('compile');
     await lazy;
+    if (!params.has('nosettle')) await this.settle();
+    await lap('settle');
     loader.set(1, undefined, 'Ready!');
     loader.hide();
     this.ready = true;
@@ -319,6 +321,24 @@ export class Game {
     }
     loader.set(p1, undefined, 'Almost there…');
     await nextPaint();
+  }
+
+  /**
+   * First-load hitch smoothing (Order 30.5): anything added after the grouped warm-up
+   * (restored builds, lazy feature chunks, guide/treasure markers) still needs its pipelines,
+   * and the warm-up ran on a tiny target, so the first visible frame used to reallocate
+   * full-size post/shadow targets. Compile the whole scene once (already-compiled materials
+   * are a cache hit) and render one hidden full-resolution primer frame behind the loader.
+   */
+  private async settle() {
+    const r = this.renderer.renderer;
+    const t0 = performance.now();
+    try { await r.compileAsync(this.scene, this.camera); } catch { /* compile is an optimisation only */ }
+    const t1 = performance.now();
+    await nextPaint();
+    this.renderer.render(this.scene, this.camera);
+    await nextPaint();
+    if (this.loadTiming.enabled) console.log(`[warmup] settle compile ${(t1 - t0).toFixed(0)}ms primer ${(performance.now() - t1).toFixed(0)}ms`);
   }
 
   /** Load BuildMode chunk on demand (also called after ready to restore saves). */

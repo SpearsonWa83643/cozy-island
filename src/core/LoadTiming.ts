@@ -20,6 +20,9 @@ function navDownloadMs(): number | null {
 }
 
 let shared: LoadTiming | null = null;
+/** a frame this long is a visible hitch (below 20 fps); the 30 fps floor is 33 ms */
+export const LONG_MS = 50;
+const WINDOW_MS = 10_000;
 
 export class LoadTiming {
   readonly enabled: boolean;
@@ -27,6 +30,9 @@ export class LoadTiming {
   readonly marks: LoadMarks = {};
   private el: HTMLPreElement | null = null;
   private firstFrameDone = false;
+  /** first-10 s frame stats after the world appears (Order 30.5): long = over LONG_MS */
+  readonly frames = { n: 0, long: 0, max: 0, sum: 0, done: false, deltas: [] as number[] };
+  private fStart = 0; private fLast = 0; private fPaintT = 0;
 
   constructor(enabled: boolean, t0 = performance.now()) {
     this.enabled = enabled;
@@ -50,10 +56,27 @@ export class LoadTiming {
   }
 
   firstFrame() {
-    if (this.firstFrameDone) return;
+    if (this.firstFrameDone) { this.trackFrame(); return; }
     this.firstFrameDone = true;
     this.mark('firstFrame');
     this.mark('interactive');
+    this.fStart = this.fLast = performance.now();
+  }
+
+  /** Per-frame: record frame times for the first WINDOW_MS after the first visible frame. */
+  private trackFrame() {
+    const f = this.frames;
+    if (f.done) return;
+    const now = performance.now();
+    const d = now - this.fLast;
+    this.fLast = now;
+    f.n++; f.sum += d; if (d > f.max) f.max = d; if (d > LONG_MS) f.long++;
+    if (f.deltas.length < 2000) f.deltas.push(Math.round(d * 10) / 10);
+    if (now - this.fStart >= WINDOW_MS) {
+      f.done = true;
+      if (this.enabled) console.info(`[startup] first 10 s: ${f.n} frames, ${f.long} long (>${LONG_MS} ms), max ${f.max.toFixed(0)} ms`);
+      this.paint();
+    } else if (this.enabled && now - this.fPaintT > 500) { this.fPaintT = now; this.paint(); }
   }
 
   private mount() {
@@ -78,7 +101,7 @@ export class LoadTiming {
     const lines = ['load timing (?debug)'];
     const order = [
       'module', 'download', 'physics', 'terrain', 'water', 'flora', 'cave', 'fauna', 'reef',
-      'renderer', 'gameplay', 'dress', 'compile', 'firstFrame', 'interactive',
+      'renderer', 'gameplay', 'dress', 'compile', 'settle', 'firstFrame', 'interactive',
     ];
     const seen = new Set<string>();
     for (const k of order) {
@@ -87,11 +110,15 @@ export class LoadTiming {
     for (const k of Object.keys(this.marks)) {
       if (!seen.has(k)) lines.push(`${k.padEnd(12)} ${this.marks[k]!.toFixed(0)} ms`);
     }
+    const f = this.frames;
+    if (f.n > 0) {
+      lines.push(`${(f.done ? 'first 10 s' : 'frames…').padEnd(12)} ${f.long} long >${LONG_MS} ms, max ${f.max.toFixed(0)} ms, avg ${(f.sum / f.n).toFixed(1)} ms`);
+    }
     this.el.textContent = lines.join('\n');
   }
 
   private expose() {
-    const api = { t0: this.t0, marks: this.marks, enabled: this.enabled };
+    const api = { t0: this.t0, marks: this.marks, enabled: this.enabled, frames: this.frames };
     (window as unknown as { __loadTiming: typeof api }).__loadTiming = api;
   }
 }
