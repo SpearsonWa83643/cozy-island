@@ -144,6 +144,7 @@ export class Hud {
       ? `✖ Remove mode · tap a piece to remove · ${count} placed`
       : `🔨 Build mode · ${BUILD_CATALOG[selected].label} · ${count} placed`;
     this.slots.forEach((s, i) => s.classList.toggle('sel', i === selected));
+    if (active && this.hotbar.scrollWidth > this.hotbar.clientWidth) { const s = this.slots[selected]; if (s) this.hotbar.scrollLeft = Math.max(0, Math.min(s.offsetLeft - this.hotbar.clientWidth / 2 + s.offsetWidth / 2, this.hotbar.scrollWidth - this.hotbar.clientWidth)); }
   }
 
   /** Real wall-clock FPS (not the clamped sim dt). */

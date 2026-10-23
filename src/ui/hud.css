@@ -78,6 +78,11 @@ body.touch .qbtn { padding: 9px 16px; }
 .touch-ui.building .tbtns { grid-template-columns: repeat(3, 76px); }
 .tbtn.undo.nope { animation: mp-wiggle .4s; }
 body.touch .hotbar { bottom: max(24px, env(safe-area-inset-bottom)); }
+/* Order 40: more pieces than fit between the joystick and the build buttons, so the bar scrolls sideways */
+body.touch .hotbar { left: 185px; right: 290px; transform: none; overflow-x: auto; overflow-y: hidden; padding: 8px 4px 6px; pointer-events: auto; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+body.touch .hotbar::-webkit-scrollbar { display: none; }
+body.touch .hotbar.off { transform: translateY(20px); pointer-events: none; }
+.hotbar .slot { flex: 0 0 auto; }
 body.touch .slot { width: 70px; height: 70px; }
 body.touch .mode { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px); }
 

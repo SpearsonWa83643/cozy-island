@@ -19,4 +19,7 @@ export const BUILD_CATALOG: BuildMeta[] = [
   { id: 'skylantern', label: 'Lantern', icon: '🏮' },
   { id: 'heartballoon', label: 'Heart Balloon', icon: '💖' },
   { id: 'chick', label: 'Chick', icon: '🐣' },
+  { id: 'path', label: 'Stone Path', icon: '🪨' },
+  { id: 'stairs', label: 'Stairs', icon: '🪜' },
+  { id: 'bridge', label: 'Bridge', icon: '🌉' },
 ];

@@ -4,7 +4,7 @@ import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
 import type { System } from '../core/System';
 import { heightAt, type Terrain } from '../world/Terrain';
-import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree } from '../world/Models';
+import { makeBlock, makeFence, makeFlowerPot, makeLamp, makeRoundTree, mat } from '../world/Models';
 import { mulberry32 } from '../world/noise';
 import { pumpkinGeo, faceGeo, flowerboxGeo, sunflowerGeo, haybaleGeo, snowmanGeo, cornucopiaGeo, xmastreeGeo, giftGeo, skyLanternGeo, heartBalloonGeo, chickGeo } from '../theme/Dress';
 import { theme, THEMES } from '../theme/theme';
@@ -19,6 +19,10 @@ export interface Buildable {
   box: [number, number, number, number];
   stackable: boolean; // others can be placed on top
   height: number;
+  /** walkable pieces: several colliders [offX, centerY, offZ, hx, hy, hz] (local, before rotation) */
+  boxes?: [number, number, number, number, number, number][];
+  /** bridge: spans water, ends rest on land at +/- span along its length */
+  span?: number;
 }
 
 const treeRnd = mulberry32(99);
@@ -41,7 +45,58 @@ export const BUILDABLES: Buildable[] = [
   { id: 'skylantern', label: 'Lantern', icon: '🏮', make: () => wrap(skyLanternGeo()), box: [0.2, 0.22, 0.2, 0.22], stackable: false, height: 0.5 },
   { id: 'heartballoon', label: 'Heart Balloon', icon: '💖', make: () => wrap(heartBalloonGeo()), box: [0.1, 1.0, 0.1, 1.0], stackable: false, height: 2.2 },
   { id: 'chick', label: 'Chick', icon: '🐣', make: () => wrap(chickGeo()), box: [0.15, 0.2, 0.15, 0.2], stackable: false, height: 0.4 },
+  // Order 40: walkable pieces (appended so saved indices stay stable)
+  { id: 'path', label: 'Stone Path', icon: '🪨', make: makePathTile, box: [0.5, 0.04, 0.5, 0.04], stackable: false, height: 0.08 },
+  { id: 'stairs', label: 'Stairs', icon: '🪜', make: makeStairs, box: [0.5, 0.5, 0.5, 0.5], stackable: false, height: 1,
+    boxes: [0, 1, 2].map((i) => [0, (i + 1) / 6, -0.5 + (i + 0.5) / 3, 0.5, (i + 1) / 6, 1 / 6] as [number, number, number, number, number, number]) },
+  { id: 'bridge', label: 'Bridge', icon: '🌉', make: makeBridge, box: [0.6, 0.1, 1.5, 0.2], stackable: false, height: 0.4, span: 1.3,
+    boxes: [[0, 0.1, -1.1, 0.6, 0.08, 0.4], [0, 0.24, -0.45, 0.6, 0.08, 0.3], [0, 0.32, 0.2, 0.6, 0.08, 0.4], [0, 0.24, 0.8, 0.6, 0.08, 0.3], [0, 0.1, 1.3, 0.6, 0.08, 0.2]] },
 ];
+/** bridge deck height along its length (local z in [-1.5, 1.5]) */
+export const bridgeArc = (z: number) => 0.4 * Math.cos((z / 1.5) * (Math.PI / 2)) ** 0.8;
+function makePathTile() {
+  const g = new THREE.Group();
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(1, 0.05, 1), mat('#b9a27e')); bed.position.y = 0.025; bed.receiveShadow = true; g.add(bed);
+  const stone = mat('#a9adb3', { rough: 0.9 }), stone2 = mat('#c3c6ca', { rough: 0.9 });
+  const pos: [number, number, number][] = [[-0.24, -0.24, 0.2], [0.23, -0.22, 0.21], [-0.22, 0.24, 0.21], [0.25, 0.25, 0.19], [0, 0, 0.12]];
+  pos.forEach(([x, z, r], i) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.05, 0.05, 7), i % 2 ? stone : stone2);
+    m.position.set(x, 0.06, z); m.rotation.y = i * 0.7; m.castShadow = false; m.receiveShadow = true; g.add(m);
+  });
+  return g;
+}
+function makeStairs() {
+  const g = new THREE.Group();
+  const wood = mat('#d9a36a', { rough: 0.8 }), edge = mat('#b47f4c');
+  for (let i = 0; i < 3; i++) {
+    const h = (i + 1) / 3;
+    const s = new THREE.Mesh(new THREE.BoxGeometry(1, h, 1 / 3), wood); s.position.set(0, h / 2, -0.5 + (i + 0.5) / 3);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.04, 1 / 3 + 0.02), edge); t.position.set(0, h - 0.01, s.position.z);
+    s.castShadow = s.receiveShadow = true; t.receiveShadow = true; g.add(s, t);
+  }
+  return g;
+}
+function makeBridge() {
+  const g = new THREE.Group();
+  const plank = mat('#c8955c', { rough: 0.8 }), dark = mat('#8a5a32'), rope = mat('#e8d6a8');
+  const n = 13;
+  for (let i = 0; i < n; i++) {
+    const z = -1.5 + (i + 0.5) * (3 / n);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 3 / n - 0.03), i % 2 ? plank : dark);
+    p.position.set(0, bridgeArc(z) + 0.02, z); p.rotation.x = -Math.atan2(bridgeArc(z + 0.05) - bridgeArc(z - 0.05), 0.1);
+    p.castShadow = p.receiveShadow = true; g.add(p);
+  }
+  for (const x of [-0.58, 0.58]) for (let i = 0; i <= 4; i++) {
+    const z = -1.4 + i * 0.7;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), dark); post.position.set(x, bridgeArc(z) + 0.27, z); post.castShadow = true; g.add(post);
+    if (i < 4) {
+      const z2 = z + 0.7, y1 = bridgeArc(z) + 0.5, y2 = bridgeArc(z2) + 0.5;
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, Math.hypot(0.7, y2 - y1)), rope);
+      r.position.set(x, (y1 + y2) / 2, (z + z2) / 2); r.rotation.x = -Math.atan2(y2 - y1, 0.7); g.add(r);
+    }
+  }
+  return g;
+}
 function makeJack() {
   const g = new THREE.Group();
   const sh = new THREE.Mesh(pumpkinGeo(0.45), new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.55 })); sh.castShadow = true;
@@ -64,7 +119,7 @@ function makeCornucopia() { return wrap(cornucopiaGeo()); }
 function makeXmasTree() { return wrap(xmastreeGeo()); }
 function makeGift() { return wrap(giftGeo()); }
 
-interface Placed { obj: THREE.Object3D; collider: RAPIER.Collider; def: Buildable; }
+interface Placed { obj: THREE.Object3D; colliders: RAPIER.Collider[]; def: Buildable; }
 
 export class BuildMode implements System {
   active = false;
@@ -198,7 +253,9 @@ export class BuildMode implements System {
     if (placed && placed.def.stackable) p.add(n.clone().multiplyScalar(0.5)); // side of block -> neighbour cell
     const x = Math.round(p.x), z = Math.round(p.z);
     // sit on lowest-cost ground: average of cell corners so blocks don't float
-    const h = Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x, z));
+    const def = BUILDABLES[this.selected];
+    const h = def.span ? this.spanBase(x, z, def.span, this.rotation)
+      : Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x, z));
     this.target.set(x, h, z);
     return true;
   }
@@ -212,9 +269,22 @@ export class BuildMode implements System {
     return null;
   }
 
+  /** ends of a spanning piece (bridge) along its rotated length */
+  private spanEnds(x: number, z: number, span: number, rot: number) {
+    const dx = Math.sin(rot) * span, dz = Math.cos(rot) * span;
+    return [heightAt(x - dx, z - dz), heightAt(x + dx, z + dz)];
+  }
+  /** a bridge rests on its higher end, never below the water line */
+  private spanBase(x: number, z: number, span: number, rot: number) { return Math.max(0.05, ...this.spanEnds(x, z, span, rot)); }
+
   private isValid(): boolean {
     const t = this.target;
-    if (heightAt(t.x, t.z) < 0.15) return false; // no building in the sea
+    const def = BUILDABLES[this.selected];
+    if (def.span) {
+      // both ends on land (it spans the stream/pond between them), and not a steep drop
+      const [a, b] = this.spanEnds(t.x, t.z, def.span, this.rotation);
+      if (a < 0.15 || b < 0.15 || Math.abs(a - b) > 0.35) return false;
+    } else if (heightAt(t.x, t.z) < 0.15) return false; // no building in the sea
     if (t.y > 12) return false;
     const pp = this.playerPos();
     if (Math.hypot(pp.x - t.x, pp.z - t.z) < 0.7 && Math.abs(pp.y - t.y) < 1.5) return false;
@@ -233,7 +303,8 @@ export class BuildMode implements System {
   placeAt(x: number, z: number, type: number, rot = 0, y?: number): boolean {
     const def = BUILDABLES[type];
     const obj = def.make();
-    const yy = y ?? Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4));
+    const yy = y ?? (def.span ? this.spanBase(x, z, def.span, rot)
+      : Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4)));
     obj.position.set(x, yy, z);
     obj.rotation.y = rot;
     // pop-in animation
@@ -241,8 +312,10 @@ export class BuildMode implements System {
     obj.userData.pop = 0;
     this.group.add(obj);
     const [hx, hy, hz, cy] = def.box;
-    const collider = this.physics.addBox(x, yy + cy, z, hx, hy, hz, rot);
-    this.placed.push({ obj, collider, def });
+    const colliders = def.boxes
+      ? def.boxes.map(([ox, by, oz, bx, bh, bz]) => this.physics.addBox(x + ox * Math.cos(rot) + oz * Math.sin(rot), yy + by, z - ox * Math.sin(rot) + oz * Math.cos(rot), bx, bh, bz, rot))
+      : [this.physics.addBox(x, yy + cy, z, hx, hy, hz, rot)];
+    this.placed.push({ obj, colliders, def });
     this.onChange();
     return true;
   }
@@ -267,7 +340,7 @@ export class BuildMode implements System {
       const p = this.history.pop()!;
       if (!this.placed.includes(p)) continue;
       this.group.remove(p.obj);
-      this.physics.remove(p.collider);
+      for (const c of p.colliders) this.physics.remove(c);
       this.placed = this.placed.filter((x) => x !== p);
       if (this.hoverPlaced === p) this.hoverPlaced = null;
       this.onRemove();
@@ -286,7 +359,7 @@ export class BuildMode implements System {
     const p = this.hoverPlaced;
     if (!p) return;
     this.group.remove(p.obj);
-    this.physics.remove(p.collider);
+    for (const c of p.colliders) this.physics.remove(c);
     this.placed = this.placed.filter((x) => x !== p);
     this.onRemove();
     this.onChange();

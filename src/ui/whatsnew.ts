@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-goats';
+export const VERSION = '2026-10-23-paths';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'wood', text: 'New in Build Mode: stone path tiles, wooden stairs you can climb, and a little arched bridge to carry you over a stream or pond. On iPad, swipe the piece bar sideways to find them.' },
   { icon: 'heart', text: 'Mountain goats have moved onto Alpine Peak! Watch them hop from ledge to ledge on the steep slopes, then feed one clover to make a new friend.' },
   { icon: 'star', text: 'New area: Shipwreck Cove! An old ship broke in two on the reef off the tropical beach. Swim through the gap, past the fish and sunbeams, and open the captain\'s chest for the Captain Hat. It\'s on your map and the scenic tour too.' },
   { icon: 'wood', text: 'Building got easier on iPad: tap Undo to take back your last piece, and Rotate now spins the glowing preview so you can see which way it will face.' },
