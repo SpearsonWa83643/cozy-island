@@ -122,6 +122,7 @@ const center = (page, sel) => page.evaluate((sel) => { const r = document.queryS
   ok('ipad: eye button is 44pt+ and clear of other buttons', ov.size >= 44 && ov.hit.length === 0, JSON.stringify(ov));
   const eye = await center(page, '.eye-btn');
   const st0 = await page.evaluate(() => ({ yaw: window.game.rig.yaw, p: window.game.player.position.clone() }));
+  const yaw0 = st0.yaw;
   await touch('touchStart', [eye]);
   for (let i = 1; i <= 8; i++) { await touch('touchMove', [{ x: eye.x - i * 45, y: eye.y - i * 12 }]); await page.evaluate(() => window.game.step(1 / 30)); }
   const held = await page.evaluate(() => ({ down: document.querySelector('.eye-btn').classList.contains('down'), look: window.game.input.eyeLook, stick: window.game.input.stickUi.on }));
@@ -144,13 +145,21 @@ const center = (page, sel) => page.evaluate((sel) => { const r = document.queryS
   const t1 = await page.evaluate((a) => { const g = window.game; for (let i = 0; i < 6; i++) g.step(1 / 30); return { dyaw: Math.abs(g.rig.yaw - a.yaw), moved: Math.hypot(g.player.position.x - a.p.x, g.player.position.z - a.p.z) }; }, t0);
   ok('ipad: joystick + eye drag simultaneously', mid.stick && mid.look && t1.moved > 1 && t1.dyaw > 0.2, JSON.stringify({ ...mid, ...t1 }));
   // tap still walks
-  await page.evaluate(() => { const g = window.game; g.player.teleport(1.5, 8, 2.4); g.play.walk.cancel(); g.rig.pitch = 0.5; });
+  // the eye drags above rotated the camera; restore the starting view so the tap lands on the same open ground
+  await page.evaluate((y0) => { const g = window.game; g.player.teleport(1.5, 8, 2.4); g.play.walk.cancel(); g.rig.yaw = y0; g.rig.pitch = 0.5; for (let i = 0; i < 20; i++) g.step(1 / 30); g.play.walk.cancel(); }, yaw0);
   await frames(page, 2);
-  const done0 = await page.evaluate(() => window.game.play.walk.stats.done);
+  const done0 = await page.evaluate(() => {
+    const g = window.game; const i = g.input;
+    window.__tapProbe = [];
+    if (!window.__tapProbeOn) { window.__tapProbeOn = true; i.onClick.unshift((e, drag) => { window.__tapProbe?.push({ drag, button: e.button, type: e.pointerType, x: e.clientX, y: e.clientY }); }); }
+    window.__tapPre = { ptrs: i.ptrs.size, multi: i.multiTouched, stick: !!i.stickPtr, eye: i.eyeLook, lock: g.play.lockMove, preview: g.play.previewOn };
+    return g.play.walk.stats.done;
+  });
   await page.touchscreen.tap(W * 0.42, H * 0.3);
-  const walking = await page.evaluate((d0) => { const g = window.game; g.step(1 / 30); const going = !!g.play.walk.goal; return going || g.play.walk.stats.done > d0; }, done0);
+  const tapRes = await page.evaluate((d0) => { const g = window.game; g.step(1 / 30); const going = !!g.play.walk.goal; return { walking: going || g.play.walk.stats.done > d0, outcome: g.play.lastTap, yaw: +g.rig.yaw.toFixed(2), pre: window.__tapPre, clicks: window.__tapProbe, ptrsAfter: g.input.ptrs.size }; }, done0);
+  const walking = tapRes.walking;
   await page.evaluate(() => window.game.play.walk.cancel());
-  ok('ipad: quick tap on the ground still walks', walking);
+  ok('ipad: quick tap on the ground still walks', walking, JSON.stringify(tapRes));
   // mirrors for right-handed play
   await page.evaluate(() => window.game.input.setHand('right'));
   await frames(page, 2);

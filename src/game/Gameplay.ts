@@ -52,6 +52,8 @@ export class Gameplay implements System {
   private warmT = 0; private remindT = 10; private targetT = 0;
   private preview = 0; // 0..1 blend into wardrobe camera
   private previewOn = false;
+  /** debug: outcome of the last tap/click (walk, nohit, react:…, blocked, drag, …) */
+  lastTap = "";
   private previewYaw = 0;
   private camFrom = new THREE.Vector3(); private camLook = new THREE.Vector3();
   private ctx: FollowCtx;
@@ -142,8 +144,9 @@ export class Gameplay implements System {
     });
     // contextual action from a tap/click near the target
     g.input.onClick.push((e, drag) => {
-      if (drag || g.build?.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend?.open) return;
+      if (drag || g.build?.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend?.open) { this.lastTap = drag ? 'drag' : 'blocked'; return; }
       g.audio.unlock();
+      this.lastTap = 'other';
       // mount: tap the waiting eagle to hop on, or tap the ground while riding to glide there
       if (this.mount?.active) {
         const used = this.mount.onTap(e.clientX, e.clientY, (v) => this.juice.project(v), (cx, cy) => {
@@ -152,11 +155,11 @@ export class Gameplay implements System {
           this.ray.setFromCamera(ndc, g.camera);
           return g.terrain.raycast(this.ray.ray.origin, this.ray.ray.direction);
         }, g.isTouch ? 80 : 64);
-        if (used) { this.walk.cancel(false); return; }
+        if (used) { this.lastTap = 'mount'; this.walk.cancel(false); return; }
       }
       // tapping a follower opens its close-up friend screen
       const fr = this.friendAt(e.clientX, e.clientY);
-      if (fr) { this.walk.cancel(false); void this.ensureFriend().then((fs) => fs.show(fr)); return; }
+      if (fr) { this.lastTap = 'friend'; this.walk.cancel(false); void this.ensureFriend().then((fs) => fs.show(fr)); return; }
       // Lighthouse Point: tap the tower for the foghorn + a bright flash
       if (!g.cave.inside && g.lighthouse?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56, g.player.position)) {
         const lh = g.lighthouse, p0 = g.player.position, dd = Math.hypot(lh.pos.x - p0.x, lh.pos.z - p0.z);
@@ -179,16 +182,16 @@ export class Gameplay implements System {
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
-        if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 64 : 56)) { this.walk.cancel(false); this.act(); return; }
+        if (Math.hypot(s.x - e.clientX, s.y - e.clientY) < (g.isTouch ? 64 : 56)) { this.lastTap = 'act'; this.walk.cancel(false); this.act(); return; }
       }
-      this.tapAt(e.clientX, e.clientY);
+      this.lastTap = this.tapAt(e.clientX, e.clientY) ? 'walk' : 'nohit';
       // water ripples only when the tap didn't land on a solid reactable / interactable walk goal
       // water ripples when the tap isn't squarely on flora/rock/prop (animals may splash themselves)
       if (floraHit !== 'core' && propHit !== 'core') {
         this.react.tapWater(e.clientX, e.clientY, proj, lim, g.player.position, g.renderer.renderer.domElement);
       }
       // tap squarely on a reactable (and nothing to pick there): react in place instead of walking into it
-      if ((animalHit === 'core' || floraHit === 'core' || propHit === 'core') && (!this.walk.goal || !this.walk.goal.key)) this.walk.cancel(false);
+      if ((animalHit === 'core' || floraHit === 'core' || propHit === 'core') && (!this.walk.goal || !this.walk.goal.key)) { this.lastTap = `react:${animalHit}/${floraHit}/${propHit}`; this.walk.cancel(false); }
     });
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -255,7 +258,7 @@ export class Gameplay implements System {
   /** follower under a screen point (generous radius), nearest first */
   friendAt(cx: number, cy: number): FriendRef | null {
     const lim = this.g.isTouch ? 72 : 56, v = new THREE.Vector3();
-    const up: Record<string, number> = { bunny: 0.3, deer: 0.9, duck: 0.22, crab: 0.12, bird: 0, fox: 0.45 };
+    const up: Record<string, number> = { bunny: 0.3, deer: 0.9, duck: 0.22, crab: 0.12, bird: 0, fox: 0.45, goat: 0.7 };
     let best: FriendRef | null = null, bd = lim;
     for (const f of this.g.fauna.friends()) {
       const s = this.juice.project(v.set(f.a.x, f.a.y + (up[f.species] ?? 0.3), f.a.z));
