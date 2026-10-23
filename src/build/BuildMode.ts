@@ -283,7 +283,8 @@ export class BuildMode implements System {
     if (def.span) {
       // both ends on land (it spans the stream/pond between them), and not a steep drop
       const [a, b] = this.spanEnds(t.x, t.z, def.span, this.rotation);
-      if (a < 0.15 || b < 0.15 || Math.abs(a - b) > 0.35) return false;
+      // banks may be the wet pond rim (just under the water line): the deck still sits above the water
+      if (a < -0.1 || b < -0.1 || Math.abs(a - b) > 0.35) return false;
     } else if (heightAt(t.x, t.z) < 0.15) return false; // no building in the sea
     if (t.y > 12) return false;
     const pp = this.playerPos();
