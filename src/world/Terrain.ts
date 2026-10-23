@@ -1,81 +1,32 @@
 import * as THREE from 'three/webgpu';
 import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_float, positionWorld, sin, smoothstep, step, vec2, vec3 } from 'three/tsl';
-import { Noise2D } from './noise';
-import { Biome, BiomeField, BASE_CENTERS, BIOME_COUNT, BASE_POND, biomeWeightsBase, ISLAND_SCALE } from './Biomes';
+import { Biome, BiomeField, BIOME_COUNT } from './Biomes';
 import { seasonGround } from '../theme/Season';
 
-import { WORLD_SIZE, BASE_RADIUS, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE } from './config';
+import { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE } from './config';
 // re-exported for existing importers; the source of truth is ./config
 export { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL };
 
-const noise = new Noise2D(7);
-const noiseB = new Noise2D(23);
-const noiseC = new Noise2D(57);
-
-export const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
-const wRaw = new Float32Array(BIOME_COUNT);
-
-/** Analytic island height (slow: used to build the cached grid). */
-export function heightRaw(wx: number, wz: number): number {
-  // evaluate the original layout at scaled coordinates (bigger island, same heights → gentler, roomier)
-  const x = wx / ISLAND_SCALE, z = wz / ISLAND_SCALE;
-  const ang = Math.atan2(z, x);
-  const wobble = 1 + 0.14 * noise.noise(Math.cos(ang) * 1.3 + 3, Math.sin(ang) * 1.3 + 3)
-    + 0.06 * noise.noise(Math.cos(ang) * 3 + 9, Math.sin(ang) * 3 + 9);
-  const r = Math.hypot(x, z) / (BASE_RADIUS * wobble);
-  const w = biomeWeightsBase(x, z, wRaw);
-  // tropical side gets a wider, flatter beach
-  const beachW = 0.3 + w[Biome.Tropical] * 0.12 - w[Biome.Alpine] * 0.15;
-  const land = smooth(1.04, 1.04 - beachW, r);
-  const hillMask = smooth(0.98, 0.55, r);
-
-  const hills = noise.fbm(x * 0.045 + 10, z * 0.045 - 4, 4) * 0.5 + 0.5;
-  const bumps = noiseB.fbm(x * 0.12, z * 0.12, 3) * 0.25;
-  const meadow = hills * 2.4 + bumps + 2.2 * Math.exp(-((x - 8) ** 2 + (z + 6) ** 2) / 90);
-
-  const [ax, az] = BASE_CENTERS[Biome.Alpine];
-  const da2 = (x - ax) ** 2 + (z - az) ** 2;
-  const ridge = 1 - Math.abs(noiseC.fbm(x * 0.06, z * 0.06, 4));
-  const alpine = 2 + 12.5 * Math.exp(-da2 / (2 * 10 * 10)) + ridge * ridge * 3.2 * Math.exp(-da2 / 400) + bumps;
-
-  const autumn = 2.2 + (noise.fbm(x * 0.07 + 70, z * 0.07, 4) * 0.5 + 0.5) * 3.2 + bumps;
-
-  const tropical = 0.7 + (noiseB.fbm(x * 0.05 + 5, z * 0.05 + 9, 3) * 0.5 + 0.5) * 1.1;
-
-  // desert: sandstone mesas with terraced sides
-  const mn = noiseC.fbm(x * 0.055 + 31, z * 0.055 - 12, 3);
-  const mesa = smooth(0.02, 0.16, mn) * 3.6 + smooth(0.3, 0.42, mn) * 2.2;
-  const terr = Math.floor(mesa / 0.9) * 0.9;
-  const desert = 1.3 + mesa * 0.35 + terr * 0.65 + (noiseB.fbm(x * 0.09, z * 0.09, 2)) * 0.25;
-
-  // marsh: low and soggy, with a pond and puddles
-  const dp = Math.hypot(x - BASE_POND.x, z - BASE_POND.z) / BASE_POND.r;
-  const puddles = Math.min(0, noiseC.fbm(x * 0.18 + 3, z * 0.18 + 8, 2) + 0.28) * 2.5;
-  const marsh = 0.62 + bumps * 0.5 + puddles - 2.7 * smooth(1.25, 0.3, dp);
-
-  const inland = w[0] * meadow + w[1] * alpine + w[2] * autumn + w[3] * tropical + w[4] * desert + w[5] * marsh;
-  let h = land * 1.1 + hillMask * inland;
-  // seabed: a shallow, bumpy reef shelf ~16 m wide (swimmable, visible through clear water), then a drop-off
-  const past = Math.max(0, r - 1.04) * ISLAND_RADIUS * wobble; // world metres past the beach
-  const reefBump = noiseB.fbm(x * 0.16 + 40, z * 0.16 - 20, 2) * 0.45 * smooth(0, 4, past);
-  const shelf = 1.75 + reefBump + smooth(13, 24, past) * 2.6;
-  h -= (1 - land) * shelf;
-  return h;
-}
+// height + biome maths live in the pure generation core (shared with the gen worker, Order 39a)
+import { heightRaw, noise, noiseB, smooth } from './gen';
+export { heightRaw, smooth };
 
 // ---- cached height grid (0.5 m) with bilinear lookup ----
-const GRID_RES = 0.5;
-const GRID_N = Math.ceil(WORLD_SIZE / GRID_RES) + 1;
+export const GRID_RES = 0.5;
+export const GRID_N = Math.ceil(WORLD_SIZE / GRID_RES) + 1;
 let grid: Float32Array | null = null;
+/** main-thread fallback: built lazily on first lookup unless the gen worker filled it first */
 function buildGrid() {
   grid = new Float32Array(GRID_N * GRID_N);
   for (let j = 0; j < GRID_N; j++) for (let i = 0; i < GRID_N; i++) {
     grid[j * GRID_N + i] = heightRaw(i * GRID_RES - WORLD_SIZE / 2, j * GRID_RES - WORLD_SIZE / 2);
   }
+}
+export function heightGridReady() { return !!grid; }
+/** install a precomputed height grid (GRID_N² floats, row-major), e.g. from the gen worker */
+export function setHeightGrid(g: Float32Array) {
+  if (g.length !== GRID_N * GRID_N) throw new Error(`setHeightGrid: bad length ${g.length}`);
+  grid = g;
 }
 export function heightAt(x: number, z: number): number {
   if (!grid) buildGrid();

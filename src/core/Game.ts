@@ -4,6 +4,7 @@ import { PhysicsChunks } from './PhysicsChunks';
 import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
+import { pregenerateWorld, type GenStats } from '../world/GenWorker';
 import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface, WORLD_SIZE } from '../world/Terrain';
 import { SHADOW_HALF, SHADOW_HALF_LOW } from '../world/config';
 import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
@@ -80,6 +81,8 @@ export class Game {
   coast = { offshore, atOffshore, shoreRadius };
   ready = false;
   loadTiming!: LoadTiming;
+  /** how the world grids were generated (Order 39a) */
+  genStats: GenStats | null = null;
   /** blended biome weights around the player (smoothed) */
   biome = new Float32Array(BIOME_COUNT);
   private timer = new THREE.Timer();
@@ -98,9 +101,13 @@ export class Game {
     const P: Record<string, number> = { physics: 0.1, terrain: 0.18, water: 0.24, flora: 0.33, cave: 0.38, fauna: 0.42, reef: 0.48, renderer: 0.55, gameplay: 0.59, dress: 0.63, compile: 0.98, settle: 0.99 };
     /** mark + advance the loading bar; `paint` yields so the bar visibly moves (only at a few heavy points). */
     const lap = async (n: string, paint = false) => { this.loadTiming.mark(n); loader.set(P[n] ?? 0, n); if (paint) await nextPaint(); };
+    // world grids generate in Web Workers while the renderer + physics start up (Order 39a)
+    const gen = pregenerateWorld();
     this.renderer = new Renderer(container, params.has('webgl'));
     this.input = new Input(this.renderer.renderer.domElement);
     await this.physics.init();
+    this.genStats = await gen;
+    this.loadTiming.mark('gen');
 
     // --- World ---
     this.scene.fog = this.fog;

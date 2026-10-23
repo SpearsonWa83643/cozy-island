@@ -1,0 +1,121 @@
+/**
+ * Big island 5/7, Order 39a: generate the world's height + biome grids in Web Workers.
+ *
+ * The grids used to be built synchronously on the main thread (first heightAt() / module load),
+ * freezing the loading screen. `pregenerateWorld()` splits them into row bands, samples each band
+ * in a worker (same pure code as the main thread: ./gen.ts) and installs the results before the
+ * Terrain is built. Any failure or timeout falls back to the original main-thread path.
+ *
+ * Flag: `?gen=main` forces the main-thread path, `?gen=worker` forces workers; default = GEN_WORKER_DEFAULT.
+ * `?gen=verify` runs the worker AND the main-thread path and reports whether they match exactly.
+ */
+import { GRID_N, GRID_RES, heightGridReady, setHeightGrid, biomes, heightRaw } from './Terrain';
+import { sampleHeights, sampleBiomes, BIOME_COUNT, type GenRegion } from './gen';
+import { WORLD_SIZE } from './config';
+import type { GenReply, GenRequest } from './gen.worker';
+
+export const GEN_WORKER_DEFAULT = true;
+
+export interface GenStats {
+  mode: 'worker' | 'main' | 'fallback';
+  workers: number;
+  ms: number;
+  /** summed worker compute time (ms) */
+  workerMs: number;
+  error?: string;
+  /** set by ?gen=verify: max abs difference vs the main-thread path (0 = identical) */
+  verify?: { heightDiff: number; biomeDiff: number; mainMs: number };
+}
+export let genStats: GenStats | null = null;
+
+function genMode(): 'worker' | 'main' | 'verify' {
+  const p = new URLSearchParams(location.search).get('gen');
+  if (p === 'main' || p === 'worker' || p === 'verify') return p;
+  return GEN_WORKER_DEFAULT ? 'worker' : 'main';
+}
+
+/** row bands of a square n×n grid */
+function bands(n: number, k: number, size: number, res: number): GenRegion[] {
+  const out: GenRegion[] = [];
+  for (let b = 0; b < k; b++) {
+    const j0 = Math.round((b * n) / k), j1 = Math.round(((b + 1) * n) / k);
+    if (j1 > j0) out.push({ size, res, i0: 0, j0, w: n, h: j1 - j0 });
+  }
+  return out;
+}
+
+async function runInWorkers(timeoutMs: number) {
+  const hc = (navigator.hardwareConcurrency || 2);
+  const nW = Math.max(1, Math.min(4, hc - 1));
+  const workers = Array.from({ length: nW }, () => new Worker(new URL('./gen.worker.ts', import.meta.url), { type: 'module' }));
+  let workerMs = 0;
+  try {
+    // more bands than workers so a slow core doesn't hold everyone up
+    const hJobs = bands(GRID_N, nW * 2, WORLD_SIZE, GRID_RES).map((region) => ({ kind: 'height' as const, region }));
+    const bN = biomes.n;
+    const bJobs = bands(bN, nW, WORLD_SIZE, biomes.res).map((region) => ({ kind: 'biome' as const, region }));
+    const jobs = [...hJobs, ...bJobs];
+    const height = new Float32Array(GRID_N * GRID_N), biome = new Float32Array(bN * bN * BIOME_COUNT);
+    let next = 0, id = 0;
+    const run = (w: Worker) => new Promise<void>((resolve, reject) => {
+      const pump = () => {
+        if (next >= jobs.length) { resolve(); return; }
+        const job = jobs[next++], myId = ++id;
+        w.onmessage = (e: MessageEvent<GenReply>) => {
+          if (e.data.id !== myId) return;
+          if (e.data.error || !e.data.data) { reject(new Error(e.data.error ?? 'no data')); return; }
+          workerMs += e.data.ms ?? 0;
+          const r = job.region;
+          if (job.kind === 'height') height.set(e.data.data, r.j0 * GRID_N);
+          else biome.set(e.data.data, r.j0 * bN * BIOME_COUNT);
+          pump();
+        };
+        w.onerror = (ev) => reject(new Error(ev.message || 'worker error'));
+        w.postMessage({ id: myId, kind: job.kind, region: job.region } satisfies GenRequest);
+      };
+      pump();
+    });
+    let timer = 0;
+    await Promise.race([
+      Promise.all(workers.map(run)),
+      new Promise((_, rej) => { timer = window.setTimeout(() => rej(new Error(`timeout ${timeoutMs}ms`)), timeoutMs); }),
+    ]);
+    clearTimeout(timer);
+    return { height, biome, workers: nW, workerMs };
+  } finally {
+    for (const w of workers) w.terminate();
+  }
+}
+
+/** Fill the height + biome grids before the Terrain is built. Never throws. */
+export async function pregenerateWorld(timeoutMs = 20000): Promise<GenStats> {
+  const t0 = performance.now();
+  const mode = genMode();
+  if (heightGridReady() && biomes.ready) return (genStats = { mode: 'main', workers: 0, ms: 0, workerMs: 0 });
+  if (mode === 'main' || typeof Worker === 'undefined') {
+    // original path: grids build lazily on first use (Terrain constructor)
+    return (genStats = { mode: 'main', workers: 0, ms: 0, workerMs: 0 });
+  }
+  try {
+    const r = await runInWorkers(timeoutMs);
+    let verify: GenStats['verify'];
+    if (mode === 'verify') {
+      const m0 = performance.now();
+      const mh = sampleHeights({ size: WORLD_SIZE, res: GRID_RES, i0: 0, j0: 0, w: GRID_N, h: GRID_N });
+      const mb = sampleBiomes({ size: WORLD_SIZE, res: biomes.res, i0: 0, j0: 0, w: biomes.n, h: biomes.n });
+      const mainMs = performance.now() - m0;
+      let heightDiff = 0, biomeDiff = 0;
+      for (let k = 0; k < mh.length; k++) heightDiff = Math.max(heightDiff, Math.abs(mh[k] - r.height[k]));
+      for (let k = 0; k < mb.length; k++) biomeDiff = Math.max(biomeDiff, Math.abs(mb[k] - r.biome[k]));
+      // spot-check the shared heightRaw entry point too
+      heightDiff = Math.max(heightDiff, Math.abs(Math.fround(heightRaw(-WORLD_SIZE / 2, -WORLD_SIZE / 2)) - r.height[0]));
+      verify = { heightDiff, biomeDiff, mainMs };
+    }
+    setHeightGrid(r.height);
+    biomes.setData(r.biome);
+    return (genStats = { mode: 'worker', workers: r.workers, ms: performance.now() - t0, workerMs: r.workerMs, verify });
+  } catch (err) {
+    console.warn('[gen] worker generation failed, using main thread:', err);
+    return (genStats = { mode: 'fallback', workers: 0, ms: performance.now() - t0, workerMs: 0, error: String(err) });
+  }
+}
