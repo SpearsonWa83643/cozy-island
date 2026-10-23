@@ -92,7 +92,7 @@ function tints(name: string): string[] {
 }
 
 const ANIMAL_UP: Record<string, number> = {
-  bunny: 0.35, deer: 1.0, fox: 0.4, duck: 0.28, crab: 0.15, bird: 0.15, fish: 0.1, butterfly: 0.05,
+  bunny: 0.35, deer: 1.0, fox: 0.4, goat: 0.7, duck: 0.28, crab: 0.15, bird: 0.15, fish: 0.1, butterfly: 0.05,
 };
 const ANIMAL_ICONS: Record<string, string[]> = {
   bunny: ['💕', '✨', '🐰', '🎵'],
@@ -101,6 +101,7 @@ const ANIMAL_ICONS: Record<string, string[]> = {
   crab: ['✨', '💕', '🦀', '💫'],
   bird: ['🎵', '✨', '💕', '🐦'],
   fox: ['🍂', '💕', '🦊', '✨'],
+  goat: ['🎵', '💕', '🐐', '⛰️'],
   fish: ['💦', '✨', '💕', '🐟'],
   butterfly: ['✨', '💕', '🦋', '🌸'],
 };
@@ -303,6 +304,11 @@ export class TapReact {
       a.state = 2; a.timer = 0.9; a.ph += 3;
       const ang = Math.atan2(a.x - player.x, a.z - player.z) + (Math.random() - 0.5) * 1.2;
       a.tx = a.x + Math.sin(ang) * 3; a.tz = a.z + Math.cos(ang) * 3;
+    } else if (species === 'goat') {
+      // goat: indignant little hop, then a skip up the slope
+      a.state = 2; a.timer = 0.8; a.ph += 2; a.joy = Math.max(a.joy, 0.5);
+      const ang = Math.atan2(a.x - player.x, a.z - player.z) + (Math.random() - 0.5) * 0.8;
+      a.tx = a.x + Math.sin(ang) * 2.5; a.tz = a.z + Math.cos(ang) * 2.5;
     } else if (species === 'crab') {
       a.state = 2; a.timer = 0.9;
       const side = Math.random() < 0.5 ? 1 : -1;

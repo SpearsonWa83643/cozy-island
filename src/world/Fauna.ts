@@ -46,6 +46,23 @@ function foxGeo() {
   b.add(sph(0.1), o, [0, 0.32, -0.32], [-0.5, 0, 0], [0.75, 0.75, 1.7]).add(sph(0.06), w, [0, 0.4, -0.48], [-0.5, 0, 0], [0.9, 0.9, 1.2]);
   return b.build();
 }
+function goatGeo() {
+  const b = new Baker(), w = '#f2ede2', g = '#d9d0bf', dk = '#4a3f36', hn = '#b8a98e';
+  b.add(sph(0.22), w, [0, 0.52, 0], [0, 0, 0], [0.9, 0.85, 1.45]);
+  b.add(sph(0.14), g, [0, 0.47, 0.16], [0, 0, 0], [1, 1, 0.9]);
+  for (const [x, z] of [[-0.1, 0.18], [0.1, 0.18], [-0.1, -0.18], [0.1, -0.18]]) { b.add(cyl(0.035, 0.03, 0.36), w, [x, 0.2, z]); b.add(cyl(0.034, 0.036, 0.06), dk, [x, 0.03, z]); }
+  b.add(cyl(0.07, 0.09, 0.22), w, [0, 0.72, 0.28], [0.5, 0, 0]);
+  b.add(new THREE.CapsuleGeometry(0.085, 0.14, 3, 7), w, [0, 0.82, 0.4], [1.2, 0, 0]);
+  b.add(sph(0.035), dk, [0, 0.78, 0.53]);
+  b.add(sph(0.018), dk, [-0.07, 0.88, 0.45]).add(sph(0.018), dk, [0.07, 0.88, 0.45]);
+  b.add(cone(0.04, 0.12), w, [0, 0.68, 0.48], [Math.PI, 0, 0]); // beard
+  for (const s of [-1, 1]) {
+    b.add(cone(0.03, 0.2), hn, [s * 0.05, 1.0, 0.35], [-0.6, 0, s * 0.15]); // horns sweep back
+    b.add(sph(0.04), w, [s * 0.11, 0.9, 0.36], [0, 0, 0], [1.6, 0.6, 0.8]); // ears
+  }
+  b.add(sph(0.06), w, [0, 0.62, -0.32]);
+  return b.build();
+}
 function cone(r: number, h: number) { return new THREE.ConeGeometry(r, h, 5); }
 function duckGeo() {
   return new Baker()
@@ -73,7 +90,9 @@ function fishGeo(col: string) {
 // ---------- ground / water wanderers ----------
 interface Kind {
   name: string; geo: THREE.BufferGeometry; count: number; low: number; biomes: Biome[];
-  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle' | 'pounce'; homeR: number; pond?: boolean;
+  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle' | 'pounce' | 'leap'; homeR: number; pond?: boolean;
+  /** max terrain slope this animal will stand on (default 0.7); goats climb steep rock */
+  maxSlope?: number;
   colors?: string[];
 }
 export interface Agent {
@@ -92,7 +111,7 @@ export interface FollowCtx {
 let agentIds = 0;
 
 class Herd {
-  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0;
+  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0; leaps = 0;
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(1, 1, 1); private v = new THREE.Vector3();
   constructor(public k: Kind, mat: THREE.Material, private rnd: Rnd) {
     this.mesh = new THREE.InstancedMesh(k.geo, mat, k.count);
@@ -114,7 +133,7 @@ class Herd {
     const h = heightAt(x, z);
     if (h < this.k.h[0] || h > this.k.h[1]) return false;
     if (this.k.pond) return Math.hypot(x - POND.x, z - POND.z) < POND.r * 1.3;
-    return slopeAt(x, z) < 0.7;
+    return slopeAt(x, z) < (this.k.maxSlope ?? 0.7);
   }
   setQuality(high: boolean) { this.active = Math.floor(this.agents.length * (high ? 1 : this.k.low)); this.mesh.count = this.active; }
   update(dt: number, t: number, c: FollowCtx, blockers: (x: number, z: number) => boolean) {
@@ -199,6 +218,18 @@ class Herd {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  /** goat ledge hop: shift its perch to a nearby, preferably higher, climbable spot */
+  private ledgeHop(a: Agent) {
+    let bx = a.x, bz = a.z, bh = heightAt(a.x, a.z) - 0.4;
+    for (let tries = 0; tries < 5; tries++) {
+      const ang = this.rnd() * 6.28, r = 0.5 + this.rnd() * 0.6, x = a.x + Math.cos(ang) * r, z = a.z + Math.sin(ang) * r;
+      if (Math.hypot(x - a.hx, z - a.hz) > this.k.homeR || !this.valid(x, z)) continue;
+      const hh = heightAt(x, z) + this.rnd() * 0.6;
+      if (hh > bh) { bh = hh; bx = x; bz = z; }
+    }
+    a.yaw = Math.atan2(bx - a.x, bz - a.z) || a.yaw; a.x = bx; a.z = bz;
+  }
+
   private highestFriend() { let h = -1; this.agents.forEach((a, i) => { if (a.friend) h = i; }); return h; }
 
   private pose(i: number, a: Agent, t: number, moving: boolean) {
@@ -216,6 +247,18 @@ class Herd {
         const c = (t * 0.28 + a.ph * 0.137) % 1;
         if (c > 0.84) { const u = (c - 0.84) / 0.16; y += Math.sin(u * Math.PI) * 0.5; pitch = (u - 0.45) * 1.1; if ((a.pc ?? 0) <= 0.84) this.pounces++; }
         else if (c > 0.7) { y -= 0.05; pitch = -0.12; roll = Math.sin(t * 30) * 0.05; }
+        a.pc = c;
+      }
+    }
+    else if (anim === 'leap') {
+      // goat: sure-footed bounce on the climb; idle = graze, then a springy ledge hop to a new perch
+      const climb = moving ? Math.min(1, slopeAt(a.x, a.z) * 1.2) : 0;
+      y = h + (moving ? Math.abs(Math.sin(a.ph)) * (0.05 + climb * 0.3) : 0);
+      pitch = moving ? -climb * 0.25 : 0;
+      if (!moving && !a.friend) {
+        const c = (t * 0.22 + a.ph * 0.173) % 1;
+        if (c > 0.86) { const u = (c - 0.86) / 0.14; y += Math.sin(u * Math.PI) * 0.7; pitch = (u - 0.5) * -0.8; if ((a.pc ?? 0) <= 0.86) { this.leaps++; this.ledgeHop(a); } }
+        else if (c < 0.55) pitch = Math.max(0, Math.sin(t * 0.7 + a.ph)) * 0.45; // head down, grazing
         a.pc = c;
       }
     }
@@ -446,6 +489,9 @@ export class Fauna {
     // Foxes in Autumn Grove: added last with their own seed so every other animal's spawn + saved ids stay the same
     const fox: Kind = { name: 'fox', geo: foxGeo(), count: 4, low: 0.75, biomes: [Biome.Autumn], h: [0.9, 9], speed: 1.5, flee: 5.2, fleeDist: 4.5, anim: 'pounce', homeR: 7 };
     const fh = new Herd(fox, mat, mulberry32(4207)); this.herds.push(fh); this.group.add(fh.mesh);
+    // Mountain goats on Alpine Peak (Order 38): appended after the foxes so existing ids stay stable
+    const goat: Kind = { name: 'goat', geo: goatGeo(), count: 5, low: 0.6, biomes: [Biome.Alpine], h: [3, 60], speed: 1.3, flee: 4.6, fleeDist: 4, anim: 'leap', homeR: 8, maxSlope: 1.6 };
+    const gh = new Herd(goat, mat, mulberry32(5309)); this.herds.push(gh); this.group.add(gh.mesh);
   }
 
   setQuality(high: boolean) {

@@ -223,8 +223,34 @@ function fox(): Rig {
   return r;
 }
 
+function goat(): Rig {
+  const r = base(), b = r.body, w = '#f4efe4', g = '#ddd3c1', dk = '#4a3f36', hn = '#b8a98e';
+  b.add(m(S(0.42), w, [0, 0.78, -0.05], [0, 0, 0], [0.9, 0.85, 1.3]));
+  b.add(m(S(0.26), g, [0, 0.72, 0.3], [0, 0, 0], [1, 1, 0.7]));
+  for (const [x, z] of [[-0.18, 0.28], [0.18, 0.28], [-0.18, -0.3], [0.18, -0.3]]) { b.add(m(C(0.065, 0.055, 0.6), w, [x, 0.32, z])); b.add(m(C(0.06, 0.065, 0.1), dk, [x, 0.05, z])); }
+  r.tail = pivot(b, [0, 0.95, -0.5], [-0.9, 0, 0]);
+  r.tail.add(m(S(0.09), w, [0, 0.1, 0], [0, 0, 0], [0.8, 1.4, 0.8]));
+  r.head = pivot(b, [0, 1.3, 0.42]);
+  const h = r.head;
+  h.add(m(S(0.24), w, [0, 0, 0], [0, 0, 0], [0.95, 1, 1.05]));
+  h.add(m(S(0.15), g, [0, -0.1, 0.22], [0, 0, 0], [0.9, 0.8, 1]));
+  r.nose = m(S(0.045), dk, [0, -0.06, 0.36]); h.add(r.nose);
+  h.add(m(Co(0.07, 0.2), w, [0, -0.3, 0.2], [Math.PI, 0, 0])); // beard
+  for (const s of [-1, 1]) {
+    r.eyes.push(eye(h, [s * 0.12, 0.06, 0.18], 0.06, '#5a3a1a'));
+    h.add(m(Co(0.05, 0.34), hn, [s * 0.08, 0.3, -0.08], [-0.55, 0, s * 0.12]));
+    const ear = pivot(h, [s * 0.2, 0.06, 0], [0, 0, s * -1.2]);
+    ear.add(m(S(0.08), w, [0, 0.1, 0], [0, 0, 0], [0.6, 1.4, 0.5]));
+    r.ears.push(ear);
+  }
+  r.mouth.set(0, -0.14, 0.32);
+  r.dirtSpots = spotsOnEllipsoid(new THREE.Vector3(0, 0.78, -0.05), new THREE.Vector3(0.38, 0.36, 0.52), 9, 0.1, (n) => n.z < 0.8);
+  r.height = 1.85; r.width = 1.3;
+  return r;
+}
+
 export function buildRig(species: string, color: string | null): Rig {
-  const r = species === 'fox' ? fox() : species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
+  const r = species === 'goat' ? goat() : species === 'fox' ? fox() : species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
   r.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) r.pickables.push(o); });
   return r;
 }
