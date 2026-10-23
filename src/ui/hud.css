@@ -470,7 +470,8 @@ body.entry-open .hud.dock { pointer-events: none; opacity: .35; }
 .mp-x { position: absolute; top: 10px; right: 12px; width: 52px; height: 52px; border: 0; border-radius: 50%; background: #f3e4cc; color: #6e4524;
   font: inherit; font-size: 22px; font-weight: 900; cursor: pointer; touch-action: manipulation; }
 .mp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-@media (min-width: 900px) and (min-height: 500px) { .mp-grid { grid-template-columns: repeat(4, 1fr); } .mp-card { width: min(860px, 94vw); } }
+.mp-grid > .mp-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 900px) and (min-height: 500px) { .mp-grid { grid-template-columns: repeat(5, 1fr); } .mp-grid > .mp-tile:last-child:nth-child(odd) { grid-column: auto; } .mp-card { width: min(1000px, 94vw); } }
 .mp-tile { position: relative; min-height: 150px; border: 3px solid #e8d5b8; border-radius: 22px; background: #fff4d6; color: inherit; font: inherit; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px 8px; touch-action: manipulation;
   -webkit-tap-highlight-color: transparent; user-select: none; box-shadow: 0 5px 0 rgba(160,120,80,.3); transition: transform .15s var(--spring, ease), box-shadow .15s ease; }

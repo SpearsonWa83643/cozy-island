@@ -10,7 +10,7 @@ import { BIOME_CENTERS } from '../world/Biomes';
 import { BUILDERS, type MountRig } from './MountArt';
 
 /**
- * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy and unicorn (MountDefs.ts / MountArt.ts).
+ * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy, unicorn and dragonfly (MountDefs.ts / MountArt.ts).
  * Adapted from 2D Master's mount (src/mount/mount.ts + defs.ts). With more than one unlocked, Call Mount opens a picker.
  * Call Mount → the eagle swoops in on a Hermite curve and hovers beside you → Hop on (button / tap the eagle / V)
  * → fly with the same joystick / WASD (Shift or stick rim = faster, Space = big flap up, tap the ground = glide there)
@@ -44,7 +44,7 @@ export interface MountHooks {
   /** true when a ride must end now (build mode opened, cave) */
   mustLand: () => boolean;
   toast: (html: string, ms?: number) => void;
-  sfx: (kind: 'call' | 'hop' | 'flap' | 'land' | 'leave') => void;
+  sfx: (kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz') => void;
   /** stop tap-to-walk */
   cancelWalk: () => void;
   /** a ride started (save stats) */
@@ -116,7 +116,10 @@ export class Mount implements System {
     return true;
   }
   private setAlpha(a: number) {
-    for (const m of this.mats) { const tr = a < 0.999; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = a; }
+    for (const m of this.mats) {
+      const base = (m.userData.baseOpacity as number | undefined) ?? 1;
+      const tr = a < 0.999 || base < 1; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = a * base;
+    }
     (this.shadow.material as THREE.MeshBasicNodeMaterial).opacity = 0.3 * a;
   }
 
@@ -334,19 +337,20 @@ export class Mount implements System {
       fx /= len; fz /= len;
       const cy = Math.cos(this.rig.yaw), sy = Math.sin(this.rig.yaw);
       const mx = fx * cy + fz * sy, mz = -fx * sy + fz * cy;
-      this.turnTo(Math.atan2(mx, mz), dt, 3.2);
+      this.turnTo(Math.atan2(mx, mz), dt, 3.2 * (this.current.turn ?? 1));
       want = (fast ? FLY_FAST : FLY_SPEED) * Math.max(0.35, analog);
     } else if (this.target) {
       const dx = this.target.x - this.gx, dz = this.target.z - this.gz, d = Math.hypot(dx, dz);
       if (d < 1.2) this.target = null;
-      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6); want = Math.min(FLY_SPEED, d * 1.4); }
+      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6 * (this.current.turn ?? 1)); want = Math.min(FLY_SPEED, d * 1.4); }
     } else if (this.autopilot) {
       this.autoK = Math.min(1, this.autoK + dt / 2.5);
       const p = this.tourAim();
       this.turnTo(Math.atan2(p.x - this.gx, p.z - this.gz), dt, 0.5 + 1.1 * this.autoK);
       want = TOUR_SPEED * (0.35 + 0.65 * this.autoK);
     } else this.bank += (0 - this.bank) * Math.min(1, dt * 3);
-    this.speed += (want - this.speed) * Math.min(1, dt * (want > this.speed ? 1.8 : 1.4));
+    const ac = this.current.accel ?? 1;
+    this.speed += (want - this.speed) * Math.min(1, dt * ac * (want > this.speed ? 1.8 : 1.4));
     let nx = this.gx + Math.sin(this.heading) * this.speed * dt, nz = this.gz + Math.cos(this.heading) * this.speed * dt;
     // soft leash: past the reef the wind turns you back toward the island
     const off = offshore(nx, nz);
@@ -415,8 +419,11 @@ export class Mount implements System {
     if (this.carrying) this.seatRider();
   }
 
+  private buzzT = 0;
   private draw(dt: number) {
     const ph = this.phase;
+    // wing hum (dragonfly): a soft buzz every couple of seconds while it's about
+    if (this.current.buzz && ph !== 'leave') { this.buzzT -= dt; if (this.buzzT <= 0) { this.buzzT = 1.6 + Math.random() * 1.4; this.hooks.sfx('buzz'); } }
     // gliding now and then on a ride, wings held in a soaring V
     if (ph === 'ride' && this.boost < 0.5) { this.nextGlide -= dt; if (this.nextGlide <= 0 && this.glide <= 0) { this.glide = 1.6 + Math.random(); this.nextGlide = 4 + Math.random() * 4; } }
     if (this.glide > 0) this.glide -= dt;

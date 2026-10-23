@@ -635,8 +635,19 @@ export class AudioEngine {
   /** rising whistle before a firework bursts */
   whistle(pan = 0) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 700, t, 0.9, this.sfx(pan, 0.12, 0.4), 0.05, 0.05); o.frequency.exponentialRampToValueAtTime(1900, t + 0.85); }
   /** eagle mount: call / hop / flap / land / leave */
-  mount(kind: 'call' | 'hop' | 'flap' | 'land' | 'leave') {
+  mount(kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz') {
     const t = this.go(); if (t < 0) return;
+    if (kind === 'buzz') {
+      // dragonfly wing hum: a soft filtered saw with a fast wobble, plus a breathy flutter
+      const d = this.sfx((Math.random() - 0.5) * 0.4, 0.16, 0.12);
+      const lp = this.ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 2; lp.connect(d);
+      const f0 = 118 + Math.random() * 30;
+      const o = this.tone('sawtooth', f0, t, 0.55, lp, 0.22, 0.06);
+      o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * 1.18, t + 0.2); o.frequency.linearRampToValueAtTime(f0 * 0.95, t + 0.55);
+      const lfo = this.ctx!.createOscillator(), lg = this.ctx!.createGain(); lfo.frequency.value = 34; lg.gain.value = 14; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + 0.6);
+      this.noiseHit(t, 0.4, d, 'bandpass', 2200, 1.5, 0.12, 0.05, this.pink);
+      return;
+    }
     if (kind === 'call') {
       this.whistle(0); this.noiseHit(t + 0.05, 0.7, this.sfx(0, 0.35, 0.35), 'bandpass', 500, 0.7, 0.2, 0.08, this.pink);
     } else if (kind === 'hop') {

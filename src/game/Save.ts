@@ -38,7 +38,7 @@ export interface SaveData {
   mountRides?: number;
   /** cozy puzzles solved (pressure stones, etc.) */
   puzzles?: Record<string, boolean>;
-  /** special treasures found (mount unlocks: pterodactyl_egg, cloud_puppy_tuft, rainbow_horseshoe) */
+  /** special treasures found (mount unlocks: pterodactyl_egg, cloud_puppy_tuft, rainbow_horseshoe, shimmer_wing) */
   treasures?: string[];
   /** last mount picked in Call Mount */
   mountId?: string;

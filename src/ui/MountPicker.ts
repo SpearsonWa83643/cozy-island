@@ -4,7 +4,7 @@ import type { SaveData } from '../game/Save';
 /**
  * "Pick a mount!" — big touch tiles for every mount (mirrors 2D Master's picker). Unlocked tiles call
  * that mount; locked ones are greyed with a 🔒 and say which treasure unlocks them. Tap outside / ✕ /
- * Esc closes; 1–4 pick on desktop, Enter / V re-calls the last mount.
+ * Esc closes; 1–5 pick on desktop, Enter / V re-calls the last mount.
  */
 export class MountPicker {
   open = false;

@@ -8,7 +8,7 @@ import type { Flora } from '../world/Flora';
 import type { SaveData } from './Save';
 import { theme, HALLOWEEN_WEAR } from '../theme/theme';
 import { RARITY, WEARABLES, type Rarity, type WearDef , CAVE_WEAR } from './Items';
-import { nextMountTreasure, mountForTreasure } from '../player/MountDefs';
+import { nextMountTreasure, mountForTreasure, TREASURE_BIOME } from '../player/MountDefs';
 
 const easeOutBack = (t: number) => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 const easeOutElastic = (t: number) => t <= 0 ? 0 : t >= 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
@@ -122,7 +122,9 @@ export class Treasure {
   newSpot() {
     const mp = this.save.map;
     const rnd = mulberry32(mp.seed + mp.n * 7919);
-    const target = BIOME_ORDER[mp.n % BIOME_ORDER.length];
+    // a chest carrying a zone-bound mount treasure (the dragonfly's Shimmer Wing) is buried in that zone
+    const mt = nextMountTreasure(this.save);
+    const target = (mt && TREASURE_BIOME[mt] !== undefined) ? TREASURE_BIOME[mt] as Biome : BIOME_ORDER[mp.n % BIOME_ORDER.length];
     const w = new Float32Array(BIOME_COUNT);
     const px = mp.x || this.spawn.x, pz = mp.z || this.spawn.y;
     let best: [number, number] | null = null;

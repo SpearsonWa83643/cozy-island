@@ -24,6 +24,10 @@ export interface MountRig {
   shadow: number;
   /** tail fans out while hovering (eagle-style) */
   fanTail: boolean;
+  /** flight feel multipliers: turn rate and speed response (dragonfly darts) */
+  turn?: number; accel?: number;
+  /** hums its wings: periodic buzz sound while it's about */
+  buzz?: boolean;
   animate?: (t: number, dt: number, phase: RigPhase, speed: number, flap: number) => void;
 }
 
@@ -301,4 +305,81 @@ function unicorn(): MountRig {
   return finish(r);
 }
 
-export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn };
+// ------------------------------------------------------------ dragonfly (shimmer_wing)
+function dragonfly(): MountRig {
+  const k = new Kit(), r = empty('dragonfly', k);
+  const teal = k.m('#2fae9c', 0.35, false), deep = k.m('#1d6f73', 0.4, false), aqua = k.m('#6fe0c8', 0.3, false, 0.12),
+    eyeM = k.m('#7b5cff', 0.15, false, 0.18), shine = k.m('#ffffff', 0.1, false), leg = k.m('#21333a', 0.6), gold = k.m('#ffd96b', 0.3, false, 0.25);
+  // iridescent see-through wings (Mount.setAlpha keeps their base opacity)
+  const wingM = new THREE.MeshStandardNodeMaterial({ color: '#dff6ff', roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+  wingM.emissive = new THREE.Color('#9fd8ff'); wingM.emissiveIntensity = 0.18; wingM.userData.baseOpacity = 0.55;
+  const veinM = k.m('#7cc6e6', 0.3, false, 0.15); const tipM = k.m('#6a5acd', 0.4, false);
+  k.mats.push(wingM);
+  const { body, head, tail, legs } = r;
+  r.seat.set(0, 0.3, -0.04); r.amp = 0.42; r.rate = 4.2; r.shadow = 1.15; r.fanTail = false;
+  r.turn = 2.2; r.accel = 2.2; r.buzz = true;
+  // thorax: a glossy teal bead with a gold stripe
+  body.add(k.mesh(k.sph(0.3, 18, 14), teal, [0, 0, 0], [0.95, 0.85, 1.25]));
+  body.add(k.mesh(k.sph(0.22, 14, 10), deep, [0, -0.1, 0.02], [1, 0.6, 1.1]));
+  for (const s of [-1, 1]) body.add(k.mesh(new THREE.BoxGeometry(0.03, 0.2, 0.32), gold, [s * 0.24, 0.05, 0], [1, 1, 1], [0, 0, s * 0.35]));
+  // long segmented abdomen with glowing aqua bands
+  tail.position.set(0, 0.02, -0.34);
+  const segs: THREE.Group[] = [];
+  let parent: THREE.Group = tail;
+  for (let i = 0; i < 7; i++) {
+    const sg = new THREE.Group(); sg.position.set(0, 0, i === 0 ? 0 : -0.2);
+    const rr = 0.12 - i * 0.008;
+    sg.add(k.mesh(new THREE.CapsuleGeometry(rr, 0.12, 4, 10).rotateX(Math.PI / 2), i % 2 ? deep : teal, [0, 0, -0.1]));
+    sg.add(k.mesh(new THREE.TorusGeometry(rr * 0.98, 0.018, 6, 14), aqua, [0, 0, -0.02]));
+    parent.add(sg); segs.push(sg); parent = sg;
+  }
+  // little tail claspers
+  for (const s of [-1, 1]) parent.add(k.mesh(new THREE.ConeGeometry(0.025, 0.14, 6).rotateX(-Math.PI / 2), deep, [s * 0.04, 0, -0.27], [1, 1, 1], [0, s * 0.3, 0]));
+  // head: two huge shiny compound eyes and a happy smile
+  head.position.set(0, 0.08, 0.42);
+  head.add(k.mesh(k.sph(0.16, 14, 10), teal, [0, 0, 0.02], [1.1, 0.9, 0.9]));
+  for (const s of [-1, 1]) {
+    head.add(k.mesh(k.sph(0.15, 18, 14), eyeM, [s * 0.12, 0.08, 0.06]));
+    head.add(k.mesh(k.sph(0.04, 8, 6), shine, [s * 0.15, 0.17, 0.14]));
+    head.add(k.mesh(k.sph(0.02, 6, 5), shine, [s * 0.08, 0.12, 0.18]));
+    head.add(k.mesh(k.sph(0.035, 8, 6), k.m('#ffb3c7', 0.8, false), [s * 0.1, -0.06, 0.14], [1, 0.6, 0.6])); // blush
+  }
+  head.add(k.mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 12, Math.PI), leg, [0, -0.06, 0.15], [1, 1, 1], [0, 0, Math.PI]));
+  // six thin legs tucked under the thorax
+  for (const z of [0.14, 0, -0.14]) for (const s of [-1, 1]) {
+    const lg = new THREE.Group(); lg.position.set(s * 0.12, -0.18, z); lg.rotation.z = s * 0.5;
+    lg.add(k.mesh(new THREE.CylinderGeometry(0.014, 0.012, 0.22, 5), leg, [0, -0.1, 0]));
+    lg.add(k.mesh(new THREE.CylinderGeometry(0.011, 0.009, 0.18, 5), leg, [s * -0.05, -0.24, 0.03], [1, 1, 1], [0.3, 0, s * -0.9]));
+    legs.add(lg);
+  }
+  // four long wings: forewings on the flap hinge, hindwings on their own hinge (driven out of phase in animate)
+  const wingShape = (len: number, w: number, s: number) => k.membrane([[0, w * 0.35], [len * 0.35, w * 0.55], [len * 0.85, w * 0.4], [len, 0], [len * 0.85, -w * 0.4], [len * 0.35, -w * 0.5], [0, -w * 0.3]].map(([x, z]) => [s * x, z] as [number, number]), 0.012);
+  const addWing = (g: THREE.Group, len: number, w: number, s: number) => {
+    g.add(k.mesh(wingShape(len, w, s), wingM, [0, 0, 0]));
+    const vein = new THREE.CylinderGeometry(0.008, 0.014, len, 5); vein.rotateZ(Math.PI / 2);
+    g.add(k.mesh(vein, veinM, [s * len * 0.5, 0.008, w * 0.18]));
+    g.add(k.mesh(new THREE.BoxGeometry(0.1, 0.014, 0.05), tipM, [s * len * 0.84, 0.008, w * 0.12])); // wing spot
+  };
+  const hind: THREE.Group[] = [];
+  for (const [root, tip, s] of [[r.wingL, r.tipL, 1], [r.wingR, r.tipR, -1]] as [THREE.Group, THREE.Group, number][]) {
+    root.position.set(s * 0.14, 0.2, 0.1); root.rotation.y = s * -0.12;
+    addWing(root, 1.35, 0.34, s);
+    tip.position.set(s * 1.35, 0, 0); root.add(tip);
+    const h = new THREE.Group(); h.position.set(s * 0.14, 0.18, -0.12);
+    addWing(h, 1.2, 0.36, s); body.add(h); hind.push(h);
+  }
+  // hindwings beat a quarter-cycle behind, the abdomen sways and dips, eyes glimmer, hover jitter
+  r.animate = (t, _dt, ph, speed, flap) => {
+    const amp = r.amp * (ph === 'wait' ? 0.75 : 0.62);
+    const hb = Math.cos(flap - 1.5) * amp;
+    hind[0].rotation.z = hb; hind[1].rotation.z = -hb;
+    hind[0].rotation.y = 0.18; hind[1].rotation.y = -0.18;
+    const sway = Math.sin(t * 2.4) * 0.05, dip = ph === 'wait' ? 0.06 + Math.sin(t * 3) * 0.04 : -Math.min(0.08, speed * 0.006);
+    segs.forEach((g, i) => { g.rotation.y = sway * (1 + i * 0.2); g.rotation.x = dip; });
+    eyeM.emissiveIntensity = 0.16 + Math.sin(t * 2.2) * 0.06;
+    body.position.x = ph === 'wait' ? Math.sin(t * 13) * 0.012 : 0;
+  };
+  return finish(r, 1.5);
+}
+
+export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly };

@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-haze';
+export const VERSION = '2026-10-23-dragonfly';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'New mount: the Dragonfly! Dig up the Shimmer Wing from a treasure chest in the Misty Marsh, then zip around on shimmering, humming wings.' },
   { icon: 'star', text: 'Softer horizons: distant hills fade into a seasonal haze, and low mist settles in the valleys and over the sea. Fly up on a mount to see it.' },
   { icon: 'heart', text: 'Foxes have moved into Autumn Grove! Watch them pounce into the leaves, then feed one berries to make a new friend.' },
   { icon: 'star', text: 'New area: Lighthouse Point! Follow the stepping stones up the north-east headland to a red-and-white lighthouse with a sweeping lamp.' },
@@ -15,5 +16,5 @@ export const ITEMS: WhatsNewItem[] = [
   { icon: 'heart', text: 'Steer any time to take the reins back. Rest a few seconds and the tour picks up again.' },
   { icon: 'wood', text: 'Themes trimmed to the four seasons plus Halloween.' },
   { icon: 'star', text: 'New mounts! Treasure chests hide a Pterodactyl Egg, a Cloud Tuft and a Rainbow Horseshoe.' },
-  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy or unicorn.' },
+  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy, unicorn or dragonfly.' },
 ];

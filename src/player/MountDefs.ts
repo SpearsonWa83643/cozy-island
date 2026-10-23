@@ -2,7 +2,7 @@
 // The bald eagle is free; the others unlock when their treasure turns up in a treasure chest.
 import type { SaveData } from '../game/Save';
 
-export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn';
+export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn' | 'dragonfly';
 
 // no emoji fits a pterodactyl or a cloud puppy, so they get little inline SVG icons (1em, inline in text)
 const svg = (inner: string) => `<svg class="mico" viewBox="0 0 40 40" aria-hidden="true">${inner}</svg>`;
@@ -13,6 +13,14 @@ const SHOE_SVG = svg('<path d="M6.0 35 V19 A14.0 14.0 0 0 1 34.0 19 V35" fill="n
 const PUPPY_SVG = svg('<g fill="#fff" stroke="#9cc3e6" stroke-width="2"><circle cx="11" cy="26" r="7.5"/><circle cx="29" cy="26" r="7.5"/><circle cx="20" cy="27" r="8"/><circle cx="20" cy="17" r="10"/></g>'
   + '<ellipse cx="10.5" cy="17" rx="3.4" ry="6" fill="#c7dcf3" transform="rotate(20 10.5 17)"/><ellipse cx="29.5" cy="17" rx="3.4" ry="6" fill="#c7dcf3" transform="rotate(-20 29.5 17)"/>'
   + '<circle cx="16.5" cy="16" r="1.8" fill="#2a2230"/><circle cx="23.5" cy="16" r="1.8" fill="#2a2230"/><ellipse cx="20" cy="20" rx="2.3" ry="1.6" fill="#2a2230"/><ellipse cx="20.6" cy="23.6" rx="1.5" ry="2" fill="#ff8fa6"/>');
+
+const DRAGONFLY_SVG = svg('<g stroke="#4b8fb0" stroke-width="1.2" fill="#d8f4ff" fill-opacity=".85"><ellipse cx="11" cy="12" rx="9" ry="3.6" transform="rotate(-18 11 12)"/><ellipse cx="29" cy="12" rx="9" ry="3.6" transform="rotate(18 29 12)"/>'
+  + '<ellipse cx="11.5" cy="19" rx="8" ry="3.2" transform="rotate(14 11.5 19)"/><ellipse cx="28.5" cy="19" rx="8" ry="3.2" transform="rotate(-14 28.5 19)"/></g>'
+  + '<path d="M20 15 L20 37" stroke="#2f9c8f" stroke-width="3.4" stroke-linecap="round"/><path d="M20 22 L20 36" stroke="#6fe0c8" stroke-width="1.4" stroke-dasharray="2 2"/>'
+  + '<ellipse cx="20" cy="14" rx="3.6" ry="4.2" fill="#3fb7a3" stroke="#22766b" stroke-width="1.2"/><circle cx="17" cy="9" r="3" fill="#7b5cff" stroke="#3d2a99" stroke-width="1"/><circle cx="23" cy="9" r="3" fill="#7b5cff" stroke="#3d2a99" stroke-width="1"/>'
+  + '<circle cx="16.2" cy="8.2" r=".9" fill="#fff"/><circle cx="22.2" cy="8.2" r=".9" fill="#fff"/>');
+const WING_SVG = svg('<path d="M6 30 C8 14 22 5 35 6 C31 16 21 27 6 30Z" fill="#d8f4ff" stroke="#4b8fb0" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 29 C15 22 23 15 33 8 M14 25 L18 16 M21 20 L26 12" fill="none" stroke="#8fc8e6" stroke-width="1.1"/>'
+  + '<path d="M10 26 C16 21 22 16 30 10" fill="none" stroke="#c9a6ff" stroke-width="2" stroke-linecap="round" opacity=".7"/><path d="M33 22 L34.2 25 L37 26 L34.2 27 L33 30 L31.8 27 L29 26 L31.8 25Z" fill="#fff6b0" stroke="#e0b13a" stroke-width="1"/>');
 
 export interface MountTreasure { id: string; name: string; icon: string; blurb: string }
 
@@ -47,7 +55,15 @@ export const MOUNTS: MountDef[] = [
     treasure: { id: 'rainbow_horseshoe', name: 'Rainbow Horseshoe', icon: SHOE_SVG, blurb: 'So shiny! Call Mount to ride a unicorn!' },
     hint: 'Find the Rainbow Horseshoe in a treasure chest', blurb: 'A sparkly flying unicorn!',
   },
+  {
+    id: 'dragonfly', name: 'Dragonfly', short: 'dragonfly', icon: DRAGONFLY_SVG,
+    treasure: { id: 'shimmer_wing', name: 'Shimmer Wing', icon: WING_SVG, blurb: 'It hums! Call Mount to ride a dragonfly!' },
+    hint: 'Find the Shimmer Wing in a Misty Marsh treasure chest', blurb: 'A zippy, shimmery marsh flyer!',
+  },
 ];
+
+/** treasures that only turn up in one climate zone's chests (index into BIOME_NAMES: 5 = Misty Marsh) */
+export const TREASURE_BIOME: Record<string, number> = { shimmer_wing: 5 };
 
 /** mount treasures in the order chests hand them out */
 export const MOUNT_TREASURES = MOUNTS.filter((m) => m.treasure).map((m) => m.treasure!.id);

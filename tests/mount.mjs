@@ -134,9 +134,9 @@ async function unlocks(label, page) {
   await press(label, page, '.mount-btn');
   await page.waitForSelector('.mount-picker.show'); await page.waitForTimeout(500);
   const tiles = await page.evaluate(() => [...document.querySelectorAll('.mp-tile')].map((t) => ({ id: t.dataset.mount, locked: t.classList.contains('locked'), last: t.classList.contains('last'), sub: t.querySelector('.mp-sub').textContent, r: t.getBoundingClientRect().height })));
-  ok(`${label}: picker shows 4 mounts`, tiles.length === 4, JSON.stringify(tiles));
+  ok(`${label}: picker shows 5 mounts`, tiles.length === 5, JSON.stringify(tiles));
   ok(`${label}: eagle + pterodactyl unlocked, pterodactyl = last`, !tiles[0].locked && !tiles[1].locked && tiles[1].last, JSON.stringify(tiles));
-  ok(`${label}: cloud puppy + unicorn locked with unlock hint`, tiles[2].locked && tiles[3].locked && /Cloud Tuft/.test(tiles[2].sub) && /Rainbow Horseshoe/.test(tiles[3].sub), JSON.stringify(tiles));
+  ok(`${label}: cloud puppy + unicorn locked with unlock hint`, tiles[2].locked && tiles[3].locked && tiles[4].locked && /Cloud Tuft/.test(tiles[2].sub) && /Rainbow Horseshoe/.test(tiles[3].sub) && /Shimmer Wing/.test(tiles[4].sub), JSON.stringify(tiles));
   ok(`${label}: tiles are big touch targets`, tiles.every((t) => t.r >= 120), JSON.stringify(tiles.map((t) => t.r)));
   let s = await snap(page);
   ok(`${label}: picker open, mount not called yet`, s.phase === 'off', JSON.stringify(s));
@@ -177,7 +177,7 @@ async function unlocks(label, page) {
   ok(`${label}: selected mount persists`, st.id === 'pterodactyl' && st.sel === 'pterodactyl' && st.t?.includes('pterodactyl_egg'), JSON.stringify(st));
 
   // ---- all treasures: every tile unlocked; pick the unicorn (keyboard 4 on desktop, tap on iPad)
-  await page.evaluate(() => { const d = window.game.play.save.data; d.treasures = ['pterodactyl_egg', 'cloud_puppy_tuft', 'rainbow_horseshoe']; window.game.audio.unlock?.(); window.game.player.teleport(0, 8); });
+  await page.evaluate(() => { const d = window.game.play.save.data; d.treasures = ['pterodactyl_egg', 'cloud_puppy_tuft', 'rainbow_horseshoe', 'shimmer_wing']; window.game.audio.unlock?.(); window.game.player.teleport(0, 8); });
   await step(page, 5);
   if (label === 'ipad') await page.tap('.mount-btn'); else await page.keyboard.press('v');
   await step(page, 2);
@@ -198,7 +198,7 @@ async function unlocks(label, page) {
   ok(`${label}: ✕ closes picker, nothing called`, !(await page.evaluate(() => window.game.mountPicker.open)) && s.phase === 'off', JSON.stringify(s));
 
   // ---- every rig flies: call each, let it hover, ride a moment, land
-  for (const id of ['eagle', 'pterodactyl', 'cloud_puppy', 'unicorn']) {
+  for (const id of ['eagle', 'pterodactyl', 'cloud_puppy', 'unicorn', 'dragonfly']) {
     await page.evaluate((id) => { window.game.player.teleport(0, 8); window.game.mount.call(id); }, id);
     s = await waitPhase(page, 'wait');
     if (label === 'desktop') {
