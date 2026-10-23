@@ -110,7 +110,7 @@ const SPECS: Spec[] = [
   // Marsh
   { name: 'willow', make: P.willow, variants: 2, count: 16, biomes: [Biome.Marsh], h: [0.3, 99], space: 2.4, scale: [0.9, 1.25], collide: 'trunk' },
   { name: 'reeds', make: P.reeds, variants: 3, count: 100, biomes: [Biome.Marsh], h: [-0.4, 0.95], space: 0.45, scale: [0.8, 1.3], low: 0.5, shadow: false },
-  { name: 'lily', make: P.lilyPad, variants: 3, count: 34, biomes: [Biome.Marsh], h: [-1.6, -0.2], space: 0.7, scale: [0.7, 1.3], low: 0.6, shadow: false, water: true, y: 0.07 },
+  { name: 'lily', make: P.lilyPad, variants: 3, count: 34, biomes: [Biome.Marsh], h: [-1.6, -0.2], space: 0.7, scale: [0.7, 1.3], shadow: false, water: true, y: 0.07 }, // always drawn: frogs sit on them (Order 43)
   { name: 'marshbush', make: (r) => P.bush(r, ['#6f9a4a', '#5f8f4a', '#7fa85a']), variants: 2, count: 20, biomes: [Biome.Marsh], h: [0.4, 99], space: 0.8, low: 0.5 },
 ];
 
@@ -208,6 +208,7 @@ export class Flora {
         if (spec.low !== undefined) this.scalable.push({ mesh: im, max: placed, low: spec.low });
       }
     }
+    this.buildPondPads(matDouble);
     this.buildFlowers(rnd, free);
     this.buildGrass(rnd, free);
     this.buildLeafLitter(rnd);
@@ -252,6 +253,31 @@ export class Flora {
       }
     }
     this.scalable = next;
+  }
+
+  /** extra lily pads across the marsh pond (own seed, so the rest of the island layout is unchanged) — frogs hop between them */
+  private buildPondPads(mat: THREE.Material) {
+    const rnd = mulberry32(4344), want = 12;
+    const geo = P.lilyPad(rnd);
+    const im = new THREE.InstancedMesh(geo, mat, want);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3(), tint = new THREE.Color();
+    const pads = this.spots.filter((s) => s.name === 'lily');
+    let placed = 0;
+    for (let t = 0; t < 600 && placed < want; t++) {
+      const a = rnd() * 6.28, d = (0.2 + Math.sqrt(rnd()) * 0.85) * POND.r;
+      const x = POND.x + Math.cos(a) * d, z = POND.z + Math.sin(a) * d, sc = 0.8 + rnd() * 0.5;
+      const h = heightAt(x, z);
+      if (h > -0.25 || h < -1.8) continue;
+      if (pads.some((o) => Math.hypot(o.x - x, o.z - z) < 0.42 * (o.sc + sc) + 0.35)) continue;
+      e.set(0, rnd() * 6.28, 0); q.setFromEuler(e); s3.setScalar(sc); p3.set(x, 0.07, z);
+      im.setMatrixAt(placed, m4.compose(p3, q, s3));
+      const br = 0.88 + rnd() * 0.24; im.setColorAt(placed, tint.setRGB(br, br, br));
+      const s = { name: 'lily', x, z, h, sc }; pads.push(s); this.spots.push(s);
+      placed++;
+    }
+    if (!placed) return;
+    im.count = placed; im.castShadow = false; im.receiveShadow = true; im.frustumCulled = false; im.name = 'lily';
+    this.group.add(im);
   }
 
   private buildFlowers(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {

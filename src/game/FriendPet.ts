@@ -6,6 +6,7 @@ const NAMES: Record<string, string[]> = {
   duck: ['Waddles', 'Puddle', 'Quackers', 'Dot', 'Bubbles', 'Lily', 'Ripple', 'Noodle', 'Pudding', 'Reed'],
   crab: ['Pinchy', 'Sandy', 'Clawdia', 'Shelly', 'Coral', 'Snappy', 'Barnaby', 'Kelp', 'Tide', 'Pebble'],
   goat: ['Billy', 'Clover', 'Pebbles', 'Nanny', 'Summit', 'Bramble', 'Cliff', 'Heidi', 'Juniper', 'Tumble'],
+  frog: ['Ribbit', 'Lily', 'Hopper', 'Puddle', 'Kermie', 'Sprout', 'Bog', 'Pip', 'Freddie', 'Mossy'],
   fox: ['Rusty', 'Ember', 'Scout', 'Pumpkin', 'Copper', 'Saffron', 'Tod', 'Juniper', 'Marmalade', 'Flick'],
   bird: ['Tweety', 'Sunny', 'Skye', 'Pippa', 'Kiwi', 'Robin', 'Breeze', 'Chirpy', 'Feather', 'Wren'],
 };

@@ -163,7 +163,16 @@ export class Game {
     this.scene.add(this.flora.group);
     this.particles = new Particles();
     this.scene.add(this.particles.group);
-    this.fauna = new Fauna(this.flora.flowerSpots);
+    this.fauna = new Fauna(this.flora.flowerSpots, this.flora.spots.filter((q) => q.name === 'lily').map((q) => ({ x: q.x, z: q.z, r: 0.42 * q.sc * 0.92 })));
+    this.fauna.setTheme(theme.id);
+    themeEvents.on(() => this.fauna.setTheme(theme.id));
+    const croakR = new THREE.Vector3();
+    this.fauna.onCroak = (x, z) => {
+      const p = this.player?.position; if (!p) return;
+      const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz) || 1;
+      croakR.setFromMatrixColumn(this.camera.matrixWorld, 0);
+      this.audio.croak(d, (dx * croakR.x + dz * croakR.z) / d);
+    };
     await lap('fauna');
     this.scene.add(this.fauna.group);
     this.reef = new Reef();

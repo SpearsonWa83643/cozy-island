@@ -223,6 +223,36 @@ function fox(): Rig {
   return r;
 }
 
+function frog(col: string): Rig {
+  // round, squat frog: big eye bumps, wide smile, pale belly, folded back legs
+  const r = base(), b = r.body, belly = '#fbf3d2', dk = '#2a3a22', c2 = new THREE.Color(col).multiplyScalar(0.8).getStyle();
+  b.add(m(S(0.42), col, [0, 0.36, -0.05], [0, 0, 0], [1.1, 0.72, 1.15]));
+  b.add(m(S(0.3), belly, [0, 0.27, 0.16], [0, 0, 0], [1.05, 0.6, 0.9]));
+  for (const s of [-1, 1]) {
+    b.add(m(S(0.2), col, [s * 0.36, 0.2, -0.2], [0, 0, 0], [0.8, 0.75, 1.4])); // haunch
+    b.add(m(S(0.13), c2, [s * 0.44, 0.03, 0.06], [0, s * 0.4, 0], [1.1, 0.3, 1.9])); // back foot
+    b.add(m(C(0.055, 0.05, 0.3), col, [s * 0.2, 0.14, 0.32], [0.2, 0, s * 0.1])); // front leg
+    b.add(m(S(0.08), c2, [s * 0.22, 0.01, 0.4], [0, 0, 0], [1.3, 0.35, 1.2]));
+    for (let k = 0; k < 4; k++) b.add(m(S(0.03), c2, [s * (0.36 + k * 0.035), 0.03, 0.2 + k * 0.03]));
+  }
+  r.head = pivot(b, [0, 0.55, 0.22]);
+  const h = r.head;
+  h.add(m(S(0.32), col, [0, 0, 0], [0, 0, 0], [1.15, 0.72, 1]));
+  h.add(m(S(0.2), belly, [0, -0.09, 0.14], [0, 0, 0], [1.2, 0.45, 0.9]));
+  h.add(m(C(0.006, 0.006, 0.36, 8), dk, [0, -0.05, 0.31], [0, 0, Math.PI / 2], [1, 1, 1])); // smile
+  for (const s of [-1, 1]) {
+    h.add(m(S(0.12), col, [s * 0.17, 0.16, 0.08]));
+    r.eyes.push(eye(h, [s * 0.17, 0.18, 0.15], 0.09, '#1a1a12'));
+    h.add(m(S(0.035), '#ff9fb0', [s * 0.24, -0.05, 0.22], [0, 0, 0], [1, 0.6, 0.4])); // cheek
+    h.add(m(S(0.012), dk, [s * 0.05, 0.03, 0.31]));
+  }
+  r.nose = m(S(0.001), dk, [0, 0.03, 0.31]); h.add(r.nose);
+  r.mouth.set(0, -0.06, 0.32);
+  r.dirtSpots = spotsOnEllipsoid(new THREE.Vector3(0, 0.36, -0.05), new THREE.Vector3(0.44, 0.3, 0.46), 8, 0.09, (n) => n.z < 0.7);
+  r.height = 1.0; r.width = 1.15;
+  return r;
+}
+
 function goat(): Rig {
   const r = base(), b = r.body, w = '#f4efe4', g = '#ddd3c1', dk = '#4a3f36', hn = '#b8a98e';
   b.add(m(S(0.42), w, [0, 0.78, -0.05], [0, 0, 0], [0.9, 0.85, 1.3]));
@@ -250,7 +280,7 @@ function goat(): Rig {
 }
 
 export function buildRig(species: string, color: string | null): Rig {
-  const r = species === 'goat' ? goat() : species === 'fox' ? fox() : species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
+  const r = species === 'frog' ? frog(color ?? '#5fbf4a') : species === 'goat' ? goat() : species === 'fox' ? fox() : species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
   r.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) r.pickables.push(o); });
   return r;
 }

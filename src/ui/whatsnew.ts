@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-blossom';
+export const VERSION = '2026-10-23-frogs';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'heart', text: 'Frogs have hopped into the Misty Marsh! Listen for them croaking by the pond, and watch them leap from lily pad to lily pad. Feed one a beetle or a worm to make a new friend. Their colours change with the seasons, and on spooky autumn evenings the whole pond sings a croaky chorus.' },
   { icon: 'heart', text: 'Blossom Isle is in bloom! A cherry grove now covers its far side, with wildflowers, bushes and shells on the beach. The blossoms change colour with each theme. Look for the pink pennant: it marks a clear landing spot facing home.' },
   { icon: 'star', text: 'Blossom Isle is easier to spot from the beach now, and it has its own corner on your map with a pin at the landing spot.' },
   { icon: 'star', text: 'Land ho! A new little island, Blossom Isle, has risen out of the sea northeast of home. Look out from the northeast beach, then fly over on a winged mount to explore its sandy shore and pink-flowered meadows.' },

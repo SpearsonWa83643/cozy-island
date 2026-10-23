@@ -39,13 +39,14 @@ export const FOODS: Record<FoodId, FoodDef> = {
 };
 export const FOOD_ORDER = Object.keys(FOODS) as FoodId[];
 
-export type Species = 'bunny' | 'deer' | 'duck' | 'crab' | 'bird' | 'fox' | 'goat';
+export type Species = 'bunny' | 'deer' | 'duck' | 'crab' | 'bird' | 'fox' | 'goat' | 'frog';
 export const TASTES: Record<Species, { fav: FoodId[]; likes: FoodId[]; name: string; icon: string }> = {
   bunny: { name: 'Bunny', icon: '🐰', fav: ['carrot', 'clover'], likes: ['berry', 'blueberry', 'cherry'] },
   deer: { name: 'Deer', icon: '🦌', fav: ['apple'], likes: ['acorn', 'cherry', 'mushroom', 'pinecone'] },
   duck: { name: 'Duck', icon: '🦆', fav: ['seeds'], likes: ['reed', 'clover', 'berry', 'worm'] },
   crab: { name: 'Crab', icon: '🦀', fav: ['coconut'], likes: ['cactusfruit', 'apple', 'seeds'] },
   goat: { name: 'Mountain Goat', icon: '🐐', fav: ['clover', 'apple'], likes: ['pinecone', 'carrot', 'berry'] },
+  frog: { name: 'Frog', icon: '🐸', fav: ['bug', 'worm'], likes: ['seeds', 'blueberry', 'berry'] },
   fox: { name: 'Fox', icon: '🦊', fav: ['berry', 'blueberry'], likes: ['cherry', 'apple', 'mushroom'] },
   bird: { name: 'Bird', icon: '🐦', fav: ['worm', 'bug', 'berry', 'blueberry'], likes: ['seeds', 'cherry', 'pinecone'] },
 };

@@ -438,6 +438,20 @@ export class AudioEngine {
       o.frequency.exponentialRampToValueAtTime(f * 0.7, t + i * 0.16 + 0.1);
     }
   }
+  /** Order 43: a real frog on the marsh croaked d metres away (pan -1..1): a throaty 'rib-bit' that fades with distance */
+  croaks = 0;
+  croak(d: number, pan: number) {
+    if (!this.started || !this.ctx || d > 16) return;
+    this.croaks++;
+    const ctx = this.ctx, t = ctx.currentTime + 0.02, near = 1 - d / 16;
+    const dest = this.out(Math.max(-0.9, Math.min(0.9, pan)) * Math.min(1, d / 3), 0.03 + near * near * 0.1, 0.25 + (1 - near) * 0.2);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600 + near * 500; lp.Q.value = 7; lp.connect(dest);
+    const f = rand(170, 230);
+    for (let i = 0; i < 2; i++) {
+      const o = this.tone('square', f * (i ? 1.25 : 1), t + i * 0.13, 0.08, lp, 0.7, 0.008);
+      o.frequency.exponentialRampToValueAtTime(f * (i ? 0.95 : 0.7), t + i * 0.13 + 0.08);
+    }
+  }
   private woodpecker() {
     const ctx = this.ctx!, t = ctx.currentTime + 0.05;
     const dest = this.out(rand(-1, 1), 0.06, 0.4);
@@ -604,6 +618,9 @@ export class AudioEngine {
       for (let i = 0; i < 3; i++) { const o = this.tone('sine', 2600, t + i * 0.1, 0.06, d, 0.25, 0.006); o.frequency.exponentialRampToValueAtTime(3600, t + i * 0.1 + 0.05); }
     } else if (species === 'crab') {
       for (let i = 0; i < 4; i++) this.noiseHit(t + i * 0.07, 0.02, d, 'bandpass', 3200, 6, 0.8, 0.001);
+    } else if (species === 'frog') {
+      // frog: a cheerful little 'rib-bit'
+      for (let i = 0; i < 2; i++) { const o = this.tone('square', i ? 300 : 240, t + i * 0.12, 0.08, d, 0.07, 0.006); o.frequency.exponentialRampToValueAtTime(i ? 220 : 170, t + i * 0.12 + 0.07); }
     } else if (species === 'goat') {
       // goat: a wobbly 'meh-eh-eh' bleat (vibrato via fast pitch steps)
       const o = this.tone('sawtooth', 420, t, 0.5, d, 0.09, 0.02);

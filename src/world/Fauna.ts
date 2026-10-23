@@ -63,6 +63,28 @@ function goatGeo() {
   b.add(sph(0.06), w, [0, 0.62, -0.32]);
   return b.build();
 }
+function frogGeo() {
+  // light base colours so the per-instance (theme) tint reads; eyes/pupils stay dark
+  const b = new Baker(), g = '#ffffff', belly = '#fff6dc', dk = '#1e2a1a';
+  b.add(sph(0.11), g, [0, 0.09, -0.01], [0, 0, 0], [1.05, 0.72, 1.2]);
+  b.add(sph(0.075), belly, [0, 0.065, 0.05], [0, 0, 0], [1.05, 0.6, 1]);
+  b.add(sph(0.085), g, [0, 0.13, 0.08], [0, 0, 0], [1.15, 0.7, 1]); // head
+  for (const s of [-1, 1]) {
+    b.add(sph(0.04), g, [s * 0.055, 0.19, 0.1]); // eye bumps
+    b.add(sph(0.025), dk, [s * 0.065, 0.2, 0.125]);
+    b.add(sph(0.05), g, [s * 0.1, 0.05, -0.07], [0, 0, 0], [0.8, 0.7, 1.5]); // haunches
+    b.add(sph(0.03), g, [s * 0.12, 0.015, 0.02], [0, 0, 0], [1.2, 0.35, 1.8]); // back feet
+    b.add(cyl(0.016, 0.014, 0.08), g, [s * 0.06, 0.04, 0.1]); // front legs
+  }
+  b.add(sph(0.012), dk, [-0.02, 0.135, 0.165]).add(sph(0.012), dk, [0.02, 0.135, 0.165]);
+  return b.build();
+}
+/** per-theme frog skins (cheap instanced tint) */
+export const FROG_COLORS: Record<string, string[]> = {
+  spring: ['#7ed957', '#a4e05c', '#5fcf7a'], summer: ['#4fbf4a', '#7bd04e', '#3fae6a'],
+  autumn: ['#93a03a', '#b0953e', '#6f8a3a'], winter: ['#7fbfae', '#9fd0c0', '#6aa8a0'],
+  halloween: ['#ff8a2a', '#a060e0', '#62d05a'],
+};
 function cone(r: number, h: number) { return new THREE.ConeGeometry(r, h, 5); }
 function duckGeo() {
   return new Baker()
@@ -90,7 +112,11 @@ function fishGeo(col: string) {
 // ---------- ground / water wanderers ----------
 interface Kind {
   name: string; geo: THREE.BufferGeometry; count: number; low: number; biomes: Biome[];
-  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle' | 'pounce' | 'leap'; homeR: number; pond?: boolean;
+  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle' | 'pounce' | 'leap' | 'frog'; homeR: number; pond?: boolean;
+  /** lily pads (x, z, radius) this animal can sit on, even though they float on water (frogs) */
+  pads?: { x: number; z: number; r: number }[];
+  /** spawn within this many pond radii of the pond centre */
+  nearPond?: number;
   /** max terrain slope this animal will stand on (default 0.7); goats climb steep rock */
   maxSlope?: number;
   colors?: string[];
@@ -98,6 +124,8 @@ interface Kind {
 export interface Agent {
   x: number; z: number; y: number; yaw: number; tx: number; tz: number; state: 0 | 1 | 2; timer: number; ph: number; hx: number; hz: number;
   pc?: number;
+  /** frog hop: progress 0..1 (-1 = sitting), from (jx0, jz0) to (jx, jz); jw = rest before the next hop */
+  jt?: number; jx?: number; jz?: number; jx0?: number; jz0?: number; jw?: number;
   friend: boolean; slot: number; hunger: number; fed: number; ret: boolean; vx: number; vz: number; joy: number; id: number;
 }
 /** Shared per-frame context for befriended followers. */
@@ -111,7 +139,11 @@ export interface FollowCtx {
 let agentIds = 0;
 
 class Herd {
-  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0; leaps = 0;
+  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0; leaps = 0; hops = 0; padHops = 0; croaks = 0;
+  /** frog croak-rate multiplier: a dusk chorus in the evening-lit themes */
+  chorus = 1;
+  /** frog croak at a spot (wired to positional audio by the game) */
+  onCroak: (x: number, z: number) => void = () => {};
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(1, 1, 1); private v = new THREE.Vector3();
   constructor(public k: Kind, mat: THREE.Material, private rnd: Rnd) {
     this.mesh = new THREE.InstancedMesh(k.geo, mat, k.count);
@@ -120,16 +152,23 @@ class Herd {
     let tries = 0;
     while (this.agents.length < k.count && tries++ < 20000) {
       let x: number, z: number;
-      if (k.pond) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * POND.r; x = POND.x + Math.cos(a) * r; z = POND.z + Math.sin(a) * r; }
+      if (k.pond || k.nearPond) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * POND.r * (k.nearPond ?? 1); x = POND.x + Math.cos(a) * r; z = POND.z + Math.sin(a) * r; }
       else { const a = rnd() * 6.28, d = Math.sqrt(rnd()) * ISLAND_RADIUS * 1.05; x = Math.cos(a) * d; z = Math.sin(a) * d; }
       if (!this.valid(x, z)) continue;
       if (!k.pond) { biomeWeights(x, z, w); let bw = 0; for (const b of k.biomes) bw += w[b]; if (bw < 0.55) continue; }
-      this.agents.push({ x, z, y: 0, yaw: rnd() * 6.28, tx: x, tz: z, state: 0, timer: rnd() * 3, ph: rnd() * 10, hx: x, hz: z, friend: false, slot: 0, hunger: 0, fed: 0, ret: false, vx: 0, vz: 0, joy: 0, id: agentIds++ });
+      this.agents.push({ x, z, y: 0, yaw: rnd() * 6.28, tx: x, tz: z, state: 0, timer: rnd() * 3, ph: rnd() * 10, hx: x, hz: z, friend: false, slot: 0, hunger: 0, fed: 0, ret: false, vx: 0, vz: 0, joy: 0, id: agentIds++, jt: -1, jw: 0 });
       if (k.colors) this.mesh.setColorAt(this.agents.length - 1, new THREE.Color(k.colors[Math.floor(rnd() * k.colors.length)]));
     }
     this.active = this.agents.length; this.mesh.count = this.active;
   }
+  /** index of the lily pad under (x, z), or -1 */
+  padAt(x: number, z: number) {
+    const P = this.k.pads; if (!P) return -1;
+    for (let i = 0; i < P.length; i++) if (Math.hypot(P[i].x - x, P[i].z - z) < P[i].r) return i;
+    return -1;
+  }
   valid(x: number, z: number) {
+    if (this.k.pads && this.padAt(x, z) >= 0) return true;
     const h = heightAt(x, z);
     if (h < this.k.h[0] || h > this.k.h[1]) return false;
     if (this.k.pond) return Math.hypot(x - POND.x, z - POND.z) < POND.r * 1.3;
@@ -171,6 +210,8 @@ class Herd {
         let dy = want - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         a.yaw += dy * Math.min(1, dt * (moving ? 10 : 3));
         if (moving) a.ph += dt * Math.min(16, 6 + vl * 1.6);
+      } else if (k.anim === 'frog') {
+        this.frogStep(a, dt, c, blockers);
       } else {
         const dp = Math.hypot(a.x - px, a.z - pz);
         const curious = c.attract(k.name) && dp < 7;
@@ -218,6 +259,69 @@ class Herd {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  /** frog: sits, croaks, and moves only in springy hops between lily pads and the muddy shore */
+  private frogStep(a: Agent, dt: number, c: FollowCtx, blockers: (x: number, z: number) => boolean) {
+    const k = this.k, px = c.px, pz = c.pz;
+    if ((a.jt ?? -1) >= 0) {
+      a.jt! += dt / 0.48;
+      const u = Math.min(1, a.jt!);
+      a.x = a.jx0! + (a.jx! - a.jx0!) * u; a.z = a.jz0! + (a.jz! - a.jz0!) * u;
+      if (a.jt! >= 1) {
+        a.jt = -1; this.hops++;
+        if (this.padAt(a.x, a.z) >= 0) this.padHops++;
+        a.jw = a.state === 2 ? 0.08 : 0.3 + this.rnd() * 0.5;
+      }
+      return;
+    }
+    const dp = Math.hypot(a.x - px, a.z - pz);
+    const curious = c.attract(k.name) && dp < 7;
+    a.timer -= dt; a.jw = Math.max(0, (a.jw ?? 0) - dt);
+    if (!a.ret && curious) {
+      if (dp > 1.7 && a.state === 0 && a.timer <= 0) { const ang = Math.atan2(a.x - px, a.z - pz); a.tx = px + Math.sin(ang) * 1.3; a.tz = pz + Math.cos(ang) * 1.3; a.state = 1; a.timer = 2; }
+    } else if (!a.ret && dp < k.fleeDist * (c.running ? 1.6 : 1) && a.state !== 2) {
+      a.state = 2; a.timer = 1.4;
+      const ang = Math.atan2(a.x - px, a.z - pz) + (this.rnd() - 0.5) * 0.8;
+      a.tx = a.x + Math.sin(ang) * 5; a.tz = a.z + Math.cos(ang) * 5;
+    }
+    if (a.state === 0) {
+      // sitting: the odd croak (more often on a pad), then pick somewhere new nearby
+      if (this.rnd() < dt * this.chorus * (this.padAt(a.x, a.z) >= 0 ? 0.12 : 0.06)) this.croak(a);
+      if (a.timer <= 0) {
+        const P = k.pads ?? [];
+        let tx = a.hx, tz = a.hz;
+        if (P.length && this.rnd() < 0.6) {
+          // favour a lily pad near home
+          for (let t = 0; t < 6; t++) { const p = P[Math.floor(this.rnd() * P.length)]; if (Math.hypot(p.x - a.hx, p.z - a.hz) < k.homeR) { tx = p.x; tz = p.z; break; } }
+        } else { const ang = this.rnd() * 6.28, r = 1 + this.rnd() * k.homeR; tx = a.hx + Math.cos(ang) * r; tz = a.hz + Math.sin(ang) * r; }
+        a.tx = tx; a.tz = tz; a.state = 1; a.timer = 6;
+      }
+      return;
+    }
+    const d = Math.hypot(a.tx - a.x, a.tz - a.z);
+    if (d < 0.35 || (a.state === 2 && a.timer <= 0) || (a.state === 1 && a.timer <= 0)) {
+      if (a.ret && Math.hypot(a.x - a.hx, a.z - a.hz) < 2.5) a.ret = false;
+      a.state = 0; a.timer = 2 + this.rnd() * 4; if (this.rnd() < 0.5) this.croak(a); return;
+    }
+    if ((a.jw ?? 0) > 0) return;
+    if (!this.hopToward(a, a.tx, a.tz, a.ret || curious, blockers)) { a.state = 0; a.timer = 0.6 + this.rnd(); }
+  }
+  /** start one hop (<= 2.4 m) that gets closer to (tx, tz), landing on a pad or valid shore */
+  private hopToward(a: Agent, tx: number, tz: number, loose: boolean, blockers: (x: number, z: number) => boolean) {
+    const d0 = Math.hypot(tx - a.x, tz - a.z), MAX = 2.4;
+    let bx = 0, bz = 0, bd = d0 - 0.2;
+    const ok = (x: number, z: number) => !blockers(x, z) && (this.valid(x, z) || (loose && heightAt(x, z) > 0.05));
+    const tryAt = (x: number, z: number) => { const dd = Math.hypot(tx - x, tz - z); if (dd < bd && ok(x, z)) { bd = dd; bx = x; bz = z; } };
+    if (d0 <= MAX) tryAt(tx, tz);
+    for (const p of this.k.pads ?? []) { const dd = Math.hypot(p.x - a.x, p.z - a.z); if (dd > 0.5 && dd <= MAX) tryAt(p.x + (this.rnd() - 0.5) * p.r * 0.6, p.z + (this.rnd() - 0.5) * p.r * 0.6); }
+    const ang0 = Math.atan2(tx - a.x, tz - a.z);
+    for (const r of [Math.min(MAX, d0), 1.7, 1.0]) for (const da of [0, 0.5, -0.5, 1.0, -1.0]) tryAt(a.x + Math.sin(ang0 + da) * r, a.z + Math.cos(ang0 + da) * r);
+    if (bd >= d0 - 0.2) return false;
+    a.jx0 = a.x; a.jz0 = a.z; a.jx = bx; a.jz = bz; a.jt = 0;
+    a.yaw = Math.atan2(bx - a.x, bz - a.z);
+    return true;
+  }
+  croak(a: Agent) { this.croaks++; a.pc = 1; this.onCroak(a.x, a.z); }
+
   /** goat ledge hop: shift its perch to a nearby, preferably higher, climbable spot */
   private ledgeHop(a: Agent) {
     let bx = a.x, bz = a.z, bh = heightAt(a.x, a.z) - 0.4;
@@ -260,6 +364,18 @@ class Herd {
         if (c > 0.86) { const u = (c - 0.86) / 0.14; y += Math.sin(u * Math.PI) * 0.7; pitch = (u - 0.5) * -0.8; if ((a.pc ?? 0) <= 0.86) { this.leaps++; this.ledgeHop(a); } }
         else if (c < 0.55) pitch = Math.max(0, Math.sin(t * 0.7 + a.ph)) * 0.45; // head down, grazing
         a.pc = c;
+      }
+    }
+    else if (anim === 'frog') {
+      // sits on a lily pad (just above the water) or the mud; idle = throat-puff bob; hops arc high
+      if (a.friend) a.jt = -1;
+      const pad = this.padAt(a.x, a.z) >= 0;
+      y = pad ? 0.09 : Math.max(h, 0.03);
+      if ((a.jt ?? -1) >= 0) { const u = Math.min(1, a.jt!); y += Math.sin(u * Math.PI) * 0.55; pitch = (u - 0.5) * 0.9; }
+      else if (moving) { y += Math.abs(Math.sin(a.ph * 0.8)) * 0.28; pitch = -Math.cos(a.ph * 0.8) * 0.3; }
+      else {
+        a.pc = Math.max(0, (a.pc ?? 0) - 1 / 40);
+        y += Math.sin(t * 2 + a.ph) * 0.004 + (a.pc ?? 0) * 0.02; pitch = -(a.pc ?? 0) * 0.15;
       }
     }
     else if (anim === 'swim') { y = 0.02 + Math.sin(t * 2 + a.ph) * 0.025; roll = Math.sin(t * 1.5 + a.ph) * 0.06; }
@@ -454,7 +570,9 @@ export class Fauna {
     this.reslot();
   }
 
-  constructor(flowerSpots: THREE.Vector3[]) {
+  /** frog croak hook (x, z): positional audio, wired by the game */
+  onCroak: (x: number, z: number) => void = () => {};
+  constructor(flowerSpots: THREE.Vector3[], pads: { x: number; z: number; r: number }[] = []) {
     this.flowerSpots = flowerSpots;
     const rnd = this.rnd;
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: 0.75 });
@@ -492,6 +610,18 @@ export class Fauna {
     // Mountain goats on Alpine Peak (Order 38): appended after the foxes so existing ids stay stable
     const goat: Kind = { name: 'goat', geo: goatGeo(), count: 5, low: 0.6, biomes: [Biome.Alpine], h: [3, 60], speed: 1.3, flee: 4.6, fleeDist: 4, anim: 'leap', homeR: 8, maxSlope: 1.6 };
     const gh = new Herd(goat, mat, mulberry32(5309)); this.herds.push(gh); this.group.add(gh.mesh);
+    // Frogs in Misty Marsh (Order 43): hop between the pond's lily pads and the muddy shore; appended so ids stay stable
+    const frog: Kind = { name: 'frog', geo: frogGeo(), count: 7, low: 0.6, biomes: [Biome.Marsh], h: [0.05, 1.1], speed: 1.2, flee: 3, fleeDist: 2.2, anim: 'frog', homeR: 6, pads, nearPond: 1.5, colors: FROG_COLORS.summer, maxSlope: 0.8 };
+    const frh = new Herd(frog, mat, mulberry32(4343)); frh.onCroak = (x, z) => this.onCroak(x, z); this.herds.push(frh); this.group.add(frh.mesh);
+  }
+
+  /** re-skin theme-tinted animals (frogs) for the active theme */
+  setTheme(id: string) {
+    const h = this.herds.find((q) => q.k.name === 'frog'); if (!h) return;
+    const pal = FROG_COLORS[id] ?? FROG_COLORS.summer, c = new THREE.Color();
+    h.agents.forEach((a, i) => h.mesh.setColorAt(i, c.set(pal[(a.id * 7 + i) % pal.length])));
+    if (h.mesh.instanceColor) h.mesh.instanceColor.needsUpdate = true;
+    h.chorus = id === 'halloween' || id === 'autumn' ? 3 : 1; // dusky themes: evening croak chorus
   }
 
   setQuality(high: boolean) {

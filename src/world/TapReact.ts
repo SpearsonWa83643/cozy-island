@@ -92,7 +92,7 @@ function tints(name: string): string[] {
 }
 
 const ANIMAL_UP: Record<string, number> = {
-  bunny: 0.35, deer: 1.0, fox: 0.4, goat: 0.7, duck: 0.28, crab: 0.15, bird: 0.15, fish: 0.1, butterfly: 0.05,
+  bunny: 0.35, deer: 1.0, fox: 0.4, goat: 0.7, frog: 0.2, duck: 0.28, crab: 0.15, bird: 0.15, fish: 0.1, butterfly: 0.05,
 };
 const ANIMAL_ICONS: Record<string, string[]> = {
   bunny: ['💕', '✨', '🐰', '🎵'],
@@ -102,6 +102,7 @@ const ANIMAL_ICONS: Record<string, string[]> = {
   bird: ['🎵', '✨', '💕', '🐦'],
   fox: ['🍂', '💕', '🦊', '✨'],
   goat: ['🎵', '💕', '🐐', '⛰️'],
+  frog: ['🎵', '💕', '🐸', '💦'],
   fish: ['💦', '✨', '💕', '🐟'],
   butterfly: ['✨', '💕', '🦋', '🌸'],
 };
@@ -275,7 +276,7 @@ export class TapReact {
     this.animalHits++;
     hit.run();
     this.audio.voice(hit.species === 'butterfly' ? 'bird' : hit.species === 'fish' ? 'duck' : hit.species);
-    if (hit.species === 'duck' || hit.species === 'fish') {
+    if (hit.species === 'duck' || hit.species === 'fish' || hit.species === 'frog') {
       this.audio.splash(0, 0.35, false);
       this.spawnRipple(hit.x, hit.z, 0.7, 0.9);
       this.reef?.ring(hit.x, hit.z, 0.7, 0.9);
@@ -303,6 +304,11 @@ export class TapReact {
       // fox: playful spin-and-dash, then trots back home later
       a.state = 2; a.timer = 0.9; a.ph += 3;
       const ang = Math.atan2(a.x - player.x, a.z - player.z) + (Math.random() - 0.5) * 1.2;
+      a.tx = a.x + Math.sin(ang) * 3; a.tz = a.z + Math.cos(ang) * 3;
+    } else if (species === 'frog') {
+      // frog: startled 'rib-bit', then hops off to another pad
+      a.state = 2; a.timer = 1.2; a.joy = Math.max(a.joy, 0.4);
+      const ang = Math.atan2(a.x - player.x, a.z - player.z) + (Math.random() - 0.5) * 1.0;
       a.tx = a.x + Math.sin(ang) * 3; a.tz = a.z + Math.cos(ang) * 3;
     } else if (species === 'goat') {
       // goat: indignant little hop, then a skip up the slope
