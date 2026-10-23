@@ -23,8 +23,10 @@ try {
   await page.evaluate(() => { const g = window.game; g.player.teleport(-6, 18, Math.PI); for (let i = 0; i < 4; i++) g.step(1 / 30); g.rig.pitch = 0.5; g.rig.distance = 26; g.rig.yaw = Math.PI * 0.15; });
   const looks = {};
   let n = 84;
+  const ALL = ['spring', 'summer', 'autumn', 'winter', 'halloween'];
   const THEMES = (process.env.HAZE_THEMES ?? 'spring,summer,autumn,winter,halloween').split(',');
   for (const id of THEMES) {
+    n = 84 + ALL.indexOf(id);
     await page.goto(base + `?webgl&q=low&touch=1&nonews&theme=${id}`); await page.waitForFunction(() => window.game?.ready);
     await page.evaluate(() => { const g = window.game; g.player.teleport(-6, 18, Math.PI); g.rig.yaw = Math.PI * 0.15; });
     await page.evaluate((id) => { const g = window.game; for (let i = 0; i < 150; i++) g.step(1 / 30); g.rig.pitch = 0.5; g.rig.distance = 26; for (let i = 0; i < 5; i++) g.step(1 / 30); }, id);
