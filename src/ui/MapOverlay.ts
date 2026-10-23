@@ -30,7 +30,7 @@ export class MapOverlay {
   private pts = new Map<number, { x: number; y: number }>();
   private pinch0 = 0; private zoom0 = 1;
 
-  constructor(parent: HTMLElement, private flora: Flora) {
+  constructor(parent: HTMLElement, private flora: Flora, private landmarks: { x: number; z: number; label: string; icon: 'lighthouse' }[] = []) {
     this.el = document.createElement('div');
     this.el.className = 'map-overlay';
     this.el.innerHTML = `<div class="map-stage"><div class="map-paper"><canvas></canvas><div class="map-x"></div><div class="map-me"></div></div></div>
@@ -185,6 +185,17 @@ export class MapOverlay {
     // labels
     g.fillStyle = 'rgba(90,58,34,0.85)'; g.font = `20px ${HAND}`; g.textAlign = 'center';
     BIOME_CENTERS.forEach((cc, i) => g.fillText(LABELS[i], toPx(cc[0]), toPx(cc[1]) + (i === 1 ? 34 : i === 5 ? -30 : 0)));
+    // landmarks (Lighthouse Point…)
+    for (const lm of this.landmarks) {
+      const x = toPx(lm.x), y = toPx(lm.z);
+      g.save(); g.strokeStyle = INK; g.lineWidth = 1.6;
+      g.fillStyle = 'rgba(255,240,170,0.55)'; g.beginPath(); g.moveTo(x, y - 22); g.lineTo(x + 26, y - 30); g.lineTo(x + 26, y - 14); g.closePath(); g.fill();
+      g.fillStyle = '#f6efe0'; g.beginPath(); g.moveTo(x - 6, y + 6); g.lineTo(x - 4, y - 18); g.lineTo(x + 4, y - 18); g.lineTo(x + 6, y + 6); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = 'rgba(200,60,50,0.85)'; g.fillRect(x - 5.2, y - 6, 10.4, 5); g.fillRect(x - 4.4, y - 15, 8.8, 4);
+      g.fillStyle = INK; g.beginPath(); g.moveTo(x - 5, y - 18); g.lineTo(x, y - 25); g.lineTo(x + 5, y - 18); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(90,58,34,0.85)'; g.font = `18px ${HAND}`; g.textAlign = 'center'; g.fillText(lm.label, x, y + 24);
+      g.restore();
+    }
     // compass rose
     const cx = N - 78, cy = 110;
     g.save(); g.translate(cx, cy); g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 1.5;

@@ -157,6 +157,13 @@ export class Gameplay implements System {
       // tapping a follower opens its close-up friend screen
       const fr = this.friendAt(e.clientX, e.clientY);
       if (fr) { this.walk.cancel(false); void this.ensureFriend().then((fs) => fs.show(fr)); return; }
+      // Lighthouse Point: tap the tower for the foghorn + a bright flash
+      if (!g.cave.inside && g.lighthouse?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56, g.player.position)) {
+        const lh = g.lighthouse, p0 = g.player.position, dd = Math.hypot(lh.pos.x - p0.x, lh.pos.z - p0.z);
+        g.audio.foghorn(g.panOf(lh.pos.x, lh.pos.z), Math.max(0.25, 0.7 - dd / 80));
+        this.emote(lh.lamp.clone().add(new THREE.Vector3(0, 1.6, 0)), ['💡', '✨', 'Hoooonk!', '⚓'][lh.reactions % 4]);
+        this.walk.cancel(false); return;
+      }
       // seasonal tap reactions (ghosts giggle + twirl, jack-o'-lanterns flare)
       if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
       const lim = g.isTouch ? 70 : 56;
@@ -285,7 +292,7 @@ export class Gameplay implements System {
     if (this.map) return Promise.resolve(this.map);
     if (this.mapP) return this.mapP;
     this.mapP = import('../ui/MapOverlay').then(({ MapOverlay }) => {
-      const m = new MapOverlay(document.body, this.g.flora);
+      const m = new MapOverlay(document.body, this.g.flora, [{ x: this.g.lighthouse.pos.x, z: this.g.lighthouse.pos.z, label: 'Lighthouse Pt.', icon: 'lighthouse' }]);
       m.onClose = () => this.g.audio.paper();
       m.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
       m.guideOn = this.guide.enabled;
@@ -820,6 +827,8 @@ export class Gameplay implements System {
         else { const ep = c.exitPt; if (Math.hypot(p.x - ep.x, p.z - ep.z) < 1.3) this.caveTransition(false); }
       }
     }
+    // Lighthouse Point lookout: first visit gets a little welcome
+    if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
     this.forage.update(dt, p);
     this.treasure.update(dt, p);
     this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy && !g.cave.inside ? this.treasure.spot : null);

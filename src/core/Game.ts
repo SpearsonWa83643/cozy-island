@@ -15,6 +15,7 @@ import { Particles } from '../world/Particles';
 import { Fauna } from '../world/Fauna';
 import { Reef } from '../world/Reef';
 import { Cave } from '../world/Cave';
+import { Lighthouse } from '../world/Lighthouse';
 import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
@@ -55,6 +56,7 @@ export class Game {
   fauna!: Fauna;
   reef!: Reef;
   cave!: Cave;
+  lighthouse!: Lighthouse;
   /** 0..1 eased blend toward the cave atmosphere */
   caveK = 0;
   private hiddenForCave: THREE.Object3D[] = [];
@@ -121,6 +123,8 @@ export class Game {
     await lap('flora', true);
     this.cave = new Cave(this.physics);
     this.scene.add(this.cave.outside, this.cave.interior);
+    this.lighthouse = new Lighthouse(this.physics, this.flora);
+    this.scene.add(this.lighthouse.group);
     await lap('cave');
     this.scene.add(this.flora.group);
     this.particles = new Particles();
@@ -188,7 +192,7 @@ export class Game {
       onRide: () => { this.play.save.data.mountRides = (this.play.save.data.mountRides ?? 0) + 1; this.play.save.touch(); },
       openPicker: () => { if (unlockedMounts(sd()).length < 2) return false; this.mountPicker.show(); return true; },
       tourStops: () => {
-        const out: { x: number; z: number }[] = [this.cave.outsideSpot];
+        const out: { x: number; z: number }[] = [this.cave.outsideSpot, this.lighthouse.tourSpot];
         const pp = this.dress?.patch; if (pp && (pp.x || pp.z)) out.push({ x: pp.x, z: pp.z });
         return out;
       },
@@ -241,6 +245,7 @@ export class Game {
         this.particles.update(dt, t, this.player.position);
         this.reef.update(dt, t, this.player.position, this.player.swimming, Math.min(1, this.player.speed / 2.5));
     this.cave.update(dt, t, this.player.position);
+        this.lighthouse.update(dt);
         this.dress.update(dt, t);
       },
     }, this.play);
@@ -394,7 +399,7 @@ export class Game {
     return surfaceAt(p.x, p.z);
   }
 
-  private panOf(x: number, z: number) {
+  panOf(x: number, z: number) {
     const c = this.camera.position, yaw = this.rig.yaw;
     const dx = x - c.x, dz = z - c.z, l = Math.hypot(dx, dz) || 1;
     return Math.max(-1, Math.min(1, (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / l));

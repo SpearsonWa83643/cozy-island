@@ -15,6 +15,8 @@ export interface SaveData {
   moleFed?: number;
   /** has visited the cave */
   caved?: boolean;
+  /** visited the Lighthouse Point lookout */
+  lookout?: boolean;
   shells: number;
   candy?: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)

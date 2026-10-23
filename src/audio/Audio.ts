@@ -548,6 +548,14 @@ export class AudioEngine {
     const d = this.sfx(rand(-0.35, 0.35), 0.5, 0.12);
     for (let i = 0; i < 5; i++) this.noiseHit(t + i * 0.02, 0.055, d, 'bandpass', (2100 + Math.random() * 2200) * pitch, 1.3, 0.13, 0.003);
   }
+  /** Lighthouse Point: a deep, friendly two-note foghorn (tap the tower) */
+  foghorn(pan = 0, gain = 0.6) {
+    const t = this.go(); if (t < 0) return;
+    const d = this.sfx(pan, gain, 0.55);
+    const lp = this.ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(260, t); lp.frequency.linearRampToValueAtTime(520, t + 0.5); lp.frequency.linearRampToValueAtTime(300, t + 1.9); lp.connect(d);
+    this.tone('sawtooth', 98, t, 1.9, lp, 0.16, 0.18); this.tone('sawtooth', 98.6, t, 1.9, lp, 0.12, 0.2);
+    this.tone('sawtooth', 147, t + 0.05, 1.7, lp, 0.08, 0.25); this.tone('sine', 49, t, 2.0, d, 0.18, 0.2);
+  }
   /** little bubbly pop (equip, sheet) */
   pop(pitch = 1) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 520 * pitch, t, 0.12, this.sfx(0, 0.6, 0.1), 0.12, 0.002); o.frequency.exponentialRampToValueAtTime(980 * pitch, t + 0.08); }
   // ---------- friend close-up ----------

@@ -450,6 +450,23 @@ export class Flora {
     return true;
   }
 
+  /** Remove every placed plant / tree / rock within r of (x, z) (landmarks placed after flora, e.g. Lighthouse Point). */
+  clearArea(x: number, z: number, r: number, _small = false) {
+    const zed = new THREE.Matrix4().makeScale(0, 0, 0);
+    const keep: typeof this.spots = [];
+    for (const s of this.spots) {
+      if (Math.hypot(s.x - x, s.z - z) >= r) { keep.push(s); continue; }
+      const hit = this.findInstance(s.name, s.x, s.z);
+      if (hit) { hit.mesh.setMatrixAt(hit.index, zed); hit.mesh.instanceMatrix.needsUpdate = true; }
+      this.clearTrunkCollider(s.x, s.z);
+      const ti = this.trees.findIndex((t) => Math.abs(t.x - s.x) < 1e-3 && Math.abs(t.z - s.z) < 1e-3); if (ti >= 0) this.trees.splice(ti, 1);
+      const fi = this.flowerSpots.findIndex((t) => Math.abs(t.x - s.x) < 1e-3 && Math.abs(t.z - s.z) < 1e-3); if (fi >= 0) this.flowerSpots.splice(fi, 1);
+      this.cleared++;
+    }
+    this.spots.length = 0; this.spots.push(...keep);
+  }
+  cleared = 0;
+
   /** Shrink / replace trunk collider with a stump-sized one while the stump is visible. */
   setStumpCollider(x: number, z: number, h: number, sc: number) {
     const k = spotKey(x, z);
