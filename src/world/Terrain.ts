@@ -4,7 +4,7 @@ import { Noise2D } from './noise';
 import { Biome, BiomeField, BASE_CENTERS, BIOME_COUNT, BASE_POND, biomeWeightsBase, ISLAND_SCALE } from './Biomes';
 import { seasonGround } from '../theme/Season';
 
-import { WORLD_SIZE, BASE_RADIUS, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH } from './config';
+import { WORLD_SIZE, BASE_RADIUS, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE } from './config';
 // re-exported for existing importers; the source of truth is ./config
 export { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL };
 
@@ -180,8 +180,20 @@ export function terrainColor(x: number, z: number, h: number, out: THREE.Color) 
   return out;
 }
 
+/**
+ * Terrain (Big island 2/7): the height/colour grid is still built once for the whole world,
+ * but it renders as a grid of ~CHUNK_SIZE m tiles sharing one material. Each tile copies its
+ * slice of the shared vertices (normals computed on the full grid, so edges are seamless)
+ * and has its own bounds, so the renderer frustum-culls tiles that are off screen.
+ */
+export interface TerrainChunk { mesh: THREE.Mesh; i0: number; j0: number; w: number; h: number; map: Uint32Array }
+
 export class Terrain {
-  mesh: THREE.Mesh;
+  /** root group holding the terrain tiles (toggle .visible to hide all terrain) */
+  mesh: THREE.Group;
+  chunks: TerrainChunk[] = [];
+  /** full-world geometry (not rendered): source for tile attributes, AO bake and trimesh physics */
+  private full: THREE.BufferGeometry;
   heightTexture: THREE.DataTexture;
   vertices: Float32Array;
   private seg = 200;
@@ -239,9 +251,10 @@ export class Terrain {
     const under = smoothstep(float(-0.15), float(-0.6), pw.y).mul(smoothstep(float(-4.2), float(-1.2), pw.y));
     const caustic = c1.mul(c2).mul(under).mul(0.55);
     mat.emissiveNode = vec3(glint).mul(smoothstep(float(60), float(10), pw.sub(cameraPosition).length())).add(vec3(0.55, 0.85, 0.8).mul(caustic));
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.receiveShadow = true;
+    this.full = geo;
+    this.mesh = new THREE.Group();
     this.mesh.name = 'terrain';
+    this.buildChunks(mat);
 
     this.vertices = new Float32Array(pos.array as Float32Array);
     this.heights = new Float32Array(pos.count);
@@ -267,9 +280,55 @@ export class Terrain {
     this.heightTexture.needsUpdate = true;
   }
 
+  /** Split the full grid into ~CHUNK_SIZE m tiles (vertex-aligned, shared edge vertices duplicated). */
+  private buildChunks(mat: THREE.Material) {
+    const seg = this.seg, n = seg + 1;
+    const per = Math.max(1, Math.round(WORLD_SIZE / CHUNK_SIZE));
+    const cuts = Array.from({ length: per + 1 }, (_, k) => Math.round((k * seg) / per));
+    const names = ['position', 'normal', 'color', 'mask', 'uv'];
+    for (let cj = 0; cj < per; cj++) for (let ci = 0; ci < per; ci++) {
+      const i0 = cuts[ci], i1 = cuts[ci + 1], j0 = cuts[cj], j1 = cuts[cj + 1];
+      const w = i1 - i0 + 1, h = j1 - j0 + 1;
+      const map = new Uint32Array(w * h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) map[j * w + i] = (j0 + j) * n + (i0 + i);
+      const g = new THREE.BufferGeometry();
+      for (const name of names) {
+        const src = this.full.getAttribute(name) as THREE.BufferAttribute | undefined;
+        if (!src) continue;
+        const k = src.itemSize, a = src.array as Float32Array, out = new Float32Array(map.length * k);
+        for (let v = 0; v < map.length; v++) for (let c = 0; c < k; c++) out[v * k + c] = a[map[v] * k + c];
+        g.setAttribute(name, new THREE.BufferAttribute(out, k));
+      }
+      // same triangle winding as PlaneGeometry
+      const idx = new Uint32Array((w - 1) * (h - 1) * 6);
+      let o = 0;
+      for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) {
+        const a = i + w * j, b = i + w * (j + 1), c = i + 1 + w * (j + 1), d = i + 1 + w * j;
+        idx[o++] = a; idx[o++] = b; idx[o++] = d; idx[o++] = b; idx[o++] = c; idx[o++] = d;
+      }
+      g.setIndex(new THREE.BufferAttribute(idx, 1));
+      g.computeBoundingBox(); g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, mat);
+      m.receiveShadow = true;
+      m.name = `terrain-${ci}-${cj}`;
+      this.mesh.add(m);
+      this.chunks.push({ mesh: m, i0, j0, w, h, map });
+    }
+  }
+
+  /** copy the full grid's vertex colours into every tile (after AO baking) */
+  private syncColors() {
+    const src = this.full.getAttribute('color') as THREE.BufferAttribute, a = src.array as Float32Array;
+    for (const ch of this.chunks) {
+      const dst = ch.mesh.geometry.getAttribute('color') as THREE.BufferAttribute, d = dst.array as Float32Array;
+      for (let v = 0; v < ch.map.length; v++) { const s3 = ch.map[v] * 3; d[v * 3] = a[s3]; d[v * 3 + 1] = a[s3 + 1]; d[v * 3 + 2] = a[s3 + 2]; }
+      dst.needsUpdate = true;
+    }
+  }
+
   /** Darken the ground under trees/bushes (cheap baked contact AO). */
   bakeAO(points: { x: number; z: number; r: number }[]) {
-    const col = this.mesh.geometry.attributes.color as THREE.BufferAttribute;
+    const col = this.full.attributes.color as THREE.BufferAttribute;
     const n = this.seg + 1, step = WORLD_SIZE / this.seg;
     for (const p of points) {
       const R = p.r * 1.7;
@@ -284,7 +343,7 @@ export class Terrain {
         col.setXYZ(k, col.getX(k) * f, col.getY(k) * f, col.getZ(k) * f);
       }
     }
-    col.needsUpdate = true;
+    this.syncColors();
   }
 
   /** Ray march the height field (much cheaper than mesh raycasting). */

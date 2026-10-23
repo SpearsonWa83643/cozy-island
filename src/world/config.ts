@@ -20,6 +20,8 @@ export const OUT_OF_WORLD_DEPTH = -3.5;
 /** terrain mesh / height grid extent (metres, square, centred on the origin) */
 export const WORLD_SIZE = 196;
 export const WORLD_HALF = WORLD_SIZE / 2;
+/** target terrain tile size (metres); tiles are vertex-aligned so the real size is ~WORLD_SIZE / round(WORLD_SIZE / CHUNK_SIZE) */
+export const CHUNK_SIZE = 64;
 /** ocean plane extent (metres) */
 export const OCEAN_SIZE = 1200;
 /** world half-size shown on the paper map */

@@ -17,7 +17,7 @@ try {
   await page.waitForTimeout(1200);
   const r = await page.evaluate(() => {
     const g = window.game;
-    const tb = g.terrain.mesh.geometry.boundingBox ?? (g.terrain.mesh.geometry.computeBoundingBox(), g.terrain.mesh.geometry.boundingBox);
+    const tb = { min: { x: Math.min(...g.terrain.chunks.map((c) => c.mesh.geometry.boundingBox.min.x)) }, max: { x: Math.max(...g.terrain.chunks.map((c) => c.mesh.geometry.boundingBox.max.x)) } };
     const wb = g.water.geometry.boundingBox ?? (g.water.geometry.computeBoundingBox(), g.water.geometry.boundingBox);
     const shore = [0, 1.5, 3, 4.5].map((a) => g.coast.shoreRadius(a));
     const p = g.player.position;
