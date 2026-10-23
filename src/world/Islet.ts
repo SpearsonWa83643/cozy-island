@@ -4,6 +4,7 @@ import { ISLET_N, ISLET_SEG, isletGrid, setIsletGrid } from './isletGrid';
 import { generateIsletGrid } from './GenWorker';
 import { smooth, noiseB } from './gen';
 import { PhysicsChunks } from '../core/PhysicsChunks';
+import { IsletFlora } from './IsletFlora';
 import type { Physics } from '../core/Physics';
 
 /**
@@ -20,6 +21,10 @@ const PETAL = C('#f2b8cf');
 const TILES = 2;
 
 interface Tile { mesh: THREE.Mesh; i0: number; j0: number; n: number; x0: number; z0: number; x1: number; z1: number; loaded: boolean }
+/** streaming work log (Order 42c): what ran, when (performance.now) and how long, for hitch attribution */
+export interface StreamEvent { t: number; kind: 'gen' | 'load' | 'unload' | 'flora' | 'phys'; ms: number }
+export const streamLog: StreamEvent[] = [];
+const logEv = (kind: StreamEvent['kind'], t0: number) => { const t = performance.now(), ms = t - t0; if (kind !== 'phys' || ms > 1) { streamLog.push({ t: t0, kind, ms }); if (streamLog.length > 400) streamLog.splice(0, 100); } return ms; };
 export interface IsletStats { state: string; genMs: number; genMode: string; loaded: number; loads: number; unloads: number; colliders: number; bytes: number }
 
 class OneIslet {
@@ -27,11 +32,15 @@ class OneIslet {
   state: 'idle' | 'generating' | 'ready' = 'idle';
   tiles: Tile[] = [];
   phys: PhysicsChunks | null = null;
+  /** cherry grove + meadow flora + landing pennant (Order 42b), built a species per frame once ready */
+  flora: IsletFlora;
   stats: IsletStats = { state: 'idle', genMs: 0, genMode: '', loaded: 0, loads: 0, unloads: 0, colliders: 0, bytes: 0 };
   /** water-shader height texture (filled when the grid is ready) */
   constructor(readonly k: number, mat: THREE.Material, private physics: Physics, readonly heightTex: THREE.DataTexture) {
     const d = ISLETS[k];
     this.group.name = `islet-${d.id}`;
+    this.flora = new IsletFlora(d, physics);
+    this.group.add(this.flora.group);
     const per = ISLET_SEG / TILES, step = ISLET_SIZE / ISLET_SEG;
     for (let tj = 0; tj < TILES; tj++) for (let ti = 0; ti < TILES; ti++) {
       const i0 = ti * per, j0 = tj * per;
@@ -57,16 +66,19 @@ class OneIslet {
     for (const t of this.tiles) {
       const dd = this.dist(t, cx, cz);
       if (dd <= radius) { if (!t.loaded && dd < wd) { want = t; wd = dd; } }
-      else if (t.loaded && dd > radius + STREAM_HYSTERESIS) this.unload(t);
+      else if (t.loaded && dd > radius + STREAM_HYSTERESIS) { const t0 = performance.now(); this.unload(t); logEv('unload', t0); }
     }
-    if (want) this.load(want);
-    this.phys?.update(px, pz);
+    if (want) { const t0 = performance.now(); this.load(want); logEv('load', t0); }
+    else if (!this.flora.built) { const t0 = performance.now(); this.flora.step(); logEv('flora', t0); } // never in the same frame as a tile build
+    this.flora.group.visible = this.stats.loaded > 0;
+    { const t0 = performance.now(); this.phys?.update(px, pz); logEv('phys', t0); }
     this.stats.colliders = this.phys?.active ?? 0;
   }
 
   private generate() {
     this.state = 'generating'; this.stats.state = 'generating';
     void generateIsletGrid(this.k).then((r) => {
+      const t0 = performance.now();
       setIsletGrid(this.k, r.grid);
       this.stats.genMs = Math.round(r.ms); this.stats.genMode = r.mode;
       this.phys = new PhysicsChunks(this.physics, r.grid, ISLET_SEG, ISLET_SIZE, PHYS_CHUNK_SIZE, PHYS_RING, this.def.x, this.def.z, 12);
@@ -80,6 +92,7 @@ class OneIslet {
       }
       this.heightTex.needsUpdate = true;
       this.state = 'ready'; this.stats.state = 'ready';
+      logEv('gen', t0);
     });
   }
 
@@ -150,6 +163,8 @@ export class Islets {
   /** colliders only (after a teleport / the systems step) */
   physUpdate(px: number, pz: number) { for (const it of this.list) { if (it.state === 'ready') it.phys?.update(px, pz); } }
   get stats() { return this.list.map((it) => ({ id: it.def.id, ...it.stats })); }
+  get log() { return streamLog; }
+  get floraStats() { return this.list.map((it) => ({ id: it.def.id, ...it.flora.stats })); }
   /** test hook: true once every islet's grid is generated and its tiles are built */
   get ready() { return this.list.every((it) => it.state === 'ready' && it.tiles.every((t) => t.loaded)); }
 }

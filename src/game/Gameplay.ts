@@ -296,6 +296,7 @@ export class Gameplay implements System {
     if (this.mapP) return this.mapP;
     this.mapP = import('../ui/MapOverlay').then(({ MapOverlay }) => {
       const m = new MapOverlay(document.body, this.g.flora, [{ x: this.g.lighthouse.pos.x, z: this.g.lighthouse.pos.z, label: 'Lighthouse Pt.', icon: 'lighthouse' }, { x: this.g.wreck.pos.x, z: this.g.wreck.pos.z, label: 'Shipwreck Cove', icon: 'ship' }]);
+      { const fl = this.g.islets?.list[0]?.flora; if (fl) m.isletPin = { x: fl.landing.x, z: fl.landing.z }; } // Blossom Isle landing pin (Order 42b)
       m.onClose = () => this.g.audio.paper();
       m.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
       m.guideOn = this.guide.enabled;

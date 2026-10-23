@@ -1,10 +1,12 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-turtle';
+export const VERSION = '2026-10-23-blossom';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'heart', text: 'Blossom Isle is in bloom! A cherry grove now covers its far side, with wildflowers, bushes and shells on the beach. The blossoms change colour with each theme. Look for the pink pennant: it marks a clear landing spot facing home.' },
+  { icon: 'star', text: 'Blossom Isle is easier to spot from the beach now, and it has its own corner on your map with a pin at the landing spot.' },
   { icon: 'star', text: 'Land ho! A new little island, Blossom Isle, has risen out of the sea northeast of home. Look out from the northeast beach, then fly over on a winged mount to explore its sandy shore and pink-flowered meadows.' },
   { icon: 'star', text: 'New mount: the Sea Turtle! The captain\'s chest at Shipwreck Cove now holds a glowing Sea Pearl. Call your turtle by the water, glide along the surface, and tap Jump to dive over the reef. Already opened the chest? It\'s closed again, with the pearl inside.' },
   { icon: 'wood', text: 'New in Build Mode: stone path tiles, wooden stairs you can climb, and a little arched bridge to carry you over a stream or pond. On iPad, swipe the piece bar sideways to find them.' },

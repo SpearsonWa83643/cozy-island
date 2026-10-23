@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { Fn, float, luminance, max, mix, output, positionView, positionWorld, reference, smoothstep, uniform, vec3, vec4 } from 'three/tsl';
+import { Fn, float, length, luminance, max, mix, output, positionView, positionWorld, reference, smoothstep, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { ISLETS } from './config';
 
 /**
  * Height fog + aerial perspective (Big island 3/7). Replaces the plain range fog with one TSL fog node:
@@ -8,7 +9,11 @@ import { Fn, float, luminance, max, mix, output, positionView, positionWorld, re
  *  - height fog: low-lying mist in valleys / over the sea that thickens with distance (great from the mount)
  * Per-theme tints: cool blue in Spring/Summer, warm amber in Autumn, icy in Winter, purple in Halloween.
  * Cheap: a few ALU ops per fragment, no extra passes, works on the WebGL2 fallback too.
+ * Order 42b: land on/above the sea around Blossom Isle gets much less fog + aerial haze, so the islet reads as a
+ * destination from the main shore instead of a faint purple shape (the sea and sky around it keep the full fog).
  */
+/** how much fog/haze is lifted from the islet's land (0 = none, 1 = all) */
+export const ISLET_CLEAR = 0.72;
 export interface HazeLook { haze: string; aerial: number; height: number; top: number }
 export const HAZE: Record<string, HazeLook> = {
   classic: { haze: '#b8d4ec', aerial: 0.5, height: 0.32, top: 2.2 },
@@ -29,23 +34,32 @@ export class Atmosphere {
   private tc = new THREE.Color(HAZE.classic.haze);
   /** 0 = outdoors, 1 = inside the cave (haze off) */
   under = 0;
+  /** islet haze lift (uniform, 0..1) */
+  readonly isletClear = uniform(ISLET_CLEAR);
 
   constructor(fogState: THREE.Fog) {
     const color = reference('color', 'color', fogState);
     const near = reference('near', 'float', fogState);
     const far = reference('far', 'float', fogState);
     const { hazeColor, aerial, height, top } = this;
+    const isl = ISLETS[0] ?? { x: 1e5, z: 1e5, r: 1 };
+    const islC = vec2(isl.x, isl.z), islR = float(isl.r);
+    const clearK = this.isletClear;
     this.node = Fn(() => {
       const viewZ = positionView.z.negate();
-      const range = smoothstep(near, far, viewZ);
+      // islet land (inside its shore + a bit, above sea level) keeps most of its colour at range
+      const dI = length(positionWorld.xz.sub(islC));
+      const onIslet = smoothstep(islR.mul(1.15), islR.mul(0.8), dI).mul(smoothstep(float(-0.1), float(0.5), positionWorld.y)).mul(clearK);
+      const lift = float(1).sub(onIslet);
+      const range = smoothstep(near, far, viewZ).mul(lift);
       // aerial perspective: starts well before the fog, desaturates + tints toward the haze
-      const aer = smoothstep(near.mul(0.3), far.mul(0.85), viewZ).mul(aerial);
+      const aer = smoothstep(near.mul(0.3), far.mul(0.85), viewZ).mul(aerial).mul(lift.mul(0.6).add(0.4));
       const rgb = output.rgb;
       const desat = mix(rgb, vec3(luminance(rgb)), aer.mul(0.45));
       const tinted = mix(desat, hazeColor, aer.mul(0.32));
       // height fog: below `top`, thicker the lower and farther it is
       const depth = top.sub(positionWorld.y).max(0).div(top.add(2.5)).min(1);
-      const hf = depth.mul(smoothstep(float(6), far.mul(0.55), viewZ)).mul(height);
+      const hf = depth.mul(smoothstep(float(6), far.mul(0.55), viewZ)).mul(height).mul(lift);
       return vec4(mix(tinted, color, max(range, hf).min(1)), output.a);
     })();
   }

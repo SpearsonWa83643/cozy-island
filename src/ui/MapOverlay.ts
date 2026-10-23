@@ -1,7 +1,8 @@
 import { heightAt, biomeWeights } from '../world/Terrain';
 import { BIOME_CENTERS, BIOME_COUNT, POND } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
-import { MAP_EXTENT } from '../world/config';
+import { MAP_EXTENT, ISLETS, ISLET_SIZE } from '../world/config';
+import { isletGrid } from '../world/isletGrid';
 import type { Flora } from '../world/Flora';
 
 const EXTENT = MAP_EXTENT; // world half-size shown on the map (from world config)
@@ -12,6 +13,14 @@ const LAND = ['#b8c98a', '#d9d6cf', '#dba46a', '#e9d39c', '#d99e6e', '#9fb59c'];
 const LABELS = ['Meadow', 'Snowy Peak', 'Autumn Grove', 'Palm Beach', 'Mesa', 'Misty Marsh'];
 
 const toPx = (w: number) => ((w + EXTENT) / (2 * EXTENT)) * N;
+// Blossom Isle inset (Order 42b): the islet lies far off the main map, so it gets a round inset top-right
+// (where it really is, north-east), joined to the main coast by a dashed sea route.
+const INSET = { cx: N - 112, cy: 128, r: 92 };
+const ISL = ISLETS[0];
+const INSET_HALF = ISL ? ISL.r * 1.25 : 80; // world metres from the islet centre to the inset rim
+const insetPx = (x: number, z: number) => ISL ? { x: INSET.cx + ((x - ISL.x) / INSET_HALF) * INSET.r, y: INSET.cy + ((z - ISL.z) / INSET_HALF) * INSET.r } : { x: -99, y: -99 };
+/** true if (x, z) is shown in the islet inset rather than the main map */
+export const inInset = (x: number, z: number) => !!ISL && Math.abs(x - ISL.x) < ISLET_SIZE / 2 && Math.abs(z - ISL.z) < ISLET_SIZE / 2;
 
 export interface MapInfo { state: string; n: number; x: number; z: number; hint: string; bottle: { x: number; z: number }; }
 
@@ -30,6 +39,9 @@ export class MapOverlay {
   private pts = new Map<number, { x: number; y: number }>();
   private pinch0 = 0; private zoom0 = 1;
 
+  /** islet landing pin (world xz) */
+  isletPin: { x: number; z: number } | null = null;
+  private baseIslet = false;
   constructor(parent: HTMLElement, private flora: Flora, private landmarks: { x: number; z: number; label: string; icon: 'lighthouse' | 'ship' }[] = []) {
     this.el = document.createElement('div');
     this.el.className = 'map-overlay';
@@ -72,18 +84,20 @@ export class MapOverlay {
   /** per-frame: player marker + X pulse */
   update(px: number, pz: number, facing: number, closeness: number) {
     if (!this.open) return;
-    this.me.style.left = `${(toPx(px) / N) * 100}%`; this.me.style.top = `${(toPx(pz) / N) * 100}%`;
+    if (inInset(px, pz)) { const q = insetPx(px, pz); this.me.style.left = `${(q.x / N) * 100}%`; this.me.style.top = `${(q.y / N) * 100}%`; }
+    else { this.me.style.left = `${(toPx(px) / N) * 100}%`; this.me.style.top = `${(toPx(pz) / N) * 100}%`; }
     this.me.style.transform = `translate(-50%, -50%) rotate(${-facing + Math.PI}rad)`;
     this.x.classList.toggle('hot', closeness > 0.6);
   }
 
   // ---------------- drawing ----------------
   private draw(info: MapInfo) {
-    const key = `${info.state}|${info.n}|${info.x.toFixed(1)}`;
+    const isl = !!(ISL && isletGrid(0));
+    const key = `${info.state}|${info.n}|${info.x.toFixed(1)}|${isl}`;
     const g = this.canvas.getContext('2d')!;
     if (key !== this.drawnKey) {
       this.drawnKey = key;
-      if (!this.base) this.base = this.drawBase();
+      if (!this.base || this.baseIslet !== isl) { this.base = this.drawBase(); this.baseIslet = isl; }
       g.clearRect(0, 0, N, N);
       g.drawImage(this.base, 0, 0);
       const active = info.state === 'active' || info.state === 'dug';
@@ -117,6 +131,47 @@ export class MapOverlay {
     }
     this.caption.textContent = info.state === 'bottle' ? 'A glinting bottle lies on the beach near where you started. Go take a look!'
       : info.state === 'dug' ? 'You found it! Open the chest.' : info.hint;
+  }
+
+  /** round parchment inset with Blossom Isle's coast, meadow, cherry grove and landing pin, plus the sea route */
+  private drawInset(g: CanvasRenderingContext2D, rnd: () => number) {
+    if (!ISL) return;
+    const { cx, cy, r } = INSET;
+    // dashed sea route from the main island's north-east coast to the inset
+    const a = Math.atan2(ISL.z, ISL.x), sx = toPx(Math.cos(a) * EXTENT * 0.72), sz = toPx(Math.sin(a) * EXTENT * 0.72);
+    g.save(); g.strokeStyle = 'rgba(90,58,34,0.7)'; g.lineWidth = 2; g.setLineDash([6, 6]);
+    g.beginPath(); g.moveTo(sx, sz); g.quadraticCurveTo((sx + cx) / 2 + 26, (sz + cy) / 2 + 26, cx - r * 0.72, cy + r * 0.72); g.stroke(); g.setLineDash([]); g.restore();
+    g.save();
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fillStyle = '#efe0bd'; g.fill();
+    g.clip();
+    g.fillStyle = 'rgba(159,203,204,0.35)'; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    const ready = !!isletGrid(0);
+    const cell = 3;
+    for (let py = -r; py < r; py += cell) for (let px = -r; px < r; px += cell) {
+      const wx = ISL.x + ((px + cell / 2) / r) * INSET_HALF, wz = ISL.z + ((py + cell / 2) / r) * INSET_HALF;
+      const h = ready ? heightAt(wx, wz) : (Math.hypot(wx - ISL.x, wz - ISL.z) < ISL.r * 0.85 ? 2 : -3);
+      if (h > 0.02) { g.fillStyle = h < 0.7 ? '#ead9a8' : '#b8c98a'; g.globalAlpha = 0.6 + rnd() * 0.12; g.fillRect(cx + px, cy + py, cell + 0.5, cell + 0.5); }
+      else if (h > -2.5) { g.fillStyle = '#9fcbcc'; g.globalAlpha = 0.35 * (1 + h / 2.5); g.fillRect(cx + px, cy + py, cell + 0.5, cell + 0.5); }
+    }
+    g.globalAlpha = 1;
+    // cherry grove stamps (far, north-east half) in blossom pink
+    const gr = mulberry32(ISL.seed);
+    for (let i = 0; i < 26; i++) {
+      const an = -Math.PI / 4 + (gr() - 0.5) * 2.2, d = (0.15 + gr() * 0.55) * ISL.r;
+      const q = insetPx(ISL.x + Math.cos(an) * d, ISL.z + Math.sin(an) * d);
+      g.fillStyle = 'rgba(240,150,180,0.85)'; g.beginPath(); g.arc(q.x, q.y - 2, 3.4, 0, 7); g.fill(); g.strokeStyle = INK; g.lineWidth = 0.8; g.stroke();
+    }
+    g.restore();
+    g.save(); g.strokeStyle = INK; g.lineWidth = 2.2; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, r - 5, 0, Math.PI * 2); g.stroke();
+    // landing pin
+    if (this.isletPin) {
+      const q = insetPx(this.isletPin.x, this.isletPin.z);
+      g.fillStyle = '#e8608e'; g.beginPath(); g.moveTo(q.x, q.y); g.arc(q.x, q.y - 14, 7, Math.PI * 0.8, Math.PI * 2.2); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#fff4f8'; g.beginPath(); g.arc(q.x, q.y - 14, 2.6, 0, 7); g.fill();
+    }
+    g.fillStyle = 'rgba(90,58,34,0.9)'; g.font = `bold 19px ${HAND}`; g.textAlign = 'center'; g.fillText(ISL.name, cx, cy + r + 22);
+    g.restore();
   }
 
   private drawBase(): HTMLCanvasElement {
@@ -208,7 +263,8 @@ export class MapOverlay {
       g.restore();
     }
     // compass rose
-    const cx = N - 78, cy = 110;
+    this.drawInset(g, rnd);
+    const cx = 84, cy = N - 112;
     g.save(); g.translate(cx, cy); g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 1.5;
     g.beginPath(); g.arc(0, 0, 34, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, 28, 0, 7); g.stroke();
     for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); g.beginPath(); g.moveTo(0, -40); g.lineTo(6, 0); g.lineTo(0, 6); g.lineTo(-6, 0); g.closePath(); i === 3 ? g.fill() : g.stroke(); }
