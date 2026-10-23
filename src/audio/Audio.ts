@@ -604,6 +604,9 @@ export class AudioEngine {
       for (let i = 0; i < 3; i++) { const o = this.tone('sine', 2600, t + i * 0.1, 0.06, d, 0.25, 0.006); o.frequency.exponentialRampToValueAtTime(3600, t + i * 0.1 + 0.05); }
     } else if (species === 'crab') {
       for (let i = 0; i < 4; i++) this.noiseHit(t + i * 0.07, 0.02, d, 'bandpass', 3200, 6, 0.8, 0.001);
+    } else if (species === 'fox') {
+      // fox: two bright little yips
+      for (let i = 0; i < 2; i++) { const o = this.tone('triangle', 900, t + i * 0.16, 0.09, d, 0.18, 0.004); o.frequency.exponentialRampToValueAtTime(1400, t + i * 0.16 + 0.03); o.frequency.exponentialRampToValueAtTime(800, t + i * 0.16 + 0.09); }
     } else if (species === 'deer') {
       const o = this.tone('triangle', 520, t, 0.28, d, 0.15, 0.03); o.frequency.exponentialRampToValueAtTime(700, t + 0.12); o.frequency.exponentialRampToValueAtTime(480, t + 0.28);
     } else {

@@ -198,8 +198,33 @@ function bird(col: string): Rig {
   return r;
 }
 
+function fox(): Rig {
+  const r = base(), b = r.body, o = '#e8742f', w = '#fff6ea', dk = '#3a2a22';
+  b.add(m(S(0.38), o, [0, 0.55, -0.05], [0, 0, 0], [0.9, 0.85, 1.35]));
+  b.add(m(S(0.24), w, [0, 0.45, 0.3], [0, 0, 0], [1, 1, 0.6]));
+  for (const [x, z] of [[-0.16, 0.25], [0.16, 0.25], [-0.17, -0.3], [0.17, -0.3]]) { b.add(m(C(0.06, 0.05, 0.4), o, [x, 0.22, z])); b.add(m(S(0.075), dk, [x, 0.04, z], [0, 0, 0], [1, 0.6, 1.3])); }
+  r.tail = pivot(b, [0, 0.62, -0.5], [-0.7, 0, 0]);
+  r.tail.add(m(S(0.2), o, [0, 0.32, 0], [0, 0, 0], [0.8, 1.7, 0.8])); r.tail.add(m(S(0.13), w, [0, 0.68, 0], [0, 0, 0], [0.85, 1, 0.85]));
+  r.head = pivot(b, [0, 1.0, 0.32]);
+  const h = r.head;
+  h.add(m(S(0.3), o, [0, 0, 0], [0, 0, 0], [1.1, 0.95, 1]));
+  for (const s of [-1, 1]) h.add(m(S(0.15), w, [s * 0.13, -0.1, 0.18], [0, 0, 0], [1, 0.8, 0.9]));
+  h.add(m(Co(0.15, 0.32), o, [0, -0.06, 0.34], [Math.PI / 2, 0, 0], [1, 1, 0.75]));
+  r.nose = m(S(0.05), dk, [0, -0.06, 0.5]); h.add(r.nose);
+  for (const s of [-1, 1]) {
+    r.eyes.push(eye(h, [s * 0.13, 0.07, 0.25], 0.065, '#3a2410'));
+    const ear = pivot(h, [s * 0.16, 0.22, -0.02], [0, 0, s * -0.3]);
+    ear.add(m(Co(0.12, 0.3), o, [0, 0.14, 0])); ear.add(m(Co(0.07, 0.2), dk, [0, 0.12, 0.04], [0, 0, 0], [1, 1, 0.4]));
+    r.ears.push(ear);
+  }
+  r.mouth.set(0, -0.14, 0.42);
+  r.dirtSpots = spotsOnEllipsoid(new THREE.Vector3(0, 0.55, -0.05), new THREE.Vector3(0.36, 0.34, 0.5), 9, 0.1, (n) => n.z < 0.8);
+  r.height = 1.55; r.width = 1.2;
+  return r;
+}
+
 export function buildRig(species: string, color: string | null): Rig {
-  const r = species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
+  const r = species === 'fox' ? fox() : species === 'deer' ? deer() : species === 'duck' ? duck() : species === 'crab' ? crab() : species === 'bird' ? bird(color ?? '#5a8fd8') : bunny(color ?? '#f4f0e8');
   r.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) r.pickables.push(o); });
   return r;
 }

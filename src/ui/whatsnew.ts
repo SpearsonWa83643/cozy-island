@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-lighthouse';
+export const VERSION = '2026-10-23-foxes';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'heart', text: 'Foxes have moved into Autumn Grove! Watch them pounce into the leaves, then feed one berries to make a new friend.' },
   { icon: 'star', text: 'New area: Lighthouse Point! Follow the stepping stones up the north-east headland to a red-and-white lighthouse with a sweeping lamp.' },
   { icon: 'heart', text: 'Tap the lighthouse to sound the foghorn, and sit at the lookout bench for the best view. It\'s on your map and the scenic tour too.' },
   { icon: 'star', text: 'Every theme has its own sound now! Autumn plays mellow guitar with crunchy leaves, Winter a music box with wind chimes, and Halloween has friendly ghost woos.' },

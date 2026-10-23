@@ -33,6 +33,19 @@ function deerGeo() {
   for (let i = 0; i < 5; i++) b.add(sph(0.03), '#f4ead8', [(i % 2 ? -1 : 1) * 0.1, 1.0 + (i % 3) * 0.04, -0.1 + i * 0.1]);
   return b.build();
 }
+function foxGeo() {
+  const b = new Baker(), o = '#e2702e', w = '#fbf3e6', dk = '#3a2a22';
+  b.add(sph(0.16), o, [0, 0.27, 0], [0, 0, 0], [0.85, 0.8, 1.6]);
+  b.add(sph(0.09), w, [0, 0.24, 0.17], [0, 0, 0], [0.8, 0.8, 0.9]);
+  for (const [x, z] of [[-0.07, 0.15], [0.07, 0.15], [-0.07, -0.15], [0.07, -0.15]]) b.add(cyl(0.025, 0.02, 0.2), dk, [x, 0.1, z]);
+  b.add(sph(0.12), o, [0, 0.42, 0.25], [0, 0, 0], [1, 0.9, 1]);
+  b.add(cone(0.065, 0.16), o, [0, 0.39, 0.38], [Math.PI / 2, 0, 0], [1, 1, 0.8]).add(cone(0.04, 0.1), w, [0, 0.37, 0.36], [Math.PI / 2, 0, 0]);
+  b.add(sph(0.022), dk, [0, 0.4, 0.46]);
+  b.add(sph(0.018), dk, [-0.055, 0.46, 0.34]).add(sph(0.018), dk, [0.055, 0.46, 0.34]);
+  b.add(cone(0.05, 0.13), o, [-0.07, 0.56, 0.22], [0, 0, 0.25]).add(cone(0.05, 0.13), o, [0.07, 0.56, 0.22], [0, 0, -0.25]);
+  b.add(sph(0.1), o, [0, 0.32, -0.32], [-0.5, 0, 0], [0.75, 0.75, 1.7]).add(sph(0.06), w, [0, 0.4, -0.48], [-0.5, 0, 0], [0.9, 0.9, 1.2]);
+  return b.build();
+}
 function cone(r: number, h: number) { return new THREE.ConeGeometry(r, h, 5); }
 function duckGeo() {
   return new Baker()
@@ -60,11 +73,12 @@ function fishGeo(col: string) {
 // ---------- ground / water wanderers ----------
 interface Kind {
   name: string; geo: THREE.BufferGeometry; count: number; low: number; biomes: Biome[];
-  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle'; homeR: number; pond?: boolean;
+  h: [number, number]; speed: number; flee: number; fleeDist: number; anim: 'hop' | 'walk' | 'swim' | 'scuttle' | 'pounce'; homeR: number; pond?: boolean;
   colors?: string[];
 }
 export interface Agent {
   x: number; z: number; y: number; yaw: number; tx: number; tz: number; state: 0 | 1 | 2; timer: number; ph: number; hx: number; hz: number;
+  pc?: number;
   friend: boolean; slot: number; hunger: number; fed: number; ret: boolean; vx: number; vz: number; joy: number; id: number;
 }
 /** Shared per-frame context for befriended followers. */
@@ -78,7 +92,7 @@ export interface FollowCtx {
 let agentIds = 0;
 
 class Herd {
-  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0;
+  mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0;
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(1, 1, 1); private v = new THREE.Vector3();
   constructor(public k: Kind, mat: THREE.Material, private rnd: Rnd) {
     this.mesh = new THREE.InstancedMesh(k.geo, mat, k.count);
@@ -195,6 +209,16 @@ class Herd {
     const anim = k.anim === 'swim' && !inWater ? 'waddle' : k.anim;
     if (anim === 'hop') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.22 : 0); pitch = moving ? -Math.cos(a.ph) * 0.2 : Math.sin(t * 3 + a.ph) * 0.03; }
     else if (anim === 'walk') { y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.04 : 0); pitch = moving ? 0 : a.friend ? 0 : Math.max(0, Math.sin(t * 0.5 + a.ph)) * 0.35; }
+    else if (anim === 'pounce') {
+      // fox: trots when moving; idle = crouch, wiggle, then a big arcing pounce into the leaves
+      y = h + (moving ? Math.abs(Math.sin(a.ph)) * 0.05 : 0);
+      if (!moving && !a.friend) {
+        const c = (t * 0.28 + a.ph * 0.137) % 1;
+        if (c > 0.84) { const u = (c - 0.84) / 0.16; y += Math.sin(u * Math.PI) * 0.5; pitch = (u - 0.45) * 1.1; if ((a.pc ?? 0) <= 0.84) this.pounces++; }
+        else if (c > 0.7) { y -= 0.05; pitch = -0.12; roll = Math.sin(t * 30) * 0.05; }
+        a.pc = c;
+      }
+    }
     else if (anim === 'swim') { y = 0.02 + Math.sin(t * 2 + a.ph) * 0.025; roll = Math.sin(t * 1.5 + a.ph) * 0.06; }
     else if (anim === 'waddle') { y = h; roll = moving ? Math.sin(a.ph * 1.2) * 0.22 : 0; }
     else if (anim === 'scuttle') { y = h; yaw = a.yaw + Math.PI / 2; roll = moving ? Math.sin(a.ph * 2) * 0.1 : 0; }
@@ -419,6 +443,9 @@ export class Fauna {
     this.flies = new Flyers(flyBody, flyWing, mat, flyWingMat, 34, ['#ffb02e', '#7fc8ff', '#ffffff', '#ff7eb6', '#ffe14d', '#b98cff'], rnd, false);
     this.group.add(this.flies.body, this.flies.lw, this.flies.rw);
     for (let i = 0; i < 34; i++) this.flyState.push({ x: 0, y: -50, z: 0, yaw: 0, hx: 0, hy: -50, hz: 0, ph: rnd() * 10, spook: 0 });
+    // Foxes in Autumn Grove: added last with their own seed so every other animal's spawn + saved ids stay the same
+    const fox: Kind = { name: 'fox', geo: foxGeo(), count: 4, low: 0.75, biomes: [Biome.Autumn], h: [0.9, 9], speed: 1.5, flee: 5.2, fleeDist: 4.5, anim: 'pounce', homeR: 7 };
+    const fh = new Herd(fox, mat, mulberry32(4207)); this.herds.push(fh); this.group.add(fh.mesh);
   }
 
   setQuality(high: boolean) {

@@ -255,7 +255,7 @@ export class Gameplay implements System {
   /** follower under a screen point (generous radius), nearest first */
   friendAt(cx: number, cy: number): FriendRef | null {
     const lim = this.g.isTouch ? 72 : 56, v = new THREE.Vector3();
-    const up: Record<string, number> = { bunny: 0.3, deer: 0.9, duck: 0.22, crab: 0.12, bird: 0 };
+    const up: Record<string, number> = { bunny: 0.3, deer: 0.9, duck: 0.22, crab: 0.12, bird: 0, fox: 0.45 };
     let best: FriendRef | null = null, bd = lim;
     for (const f of this.g.fauna.friends()) {
       const s = this.juice.project(v.set(f.a.x, f.a.y + (up[f.species] ?? 0.3), f.a.z));

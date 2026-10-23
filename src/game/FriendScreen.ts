@@ -12,9 +12,9 @@ import { buildRig, dirtGeo, dirtMat, type Rig } from './FriendModel';
 const STUDIO = new THREE.Vector3(0, 420, 0);
 type Mode = 'pet' | 'clean' | 'feed';
 
-const GIFT: Record<string, string> = { bunny: 'flower', deer: 'leafwings', duck: 'floatie', crab: 'shellneck', bird: 'butterfly' };
+const GIFT: Record<string, string> = { bunny: 'flower', deer: 'leafwings', duck: 'floatie', crab: 'shellneck', bird: 'butterfly', fox: 'leafwings' };
 const TRICKS: Record<string, { name: string; icon: string }> = { spin: { name: 'Spin', icon: '🌀' }, dance: { name: 'Happy Dance', icon: '💃' } };
-const BASE_YAW: Record<string, number> = { bunny: -0.35, deer: -0.75, duck: -0.45, crab: -0.15, bird: -0.4 };
+const BASE_YAW: Record<string, number> = { bunny: -0.35, deer: -0.75, duck: -0.45, crab: -0.15, bird: -0.4, fox: -0.55 };
 
 
 interface Dirt { mesh: THREE.Mesh; p: THREE.Vector3; n: THREE.Vector3; r: number; dirt: number }
