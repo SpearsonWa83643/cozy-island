@@ -16,6 +16,7 @@ import { Fauna } from '../world/Fauna';
 import { Reef } from '../world/Reef';
 import { Cave } from '../world/Cave';
 import { Lighthouse } from '../world/Lighthouse';
+import { Atmosphere } from '../world/Atmosphere';
 import { offshore, atOffshore, shoreRadius } from '../world/Shore';
 import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
@@ -57,6 +58,9 @@ export class Game {
   reef!: Reef;
   cave!: Cave;
   lighthouse!: Lighthouse;
+  /** height fog + aerial perspective (TSL fog node driven by `fog`) */
+  atmos!: Atmosphere;
+  get fogState() { return this.fog; }
   /** 0..1 eased blend toward the cave atmosphere */
   caveK = 0;
   private hiddenForCave: THREE.Object3D[] = [];
@@ -95,6 +99,10 @@ export class Game {
 
     // --- World ---
     this.scene.fog = this.fog;
+    this.atmos = new Atmosphere(this.fog);
+    (this.scene as unknown as { fogNode: THREE.Node }).fogNode = this.atmos.node;
+    this.atmos.setTheme(theme.id); this.atmos.snap();
+    themeEvents.on(() => this.atmos.setTheme(theme.id));
     this.sky = createSky();
     this.scene.add(this.sky);
     this.hemi = new THREE.HemisphereLight('#cfe9ff', '#e9c995', 1.5);
@@ -494,6 +502,7 @@ export class Game {
     // underground: deep violet fog, a dim cool fill and a faint warm key (the crystals' glow is baked into the rock)
     this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
     const ck = this.caveK;
+    this.atmos.under = ck; this.atmos.update(dt);
     if (ck > 0.001) {
       this.fog.color.lerp(CAVE_FOG, ck); this.fog.near += (6 - this.fog.near) * ck; this.fog.far += (32 - this.fog.far) * ck;
       skyFog.value.copy(this.fog.color);
