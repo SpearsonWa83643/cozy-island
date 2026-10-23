@@ -3,7 +3,7 @@ import { attribute, cameraPosition, time, float, floor, fract, dot, mx_noise_flo
 import { Biome, BiomeField, BIOME_COUNT } from './Biomes';
 import { seasonGround } from '../theme/Season';
 
-import { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE } from './config';
+import { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH, CHUNK_SIZE, STREAM_RADIUS, STREAM_HYSTERESIS, TILE_CAP } from './config';
 // re-exported for existing importers; the source of truth is ./config
 export { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL };
 
@@ -137,7 +137,18 @@ export function terrainColor(x: number, z: number, h: number, out: THREE.Color) 
  * slice of the shared vertices (normals computed on the full grid, so edges are seamless)
  * and has its own bounds, so the renderer frustum-culls tiles that are off screen.
  */
-export interface TerrainChunk { mesh: THREE.Mesh; i0: number; j0: number; w: number; h: number; map: Uint32Array }
+export interface TerrainChunk {
+  mesh: THREE.Mesh; i0: number; j0: number; w: number; h: number; map: Uint32Array;
+  /** world-space xz rectangle covered by the tile */
+  x0: number; z0: number; x1: number; z1: number;
+  /** geometry currently built (Order 39b streaming) */
+  loaded: boolean;
+  /** performance.now() when the tile was last within stream range (LRU, Order 39c) */
+  lastUsed: number;
+}
+/** streaming stats for tests / ?debug */
+export interface StreamStats { loaded: number; peak: number; loads: number; unloads: number; evictions: number; bytes: number; radius: number; cap: number }
+const EMPTY_GEO = new THREE.BufferGeometry();
 
 export class Terrain {
   /** root group holding the terrain tiles (toggle .visible to hide all terrain) */
@@ -231,39 +242,105 @@ export class Terrain {
     this.heightTexture.needsUpdate = true;
   }
 
-  /** Split the full grid into ~CHUNK_SIZE m tiles (vertex-aligned, shared edge vertices duplicated). */
+  /** tiles within this distance (m, xz) of the camera are built; beyond radius + hysteresis they unload */
+  streamRadius = STREAM_RADIUS;
+  /** most tile geometries kept at once (LRU / farthest-first eviction) */
+  tileCap = TILE_CAP;
+  stats: StreamStats = { loaded: 0, peak: 0, loads: 0, unloads: 0, evictions: 0, bytes: 0, radius: STREAM_RADIUS, cap: TILE_CAP };
+
+  /** Lay out ~CHUNK_SIZE m tile slots (vertex-aligned, shared edge vertices duplicated). Geometry builds on demand in stream(). */
   private buildChunks(mat: THREE.Material) {
-    const seg = this.seg, n = seg + 1;
+    const seg = this.seg, n = seg + 1, step = WORLD_SIZE / seg;
     const per = Math.max(1, Math.round(WORLD_SIZE / CHUNK_SIZE));
     const cuts = Array.from({ length: per + 1 }, (_, k) => Math.round((k * seg) / per));
-    const names = ['position', 'normal', 'color', 'mask', 'uv'];
     for (let cj = 0; cj < per; cj++) for (let ci = 0; ci < per; ci++) {
       const i0 = cuts[ci], i1 = cuts[ci + 1], j0 = cuts[cj], j1 = cuts[cj + 1];
       const w = i1 - i0 + 1, h = j1 - j0 + 1;
       const map = new Uint32Array(w * h);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) map[j * w + i] = (j0 + j) * n + (i0 + i);
-      const g = new THREE.BufferGeometry();
-      for (const name of names) {
-        const src = this.full.getAttribute(name) as THREE.BufferAttribute | undefined;
-        if (!src) continue;
-        const k = src.itemSize, a = src.array as Float32Array, out = new Float32Array(map.length * k);
-        for (let v = 0; v < map.length; v++) for (let c = 0; c < k; c++) out[v * k + c] = a[map[v] * k + c];
-        g.setAttribute(name, new THREE.BufferAttribute(out, k));
-      }
-      // same triangle winding as PlaneGeometry
-      const idx = new Uint32Array((w - 1) * (h - 1) * 6);
-      let o = 0;
-      for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) {
-        const a = i + w * j, b = i + w * (j + 1), c = i + 1 + w * (j + 1), d = i + 1 + w * j;
-        idx[o++] = a; idx[o++] = b; idx[o++] = d; idx[o++] = b; idx[o++] = c; idx[o++] = d;
-      }
-      g.setIndex(new THREE.BufferAttribute(idx, 1));
-      g.computeBoundingBox(); g.computeBoundingSphere();
-      const m = new THREE.Mesh(g, mat);
+      const m = new THREE.Mesh(EMPTY_GEO, mat);
       m.receiveShadow = true;
+      m.visible = false;
       m.name = `terrain-${ci}-${cj}`;
       this.mesh.add(m);
-      this.chunks.push({ mesh: m, i0, j0, w, h, map });
+      this.chunks.push({ mesh: m, i0, j0, w, h, map, x0: i0 * step - WORLD_SIZE / 2, x1: i1 * step - WORLD_SIZE / 2, z0: j0 * step - WORLD_SIZE / 2, z1: j1 * step - WORLD_SIZE / 2, loaded: false, lastUsed: 0 });
+    }
+  }
+
+  /** build one tile's geometry from the shared full-grid attributes */
+  private loadChunk(ch: TerrainChunk) {
+    const { w, h, map } = ch;
+    const g = new THREE.BufferGeometry();
+    let bytes = 0;
+    for (const name of ['position', 'normal', 'color', 'mask', 'uv']) {
+      const src = this.full.getAttribute(name) as THREE.BufferAttribute | undefined;
+      if (!src) continue;
+      const k = src.itemSize, a = src.array as Float32Array, out = new Float32Array(map.length * k);
+      for (let v = 0; v < map.length; v++) for (let c = 0; c < k; c++) out[v * k + c] = a[map[v] * k + c];
+      g.setAttribute(name, new THREE.BufferAttribute(out, k));
+      bytes += out.byteLength;
+    }
+    // same triangle winding as PlaneGeometry
+    const idx = new Uint32Array((w - 1) * (h - 1) * 6);
+    let o = 0;
+    for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) {
+      const a = i + w * j, b = i + w * (j + 1), c = i + 1 + w * (j + 1), d = i + 1 + w * j;
+      idx[o++] = a; idx[o++] = b; idx[o++] = d; idx[o++] = b; idx[o++] = c; idx[o++] = d;
+    }
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    bytes += idx.byteLength;
+    g.computeBoundingBox(); g.computeBoundingSphere();
+    g.userData.bytes = bytes;
+    ch.mesh.geometry = g;
+    ch.mesh.visible = true;
+    ch.loaded = true;
+    this.stats.loads++; this.stats.loaded++; this.stats.bytes += bytes;
+    this.stats.peak = Math.max(this.stats.peak, this.stats.loaded);
+  }
+
+  private unloadChunk(ch: TerrainChunk, evicted = false) {
+    if (!ch.loaded) return;
+    this.stats.bytes -= ch.mesh.geometry.userData.bytes ?? 0;
+    ch.mesh.geometry.dispose();
+    ch.mesh.geometry = EMPTY_GEO;
+    ch.mesh.visible = false;
+    ch.loaded = false;
+    this.stats.unloads++; this.stats.loaded--;
+    if (evicted) this.stats.evictions++;
+  }
+
+  /** xz distance from a point to a tile's rectangle (0 inside) */
+  chunkDist(ch: TerrainChunk, x: number, z: number) {
+    const dx = Math.max(ch.x0 - x, 0, x - ch.x1), dz = Math.max(ch.z0 - z, 0, z - ch.z1);
+    return Math.hypot(dx, dz);
+  }
+
+  /**
+   * Distance-based streaming (Order 39b) + memory cap (Order 39c, hard cap; in-range tiles beyond the cap stay unbuilt, nearest first). Call each frame with the camera's xz.
+   * Builds at most `budget` missing in-range tiles per call (nearest first), unloads tiles beyond
+   * radius + hysteresis, then evicts the farthest / least-recently-used tiles while over the cap.
+   */
+  stream(x: number, z: number, budget = 1) {
+    const now = performance.now(), R = this.streamRadius;
+    this.stats.radius = R; this.stats.cap = this.tileCap;
+    let want: TerrainChunk[] | null = null;
+    for (const ch of this.chunks) {
+      const d = this.chunkDist(ch, x, z);
+      if (d <= R) {
+        ch.lastUsed = now;
+        if (!ch.loaded) (want ??= []).push(ch);
+      } else if (ch.loaded && d > R + STREAM_HYSTERESIS) this.unloadChunk(ch);
+    }
+    if (want) {
+      want.sort((a, b) => this.chunkDist(a, x, z) - this.chunkDist(b, x, z));
+      // memory cap: make room by evicting loaded tiles that are out of range (least recently used first);
+      // tiles in range are never evicted, so a cap below the in-range count can't thrash
+      const need = Math.min(want.length, budget);
+      if (this.stats.loaded + need > this.tileCap) {
+        const spare = this.chunks.filter((c) => c.loaded && c.lastUsed < now).sort((a, b) => a.lastUsed - b.lastUsed);
+        for (const ch of spare) { if (this.stats.loaded + need <= this.tileCap) break; this.unloadChunk(ch, true); }
+      }
+      for (let k = 0; k < need && this.stats.loaded < this.tileCap; k++) this.loadChunk(want[k]);
     }
   }
 
@@ -271,6 +348,7 @@ export class Terrain {
   private syncColors() {
     const src = this.full.getAttribute('color') as THREE.BufferAttribute, a = src.array as Float32Array;
     for (const ch of this.chunks) {
+      if (!ch.loaded) continue; // unloaded tiles copy the (AO-baked) colours when they stream in
       const dst = ch.mesh.geometry.getAttribute('color') as THREE.BufferAttribute, d = dst.array as Float32Array;
       for (let v = 0; v < ch.map.length; v++) { const s3 = ch.map[v] * 3; d[v * 3] = a[s3]; d[v * 3 + 1] = a[s3 + 1]; d[v * 3 + 2] = a[s3 + 2]; }
       dst.needsUpdate = true;

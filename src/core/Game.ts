@@ -131,6 +131,9 @@ export class Game {
 
     await lap('physics', true);
     this.terrain = new Terrain();
+    // streaming knobs for tests: ?stream=<m> radius, ?tilecap=<n> memory cap (Orders 39b/39c)
+    { const r = Number(params.get('stream')), c = Number(params.get('tilecap')); if (r > 0) this.terrain.streamRadius = r; if (c > 0) this.terrain.tileCap = c; }
+    this.terrain.stream(SPAWN.x, SPAWN.y, Infinity);
     await lap('terrain');
     this.scene.add(this.terrain.mesh);
     if (params.has('trimesh')) this.physics.addTrimesh(this.terrain.vertices, this.terrain.indices);
@@ -539,6 +542,7 @@ export class Game {
     if (this.input.pressed.has('b') && !this.cave.inside) void this.ensureBuild().then((b) => b.toggle());
     // terrain colliders follow the player (before the character controller and again before the step)
     { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
+    { const cp = this.camera.position; this.terrain.stream(cp.x, cp.z); }
     for (const s of this.systems) s.update(dt, this.elapsed);
     { const pp = this.player.position; this.physChunks?.update(pp.x, pp.z); }
     this.physics.step(dt);

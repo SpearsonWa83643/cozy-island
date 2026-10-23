@@ -22,6 +22,12 @@ export const WORLD_SIZE = 196;
 export const WORLD_HALF = WORLD_SIZE / 2;
 /** target terrain tile size (metres); tiles are vertex-aligned so the real size is ~WORLD_SIZE / round(WORLD_SIZE / CHUNK_SIZE) */
 export const CHUNK_SIZE = 64;
+/** terrain tiles stream in within this xz distance (m) of the camera (Order 39b); beyond the fog so tiles never pop in view */
+export const STREAM_RADIUS = 300;
+/** extra distance (m) before a streamed-in tile is unloaded again (avoids load/unload flicker at the edge) */
+export const STREAM_HYSTERESIS = 24;
+/** memory cap: most terrain tile geometries kept at once (Order 39c); ~0.1 MB each at 64 m */
+export const TILE_CAP = 48;
 /** terrain physics tile size (metres); only the ring of tiles around the player has a collider (Order 36) */
 export const PHYS_CHUNK_SIZE = 32;
 /** tiles kept on each side of the player's tile: 1 = a 3x3 ring */
