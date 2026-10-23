@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { Baker } from '../world/Baker';
-import { heightAt, slopeAt, biomeWeights, ISLAND_RADIUS } from '../world/Terrain';
+import { heightAt, slopeAt, biomeWeights } from '../world/Terrain';
+import { ISLAND_RADIUS } from '../world/config';
 import { Biome, BIOME_COUNT } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
 import type { Flora } from '../world/Flora';

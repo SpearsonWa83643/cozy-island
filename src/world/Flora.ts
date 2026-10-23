@@ -6,7 +6,8 @@ import {
 } from 'three/tsl';
 import { mulberry32 } from './noise';
 import { Biome, BIOME_COUNT, POND, AREA } from './Biomes';
-import { biomeWeights, heightAt, slopeAt, snowAt, terrainColor, ISLAND_RADIUS, smooth } from './Terrain';
+import { biomeWeights, heightAt, slopeAt, snowAt, terrainColor, smooth } from './Terrain';
+import { ISLAND_RADIUS } from './config';
 import * as P from './Plants';
 import { seasonFoliage, grassTint, snowK } from '../theme/Season';
 import type { Physics } from '../core/Physics';

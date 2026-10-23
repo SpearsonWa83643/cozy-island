@@ -4,6 +4,7 @@ import { Input, detectTouch } from './Input';
 import type { System } from './System';
 import { Renderer, type Quality } from '../render/Renderer';
 import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface, WORLD_SIZE } from '../world/Terrain';
+import { SHADOW_HALF, SHADOW_HALF_LOW } from '../world/config';
 import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
 import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
@@ -100,7 +101,7 @@ export class Game {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
-    sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 180;
+    sc.left = -SHADOW_HALF; sc.right = SHADOW_HALF; sc.top = SHADOW_HALF; sc.bottom = -SHADOW_HALF; sc.near = 1; sc.far = 180;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
     this.sun.shadow.radius = 3;
@@ -356,7 +357,7 @@ export class Game {
       this.sun.shadow.mapSize.set(size, size);
       this.sun.shadow.map?.dispose(); this.sun.shadow.map = null;
     }
-    const ext = high ? 34 : 26, sc = this.sun.shadow.camera;
+    const ext = high ? SHADOW_HALF : SHADOW_HALF_LOW, sc = this.sun.shadow.camera;
     sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix();
     this.flora.setQuality(high);
     this.fauna.setQuality(high);

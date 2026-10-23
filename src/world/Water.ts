@@ -3,13 +3,13 @@ import {
   cameraPosition, clamp, color, cos, dot, float, max, mix, mx_noise_float, normalize,
   positionLocal, positionWorld, pow, sin, smoothstep, texture, time, transformNormalToView, vec3,
 } from 'three/tsl';
-import { WORLD_SIZE } from './Terrain';
+import { WORLD_SIZE, OCEAN_SIZE } from './config';
 import { skyU } from './Sky';
 import { waterDeep, waterK, waterMid, waterShallow } from '../theme/Season';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
 export function createWater(heightTex: THREE.Texture): THREE.Mesh {
-  const geo = new THREE.PlaneGeometry(1200, 1200, 220, 220);
+  const geo = new THREE.PlaneGeometry(OCEAN_SIZE, OCEAN_SIZE, 220, 220);
   geo.rotateX(-Math.PI / 2);
   const t = time;
   const p = positionLocal;

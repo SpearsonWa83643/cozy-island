@@ -1,9 +1,10 @@
 import { heightAt, biomeWeights } from '../world/Terrain';
-import { BIOME_CENTERS, BIOME_COUNT, POND, ISLAND_SCALE } from '../world/Biomes';
+import { BIOME_CENTERS, BIOME_COUNT, POND } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
+import { MAP_EXTENT } from '../world/config';
 import type { Flora } from '../world/Flora';
 
-const EXTENT = 58 * ISLAND_SCALE; // world half-size shown on the map
+const EXTENT = MAP_EXTENT; // world half-size shown on the map (from world config)
 const N = 720;     // canvas resolution
 const INK = '#5a3a22';
 const HAND = "'Segoe Print', 'Bradley Hand', 'Chalkboard SE', 'Comic Sans MS', cursive";

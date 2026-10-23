@@ -4,10 +4,9 @@ import { Noise2D } from './noise';
 import { Biome, BiomeField, BASE_CENTERS, BIOME_COUNT, BASE_POND, biomeWeightsBase, ISLAND_SCALE } from './Biomes';
 import { seasonGround } from '../theme/Season';
 
-export const WORLD_SIZE = 196; // terrain mesh extent (meters)
-const BASE_RADIUS = 47;
-export const ISLAND_RADIUS = BASE_RADIUS * ISLAND_SCALE;
-export const WATER_LEVEL = 0;
+import { WORLD_SIZE, BASE_RADIUS, ISLAND_RADIUS, WATER_LEVEL, OUT_OF_WORLD_DEPTH } from './config';
+// re-exported for existing importers; the source of truth is ./config
+export { WORLD_SIZE, ISLAND_RADIUS, WATER_LEVEL };
 
 const noise = new Noise2D(7);
 const noiseB = new Noise2D(23);
@@ -81,7 +80,7 @@ function buildGrid() {
 export function heightAt(x: number, z: number): number {
   if (!grid) buildGrid();
   let fx = (x + WORLD_SIZE / 2) / GRID_RES, fz = (z + WORLD_SIZE / 2) / GRID_RES;
-  if (fx < 0 || fz < 0 || fx >= GRID_N - 1 || fz >= GRID_N - 1) return -3.5;
+  if (fx < 0 || fz < 0 || fx >= GRID_N - 1 || fz >= GRID_N - 1) return OUT_OF_WORLD_DEPTH;
   const i = Math.floor(fx), j = Math.floor(fz);
   fx -= i; fz -= j;
   const g = grid!, a = j * GRID_N + i;

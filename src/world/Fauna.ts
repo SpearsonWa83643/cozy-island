@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { Baker } from './Baker';
 import { Biome, BIOME_COUNT, POND } from './Biomes';
-import { biomeWeights, heightAt, slopeAt, ISLAND_RADIUS } from './Terrain';
+import { biomeWeights, heightAt, slopeAt } from './Terrain';
+import { ISLAND_RADIUS } from './config';
 import { mulberry32 } from './noise';
 
 type Rnd = () => number;

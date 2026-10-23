@@ -1,11 +1,12 @@
-import { heightAt, WORLD_SIZE } from './Terrain';
+import { heightAt } from './Terrain';
+import { WORLD_HALF } from './config';
 
 /** Outer shoreline radius per angle (the island is star-shaped enough for this), for swim limits and reef placement. */
 const BINS = 720;
 let table: Float32Array | null = null;
 function build() {
   table = new Float32Array(BINS);
-  const max = WORLD_SIZE / 2 - 2;
+  const max = WORLD_HALF - 2;
   for (let i = 0; i < BINS; i++) {
     const a = (i / BINS) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
     let r = max;

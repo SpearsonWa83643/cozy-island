@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { heightAt, slopeAt, surfaceAt, biomeWeights, type Surface } from '../world/Terrain';
+import { inWorld } from '../world/config';
 import { Biome, BIOME_COUNT } from '../world/Biomes';
 import type { FoodId } from './Items';
 
@@ -47,6 +48,7 @@ export class Dig {
   /** can you dig here? returns the surface or a reason */
   check(x: number, z: number, blocked: (x: number, z: number) => boolean): { ok: true; surface: Surface } | { ok: false; why: string } {
     const s = surfaceAt(x, z);
+    if (!inWorld(x, z, 1)) return { ok: false, why: '💧 Too wet to dig here' };
     if (s === 'water') return { ok: false, why: '💧 Too wet to dig here' };
     if (!DIGGABLE.includes(s)) return { ok: false, why: '🪨 Too rocky to dig here' };
     if (slopeAt(x, z) > 0.75) return { ok: false, why: '⛰️ Too steep to dig here' };
