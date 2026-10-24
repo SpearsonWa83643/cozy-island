@@ -288,7 +288,7 @@ export class Gameplay implements System {
     const d = this.save.data;
     this.g.audio.paper();
     const info = { state: d.map.state, n: d.map.n, x: d.map.x, z: d.map.z, hint: d.map.hint, bottle: { x: this.treasure.bottlePos.x, z: this.treasure.bottlePos.z } };
-    void this.ensureMap().then((m) => m.toggle(info));
+    void this.ensureMap().then((m) => { this.g.islets?.list.forEach((it, k) => { if (it?.flora) m.isletPins[k] = { x: it.flora.landing.x, z: it.flora.landing.z }; }); m.toggle(info); });
   }
 
   private ensureMap(): Promise<MapOverlay> {
@@ -296,7 +296,6 @@ export class Gameplay implements System {
     if (this.mapP) return this.mapP;
     this.mapP = import('../ui/MapOverlay').then(({ MapOverlay }) => {
       const m = new MapOverlay(document.body, this.g.flora, [{ x: this.g.lighthouse.pos.x, z: this.g.lighthouse.pos.z, label: 'Lighthouse Pt.', icon: 'lighthouse' }, { x: this.g.wreck.pos.x, z: this.g.wreck.pos.z, label: 'Shipwreck Cove', icon: 'ship' }]);
-      { const fl = this.g.islets?.list[0]?.flora; if (fl) m.isletPin = { x: fl.landing.x, z: fl.landing.z }; } // Blossom Isle landing pin (Order 42b)
       m.onClose = () => this.g.audio.paper();
       m.onGuide = () => { this.setGuide(!this.guide.enabled); return this.guide.enabled; };
       m.guideOn = this.guide.enabled;

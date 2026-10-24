@@ -13,14 +13,37 @@ const LAND = ['#b8c98a', '#d9d6cf', '#dba46a', '#e9d39c', '#d99e6e', '#9fb59c'];
 const LABELS = ['Meadow', 'Snowy Peak', 'Autumn Grove', 'Palm Beach', 'Mesa', 'Misty Marsh'];
 
 const toPx = (w: number) => ((w + EXTENT) / (2 * EXTENT)) * N;
-// Blossom Isle inset (Order 42b): the islet lies far off the main map, so it gets a round inset top-right
-// (where it really is, north-east), joined to the main coast by a dashed sea route.
-const INSET = { cx: N - 112, cy: 128, r: 92 };
-const ISL = ISLETS[0];
-const INSET_HALF = ISL ? ISL.r * 1.25 : 80; // world metres from the islet centre to the inset rim
-const insetPx = (x: number, z: number) => ISL ? { x: INSET.cx + ((x - ISL.x) / INSET_HALF) * INSET.r, y: INSET.cy + ((z - ISL.z) / INSET_HALF) * INSET.r } : { x: -99, y: -99 };
-/** true if (x, z) is shown in the islet inset rather than the main map */
-export const inInset = (x: number, z: number) => !!ISL && Math.abs(x - ISL.x) < ISLET_SIZE / 2 && Math.abs(z - ISL.z) < ISLET_SIZE / 2;
+// Islet insets (Order 42b, list-driven since 45b): every islet in config ISLETS lies off the main map, so each gets a
+// round inset on the map rim in the direction it really lies, joined to the main coast by a dashed sea route.
+// Scales to the archipelago (Order 48): insets shrink as the list grows and are nudged apart along the rim.
+type Inset = { cx: number; cy: number; r: number; half: number };
+const INSETS: Inset[] = (() => {
+  const n = ISLETS.length, r = n <= 2 ? 92 : n <= 4 ? 74 : 60;
+  const lo = { x: r + 20, y: r + 36 }, hi = { x: N - r - 20, y: N - r - 40 };
+  const out = ISLETS.map((d) => {
+    const m = Math.max(Math.abs(d.x), Math.abs(d.z)) || 1; // push out to the square rim along the bearing
+    const cx = Math.min(hi.x, Math.max(lo.x, N / 2 + (d.x / m) * N)), cy = Math.min(hi.y, Math.max(lo.y, N / 2 + (d.z / m) * N));
+    return { cx, cy, r, half: d.r * 1.25 };
+  });
+  // separate overlapping insets (a few relaxation passes, clamped to the rim box)
+  for (let it = 0; it < 24; it++) for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const a = out[i], b = out[j], dx = b.cx - a.cx, dy = b.cy - a.cy, d = Math.hypot(dx, dy) || 1, need = 2 * r + 34;
+    if (d >= need) continue;
+    const push = (need - d) / 2, ux = dx / d, uy = dy / d;
+    a.cx = Math.min(hi.x, Math.max(lo.x, a.cx - ux * push)); a.cy = Math.min(hi.y, Math.max(lo.y, a.cy - uy * push));
+    b.cx = Math.min(hi.x, Math.max(lo.x, b.cx + ux * push)); b.cy = Math.min(hi.y, Math.max(lo.y, b.cy + uy * push));
+  }
+  return out;
+})();
+const insetPx = (k: number, x: number, z: number) => { const I = INSETS[k], d = ISLETS[k]; return { x: I.cx + ((x - d.x) / I.half) * I.r, y: I.cy + ((z - d.z) / I.half) * I.r }; };
+/** index of the islet inset that shows (x, z), or -1 for the main map */
+export const insetOf = (x: number, z: number) => ISLETS.findIndex((d) => Math.abs(x - d.x) < ISLET_SIZE / 2 && Math.abs(z - d.z) < ISLET_SIZE / 2);
+/** true if (x, z) is shown in an islet inset rather than the main map */
+export const inInset = (x: number, z: number) => insetOf(x, z) >= 0;
+/** map canvas pixel for a world point, on whichever map (main or inset) shows it */
+export const mapPx = (x: number, z: number) => { const k = insetOf(x, z); return k >= 0 ? insetPx(k, x, z) : { x: toPx(x), y: toPx(z) }; };
+/** inset layout (for tests) */
+export const insetLayout = () => INSETS.map((I, k) => ({ id: ISLETS[k].id, ...I }));
 
 export interface MapInfo { state: string; n: number; x: number; z: number; hint: string; bottle: { x: number; z: number }; }
 
@@ -39,9 +62,10 @@ export class MapOverlay {
   private pts = new Map<number, { x: number; y: number }>();
   private pinch0 = 0; private zoom0 = 1;
 
-  /** islet landing pin (world xz) */
-  isletPin: { x: number; z: number } | null = null;
-  private baseIslet = false;
+  /** islet landing pins (world xz), by ISLETS index */
+  isletPins: ({ x: number; z: number } | null)[] = [];
+  set isletPin(p: { x: number; z: number } | null) { this.isletPins[0] = p; }
+  private baseIslet = '';
   constructor(parent: HTMLElement, private flora: Flora, private landmarks: { x: number; z: number; label: string; icon: 'lighthouse' | 'ship' }[] = []) {
     this.el = document.createElement('div');
     this.el.className = 'map-overlay';
@@ -84,15 +108,14 @@ export class MapOverlay {
   /** per-frame: player marker + X pulse */
   update(px: number, pz: number, facing: number, closeness: number) {
     if (!this.open) return;
-    if (inInset(px, pz)) { const q = insetPx(px, pz); this.me.style.left = `${(q.x / N) * 100}%`; this.me.style.top = `${(q.y / N) * 100}%`; }
-    else { this.me.style.left = `${(toPx(px) / N) * 100}%`; this.me.style.top = `${(toPx(pz) / N) * 100}%`; }
+    const q = mapPx(px, pz); this.me.style.left = `${(q.x / N) * 100}%`; this.me.style.top = `${(q.y / N) * 100}%`;
     this.me.style.transform = `translate(-50%, -50%) rotate(${-facing + Math.PI}rad)`;
     this.x.classList.toggle('hot', closeness > 0.6);
   }
 
   // ---------------- drawing ----------------
   private draw(info: MapInfo) {
-    const isl = !!(ISL && isletGrid(0));
+    const isl = ISLETS.map((_, k) => (isletGrid(k) ? 1 : 0)).join('') + '|' + this.isletPins.map((p) => (p ? 1 : 0)).join('');
     const key = `${info.state}|${info.n}|${info.x.toFixed(1)}|${isl}`;
     const g = this.canvas.getContext('2d')!;
     if (key !== this.drawnKey) {
@@ -133,19 +156,21 @@ export class MapOverlay {
       : info.state === 'dug' ? 'You found it! Open the chest.' : info.hint;
   }
 
-  /** round parchment inset with Blossom Isle's coast, meadow, cherry grove and landing pin, plus the sea route */
-  private drawInset(g: CanvasRenderingContext2D, rnd: () => number) {
-    if (!ISL) return;
-    const { cx, cy, r } = INSET;
-    // dashed sea route from the main island's north-east coast to the inset
+  /** round parchment inset per islet: its coast and meadow (Blossom Isle adds its cherry grove), landing pin, plus the sea route */
+  private drawInsets(g: CanvasRenderingContext2D, rnd: () => number) { for (let k = 0; k < ISLETS.length; k++) this.drawInset(g, rnd, k); }
+  private drawInset(g: CanvasRenderingContext2D, rnd: () => number, k: number) {
+    const ISL = ISLETS[k], { cx, cy, r, half: INSET_HALF } = INSETS[k];
+    // dashed sea route from the main island's coast (towards the islet) to the inset rim facing home
     const a = Math.atan2(ISL.z, ISL.x), sx = toPx(Math.cos(a) * EXTENT * 0.72), sz = toPx(Math.sin(a) * EXTENT * 0.72);
+    const ha = Math.atan2(N / 2 - cy, N / 2 - cx), ex = cx + Math.cos(ha) * r, ey = cy + Math.sin(ha) * r;
+    const mx = (sx + ex) / 2, my = (sz + ey) / 2, bend = 0.18 * Math.hypot(ex - sx, ey - sz), nx = -(ey - sz), ny = ex - sx, nl = Math.hypot(nx, ny) || 1;
     g.save(); g.strokeStyle = 'rgba(90,58,34,0.7)'; g.lineWidth = 2; g.setLineDash([6, 6]);
-    g.beginPath(); g.moveTo(sx, sz); g.quadraticCurveTo((sx + cx) / 2 + 26, (sz + cy) / 2 + 26, cx - r * 0.72, cy + r * 0.72); g.stroke(); g.setLineDash([]); g.restore();
+    g.beginPath(); g.moveTo(sx, sz); g.quadraticCurveTo(mx + (nx / nl) * bend, my + (ny / nl) * bend, ex, ey); g.stroke(); g.setLineDash([]); g.restore();
     g.save();
     g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fillStyle = '#efe0bd'; g.fill();
     g.clip();
     g.fillStyle = 'rgba(159,203,204,0.35)'; g.fillRect(cx - r, cy - r, r * 2, r * 2);
-    const ready = !!isletGrid(0);
+    const ready = !!isletGrid(k);
     const cell = 3;
     for (let py = -r; py < r; py += cell) for (let px = -r; px < r; px += cell) {
       const wx = ISL.x + ((px + cell / 2) / r) * INSET_HALF, wz = ISL.z + ((py + cell / 2) / r) * INSET_HALF;
@@ -154,19 +179,20 @@ export class MapOverlay {
       else if (h > -2.5) { g.fillStyle = '#9fcbcc'; g.globalAlpha = 0.35 * (1 + h / 2.5); g.fillRect(cx + px, cy + py, cell + 0.5, cell + 0.5); }
     }
     g.globalAlpha = 1;
-    // cherry grove stamps (far, north-east half) in blossom pink
-    const gr = mulberry32(ISL.seed);
+    // tree stamps: Blossom Isle's cherry grove (far, north-east half) in blossom pink, other islets a green wood
+    const gr = mulberry32(ISL.seed), cherry = ISL.id === 'blossom';
     for (let i = 0; i < 26; i++) {
-      const an = -Math.PI / 4 + (gr() - 0.5) * 2.2, d = (0.15 + gr() * 0.55) * ISL.r;
-      const q = insetPx(ISL.x + Math.cos(an) * d, ISL.z + Math.sin(an) * d);
-      g.fillStyle = 'rgba(240,150,180,0.85)'; g.beginPath(); g.arc(q.x, q.y - 2, 3.4, 0, 7); g.fill(); g.strokeStyle = INK; g.lineWidth = 0.8; g.stroke();
+      const an = (cherry ? -Math.PI / 4 : a) + (gr() - 0.5) * 2.2, d = (0.15 + gr() * 0.55) * ISL.r;
+      const q = insetPx(k, ISL.x + Math.cos(an) * d, ISL.z + Math.sin(an) * d);
+      g.fillStyle = cherry ? 'rgba(240,150,180,0.85)' : 'rgba(120,160,90,0.85)'; g.beginPath(); g.arc(q.x, q.y - 2, 3.4, 0, 7); g.fill(); g.strokeStyle = INK; g.lineWidth = 0.8; g.stroke();
     }
     g.restore();
     g.save(); g.strokeStyle = INK; g.lineWidth = 2.2; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
     g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, r - 5, 0, Math.PI * 2); g.stroke();
     // landing pin
-    if (this.isletPin) {
-      const q = insetPx(this.isletPin.x, this.isletPin.z);
+    const pin = this.isletPins[k];
+    if (pin) {
+      const q = insetPx(k, pin.x, pin.z);
       g.fillStyle = '#e8608e'; g.beginPath(); g.moveTo(q.x, q.y); g.arc(q.x, q.y - 14, 7, Math.PI * 0.8, Math.PI * 2.2); g.closePath(); g.fill(); g.stroke();
       g.fillStyle = '#fff4f8'; g.beginPath(); g.arc(q.x, q.y - 14, 2.6, 0, 7); g.fill();
     }
@@ -263,7 +289,7 @@ export class MapOverlay {
       g.restore();
     }
     // compass rose
-    this.drawInset(g, rnd);
+    this.drawInsets(g, rnd);
     const cx = 84, cy = N - 112;
     g.save(); g.translate(cx, cy); g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 1.5;
     g.beginPath(); g.arc(0, 0, 34, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, 28, 0, 7); g.stroke();
