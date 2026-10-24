@@ -5,7 +5,7 @@ import type { Player } from './Player';
 import type { CameraRig } from './CameraRig';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
 import { offshore, shoreRadius, atOffshore, nearestLand, SWIM_MAX } from '../world/Shore';
-import { FLY_LEASH } from '../world/config';
+import { FLY_LEASH, ISLETS } from '../world/config';
 const LAND = { off: 0, cx: 0, cz: 0, islet: -1 };
 import { mountById, type MountDef, type MountId } from './MountDefs';
 import { BIOME_CENTERS } from '../world/Biomes';
@@ -307,7 +307,7 @@ export class Mount implements System {
   }
 
   // ------------------------------------------------------------ scenic tour (autopilot)
-  /** a closed loop round the island: every climate zone, out over the reef, past the cave and the pumpkin patch */
+  /** a closed loop round the island: every climate zone, out over the reef, past the cave and the pumpkin patch, and a lap of each islet */
   private buildTour() {
     const stops: { x: number; z: number; a: number }[] = [];
     const add = (x: number, z: number) => stops.push({ x, z, a: Math.atan2(z, x) });
@@ -326,8 +326,22 @@ export class Mount implements System {
     for (const th of [0.35, 2.45, 4.4]) { const R = shoreRadius(th) + 7; add(Math.cos(th) * R, Math.sin(th) * R); }
     for (const p of this.hooks.tourStops?.() ?? []) if (Number.isFinite(p.x) && Number.isFinite(p.z) && Math.hypot(p.x, p.z) > 6) add(p.x, p.z);
     stops.sort((a, b) => a.a - b.a);
+    // Order 45a: hop out to every archipelago islet on the way round: fly over the sea, lap its coast, fly home
+    for (const d of ISLETS) {
+      const ang = Math.atan2(d.z, d.x), th0 = Math.atan2(-d.z, -d.x), R = d.r + 6, gap = 0.45;
+      const ring = (t: number) => ({ x: d.x + Math.cos(t) * R, z: d.z + Math.sin(t) * R });
+      // arrive on the side that faces the previous (lower-angle) stop so the loop never doubles back
+      const rel = (q: { x: number; z: number }) => Math.atan2(Math.sin(Math.atan2(q.z, q.x) - ang), Math.cos(Math.atan2(q.z, q.x) - ang));
+      const dir = rel(ring(th0 + gap)) < rel(ring(th0 - gap)) ? 1 : -1;
+      const lap: { x: number; z: number; a: number }[] = [];
+      const ISLE_PTS = 12;
+      for (let i = 0; i <= ISLE_PTS; i++) { const q = ring(th0 + dir * (gap + (i / ISLE_PTS) * (Math.PI * 2 - 2 * gap))); lap.push({ ...q, a: ang }); }
+      let at = stops.findIndex((p) => p.a > ang); if (at < 0) at = stops.length;
+      stops.splice(at, 0, ...lap);
+    }
     const curve = new THREE.CatmullRomCurve3(stops.map((p) => new THREE.Vector3(p.x, 0, p.z)), true, 'centripetal');
-    this.tour = curve.getSpacedPoints(TOUR_PTS).slice(0, TOUR_PTS).map((v) => ({ x: v.x, z: v.z }));
+    const n = Math.max(TOUR_PTS, Math.round(curve.getLength() / 1.5)); // keep ~1.5 m spacing on the longer islet loop
+    this.tour = curve.getSpacedPoints(n).slice(0, n).map((v) => ({ x: v.x, z: v.z }));
   }
   private startTour() {
     this.buildTour();
