@@ -23,6 +23,8 @@ export interface Buildable {
   boxes?: [number, number, number, number, number, number][];
   /** bridge: spans water, ends rest on land at +/- span along its length */
   span?: number;
+  /** cottage kit: 'edge' pieces sit on a cell edge (auto-facing), 'corner' pieces centre on a cell corner (2x2 roof) */
+  snap?: 'edge' | 'corner';
 }
 
 const treeRnd = mulberry32(99);
@@ -51,7 +53,78 @@ export const BUILDABLES: Buildable[] = [
     boxes: [0, 1, 2].map((i) => [0, (i + 1) / 6, -0.5 + (i + 0.5) / 3, 0.5, (i + 1) / 6, 1 / 6] as [number, number, number, number, number, number]) },
   { id: 'bridge', label: 'Bridge', icon: '🌉', make: makeBridge, box: [0.6, 0.1, 1.5, 0.2], stackable: false, height: 0.4, span: 1.3,
     boxes: [[0, 0.1, -1.1, 0.6, 0.08, 0.4], [0, 0.24, -0.45, 0.6, 0.08, 0.3], [0, 0.32, 0.2, 0.6, 0.08, 0.4], [0, 0.24, 0.8, 0.6, 0.08, 0.3], [0, 0.1, 1.3, 0.6, 0.08, 0.2]] },
+  // Order 44: cottage kit (appended so saved indices stay stable). Walls run along local x on a cell edge.
+  { id: 'wall', label: 'Wall', icon: '🧱', make: () => makeWall(false), box: [0.55, 1.15, 0.07, 0.85], stackable: false, height: 2, snap: 'edge' },
+  { id: 'window', label: 'Window', icon: '🪟', make: () => makeWall(true), box: [0.55, 1.15, 0.07, 0.85], stackable: false, height: 2, snap: 'edge' },
+  // door: two jambs + lintel stay solid; the leaf collider (last) switches off while the door is open
+  { id: 'door', label: 'Door', icon: '🚪', make: makeDoor, box: [0.55, 1.15, 0.07, 0.85], stackable: false, height: 2, snap: 'edge',
+    boxes: [[-0.5, 0.85, 0, 0.07, 1.15, 0.07], [0.5, 0.85, 0, 0.07, 1.15, 0.07], [0, 1.9, 0, 0.55, 0.1, 0.07], [0, 0.85, 0, 0.43, 0.95, 0.05]] },
+  { id: 'roof', label: 'Roof', icon: '🛖', make: makeRoof, box: [1.25, 0.08, 1.25, 2.1], stackable: false, height: 1, snap: 'corner' },
 ];
+const WALL_H = 2.0, DOOR_W = 0.86, DOOR_H = 1.8;
+const plaster = () => mat('#f3e6cf', { rough: 0.9 }), timber = () => mat('#9a6a3e', { rough: 0.8 });
+type Mat = THREE.Material;
+function boxIn(parent: THREE.Object3D, w: number, h: number, d: number, x: number, y: number, m: Mat, z = 0) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; parent.add(b); return b;
+}
+/** 1.1 m wall panel (overlaps its neighbours at corners), sunk 0.3 m so it meets sloped ground */
+function makeWall(win: boolean) {
+  const g = new THREE.Group();
+  const P = plaster(), T = timber();
+  if (!win) boxIn(g, 1.1, WALL_H + 0.3, 0.12, 0, (WALL_H - 0.3) / 2, P);
+  else {
+    // panel with a 0.5 x 0.5 window hole at 0.95..1.45 m
+    boxIn(g, 1.1, 1.25, 0.12, 0, (0.95 - 0.3) / 2, P);
+    boxIn(g, 1.1, WALL_H - 1.45, 0.12, 0, (WALL_H + 1.45) / 2, P);
+    boxIn(g, 0.3, 0.5, 0.12, -0.4, 1.2, P); boxIn(g, 0.3, 0.5, 0.12, 0.4, 1.2, P);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.03), mat('#bfe6ff', { rough: 0.2, emissive: '#ffd98a', ei: 0.25 })); glass.position.y = 1.2; g.add(glass);
+    boxIn(g, 0.04, 0.5, 0.15, 0, 1.2, T); boxIn(g, 0.5, 0.04, 0.15, 0, 1.2, T);
+    boxIn(g, 0.62, 0.06, 0.2, 0, 0.92, T); // sill
+  }
+  boxIn(g, 1.12, 0.1, 0.14, 0, WALL_H - 0.05, T); // top beam
+  boxIn(g, 1.12, 0.12, 0.14, 0, 0, T); // ground beam
+  return g;
+}
+function makeDoor() {
+  const g = new THREE.Group();
+  const P = plaster(), T = timber();
+  const jw = (1.1 - DOOR_W) / 2;
+  boxIn(g, jw, WALL_H + 0.3, 0.12, -0.55 + jw / 2, (WALL_H - 0.3) / 2, P); boxIn(g, jw, WALL_H + 0.3, 0.12, 0.55 - jw / 2, (WALL_H - 0.3) / 2, P);
+  boxIn(g, DOOR_W, WALL_H - DOOR_H, 0.12, 0, (WALL_H + DOOR_H) / 2, P);
+  boxIn(g, 1.12, 0.1, 0.14, 0, WALL_H - 0.05, T);
+  boxIn(g, 0.06, DOOR_H, 0.16, -DOOR_W / 2, DOOR_H / 2, T); boxIn(g, 0.06, DOOR_H, 0.16, DOOR_W / 2, DOOR_H / 2, T); boxIn(g, DOOR_W, 0.06, 0.16, 0, DOOR_H, T);
+  // the leaf swings on a hinge at the left jamb
+  const hinge = new THREE.Group(); hinge.position.set(-DOOR_W / 2 + 0.03, 0, 0); hinge.name = 'hinge'; g.add(hinge);
+  const leaf = new THREE.Group(); leaf.position.x = (DOOR_W - 0.06) / 2; hinge.add(leaf);
+  const wood = mat('#c47a45', { rough: 0.75 });
+  boxIn(leaf, DOOR_W - 0.08, DOOR_H - 0.04, 0.06, 0, (DOOR_H - 0.04) / 2, wood);
+  for (const y of [0.45, 1.35]) boxIn(leaf, DOOR_W - 0.14, 0.06, 0.08, 0, y, T);
+  for (const z of [0.06, -0.06]) { const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), mat('#e8c25a', { rough: 0.3 })); knob.position.set((DOOR_W - 0.08) / 2 - 0.1, 0.95, z); leaf.add(knob); }
+  return g;
+}
+/** 2x2 gable roof, ridge along local x, base at wall-top height */
+function makeRoof() {
+  const g = new THREE.Group();
+  const tile = mat('#c8553d', { rough: 0.8 }), tile2 = mat('#a8432f', { rough: 0.8 }), P = plaster();
+  const half = 1.3, rise = 0.95, run = 1.3;
+  const len = Math.hypot(run, rise), ang = Math.atan2(rise, run);
+  for (const s of [-1, 1]) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(2 * half, 0.08, len + 0.08), s > 0 ? tile : tile2);
+    slab.position.set(0, WALL_H + rise / 2, s * run / 2); slab.rotation.x = s * ang; slab.castShadow = slab.receiveShadow = true; g.add(slab);
+    for (let k = 1; k < 4; k++) { // tile rows
+      const f = k / 4, row = new THREE.Mesh(new THREE.BoxGeometry(2 * half + 0.02, 0.05, 0.06), tile2);
+      row.position.set(0, WALL_H + rise * (1 - f) + 0.06, s * run * f); g.add(row);
+    }
+  }
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(2 * half + 0.1, 0.12, 0.16), tile2); ridge.position.y = WALL_H + rise + 0.03; g.add(ridge);
+  // gable ends fill the triangle above the end walls
+  const r = rise / run;
+  const tri = new THREE.Shape(); tri.moveTo(-1.05, 0); tri.lineTo(1.05, 0); tri.lineTo(0, 1.05 * r); tri.closePath();
+  const gable = new THREE.ExtrudeGeometry(tri, { depth: 0.1, bevelEnabled: false });
+  for (const x of [-1.05, 0.95]) { const m = new THREE.Mesh(gable, P); m.rotation.y = Math.PI / 2; m.position.set(x, WALL_H, 0); m.castShadow = true; g.add(m); }
+  const ch = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.7, 0.28), mat('#9c8f84')); ch.position.set(0.6, WALL_H + rise * 0.55 + 0.2, 0.55); ch.castShadow = true; g.add(ch);
+  return g;
+}
 /** bridge deck height along its length (local z in [-1.5, 1.5]) */
 export const bridgeArc = (z: number) => 0.4 * Math.cos((z / 1.5) * (Math.PI / 2)) ** 0.8;
 function makePathTile() {
@@ -129,6 +202,8 @@ export class BuildMode implements System {
   rotation = 0;
   group = new THREE.Group();
   private ghost: THREE.Object3D | null = null;
+  /** yaw chosen by edge/corner snapping (cottage kit) */
+  private targetRot = 0;
   private ghostValid = false;
   private ghostMatState = true;
   private cell = new THREE.Mesh(
@@ -169,6 +244,24 @@ export class BuildMode implements System {
         else { this.refreshTarget(); this.place(); }
       } else if (e.button === 2) this.removeHovered();
     });
+  }
+
+  /** Order 44: tap a door (outside Build Mode) to swing it open or shut; open doors let you walk through */
+  toggleDoor(p: Placed, open = !p.obj.userData.open) {
+    if (p.def.id !== 'door' || !this.placed.includes(p)) return false;
+    p.obj.userData.open = open;
+    p.colliders[p.colliders.length - 1]?.setEnabled(!open);
+    this.onChange();
+    return true;
+  }
+  /** door pieces whose leaf is swinging toward its open/shut angle */
+  private swingDoors(dt: number) {
+    for (const p of this.placed) {
+      if (p.def.id !== 'door') continue;
+      const h = p.obj.getObjectByName('hinge'); if (!h) continue;
+      const want = p.obj.userData.open ? -Math.PI * 0.55 : 0;
+      if (Math.abs(h.rotation.y - want) > 1e-3) h.rotation.y += (want - h.rotation.y) * Math.min(1, dt * 9);
+    }
   }
 
   get count() { return this.placed.length; }
@@ -251,13 +344,47 @@ export class BuildMode implements System {
     }
     let p = hit.point.clone();
     if (placed && placed.def.stackable) p.add(n.clone().multiplyScalar(0.5)); // side of block -> neighbour cell
+    const def = BUILDABLES[this.selected];
+    // wall pieces look through other cottage pieces to the ground behind them, so tapping next to a wall picks the edge under the finger
+    if (def.snap === 'edge' && placed?.def.snap && ground) p = ground.clone();
+    if (def.snap) { this.snapTarget(def, p); return true; }
+    this.targetRot = this.rotation;
     const x = Math.round(p.x), z = Math.round(p.z);
     // sit on lowest-cost ground: average of cell corners so blocks don't float
-    const def = BUILDABLES[this.selected];
     const h = def.span ? this.spanBase(x, z, def.span, this.rotation)
       : Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x, z));
     this.target.set(x, h, z);
     return true;
+  }
+
+  /** cottage kit snapping: walls/doors/windows to the nearest cell edge (facing along it), roofs to the nearest cell corner */
+  private snapTarget(def: Buildable, p: THREE.Vector3) {
+    if (def.snap === 'edge') {
+      const cx = Math.round(p.x), cz = Math.round(p.z), fx = p.x - cx, fz = p.z - cz;
+      // a quarter turn (Rotate) flips which side a door swings toward
+      const flip = Math.round(this.rotation / (Math.PI / 2)) % 2 === 1 ? Math.PI : 0;
+      let x = cx, z = cz;
+      if (Math.abs(fx) > Math.abs(fz)) { x = cx + Math.sign(fx || 1) * 0.5; this.targetRot = Math.PI / 2 + flip; }
+      else { z = cz + Math.sign(fz || 1) * 0.5; this.targetRot = flip; }
+      this.target.set(x, this.edgeBase(x, z, this.targetRot), z);
+    } else {
+      const x = Math.floor(p.x) + 0.5, z = Math.floor(p.z) + 0.5;
+      this.targetRot = Math.round(this.rotation / (Math.PI / 2)) % 2 === 1 ? Math.PI / 2 : 0;
+      this.target.set(x, this.roofBase(x, z), z);
+    }
+  }
+  /** an edge piece sits on the lowest ground along its edge (its panel is sunk to cover slopes) */
+  private edgeBase(x: number, z: number, rot: number) {
+    const dx = Math.cos(rot) * 0.5, dz = -Math.sin(rot) * 0.5;
+    return Math.max(0.05, Math.min(heightAt(x - dx, z - dz), heightAt(x, z), heightAt(x + dx, z + dz)));
+  }
+  /** a roof rests on the highest wall base of its 2x2 footprint (walls stand WALL_H tall) */
+  private roofBase(x: number, z: number) {
+    let h = -Infinity;
+    for (const [ox, oz] of [[-1, -0.5], [1, -0.5], [-1, 0.5], [1, 0.5], [-0.5, -1], [-0.5, 1], [0.5, -1], [0.5, 1]]) h = Math.max(h, this.edgeBase(x + ox, z + oz, ox === -1 || ox === 1 ? Math.PI / 2 : 0));
+    // snap onto real walls if some are already standing round this footprint
+    for (const q of this.placed) if (q.def.snap === 'edge' && Math.abs(q.obj.position.x - x) <= 1.01 && Math.abs(q.obj.position.z - z) <= 1.01) h = Math.max(h, q.obj.position.y);
+    return h;
   }
 
   private findPlaced(o: THREE.Object3D | null): Placed | null {
@@ -285,10 +412,12 @@ export class BuildMode implements System {
       const [a, b] = this.spanEnds(t.x, t.z, def.span, this.rotation);
       // banks may be the wet pond rim (just under the water line): the deck still sits above the water
       if (a < -0.1 || b < -0.1 || Math.abs(a - b) > 0.35) return false;
+    } else if (def.snap) {
+      if (heightAt(t.x, t.z) < 0.1) return false;
     } else if (heightAt(t.x, t.z) < 0.15) return false; // no building in the sea
     if (t.y > 12) return false;
     const pp = this.playerPos();
-    if (Math.hypot(pp.x - t.x, pp.z - t.z) < 0.7 && Math.abs(pp.y - t.y) < 1.5) return false;
+    if (def.snap !== 'corner' && Math.hypot(pp.x - t.x, pp.z - t.z) < (def.snap ? 0.45 : 0.7) && Math.abs(pp.y - t.y) < 1.5) return false;
     // occupied cell at same level?
     return !this.placed.some((p) => Math.abs(p.obj.position.x - t.x) < 0.01 && Math.abs(p.obj.position.z - t.z) < 0.01
       && Math.abs(p.obj.position.y - t.y) < 0.5);
@@ -296,7 +425,8 @@ export class BuildMode implements System {
 
   place(): boolean {
     if (!this.active || !this.ghostValid) return false;
-    const ok = this.placeAt(this.target.x, this.target.z, this.selected, this.rotation, this.target.y);
+    const def = BUILDABLES[this.selected];
+    const ok = this.placeAt(this.target.x, this.target.z, this.selected, def.snap ? this.targetRot : this.rotation, this.target.y);
     if (ok) { this.history.push(this.placed[this.placed.length - 1]); if (this.history.length > 50) this.history.shift(); this.onPlace(this.selected); this.onChange(); }
     return ok;
   }
@@ -304,7 +434,7 @@ export class BuildMode implements System {
   placeAt(x: number, z: number, type: number, rot = 0, y?: number): boolean {
     const def = BUILDABLES[type];
     const obj = def.make();
-    const yy = y ?? (def.span ? this.spanBase(x, z, def.span, rot)
+    const yy = y ?? (def.snap === 'edge' ? this.edgeBase(x, z, rot) : def.snap === 'corner' ? this.roofBase(x, z) : def.span ? this.spanBase(x, z, def.span, rot)
       : Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4)));
     obj.position.set(x, yy, z);
     obj.rotation.y = rot;
@@ -377,6 +507,7 @@ export class BuildMode implements System {
         o.scale.setScalar(Math.max(0.01, s));
       }
     }
+    this.swingDoors(dt);
     if (!this.active) return;
     const i = this.input;
     for (let n = 1; n <= BUILDABLES.length; n++) if (i.pressed.has(String(n))) this.select(n - 1);
@@ -390,7 +521,7 @@ export class BuildMode implements System {
       this.ghost.visible = ok && !this.removeMode;
       this.ghost.position.copy(this.target);
       // ghost swings round to the new rotation so the turn is easy to see
-      let dy = this.rotation - this.ghostYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      let dy = (BUILDABLES[this.selected].snap ? this.targetRot : this.rotation) - this.ghostYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       this.ghostYaw += dy * Math.min(1, dt * 14);
       this.ghost.rotation.y = this.ghostYaw;
       const valid = ok && this.isValid();

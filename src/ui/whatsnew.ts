@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-23-frogs';
+export const VERSION = '2026-10-23-cottage';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'wood', text: 'Build your own cottage! Build Mode has a new House tab with walls, windows, a door and a red tiled roof. Walls snap to the edges of the grid, so a 2x2 cottage takes just a few taps. Tap the door to swing it open and walk inside.' },
   { icon: 'heart', text: 'Frogs have hopped into the Misty Marsh! Listen for them croaking by the pond, and watch them leap from lily pad to lily pad. Feed one a beetle or a worm to make a new friend. Their colours change with the seasons, and on spooky autumn evenings the whole pond sings a croaky chorus.' },
   { icon: 'heart', text: 'Blossom Isle is in bloom! A cherry grove now covers its far side, with wildflowers, bushes and shells on the beach. The blossoms change colour with each theme. Look for the pink pennant: it marks a clear landing spot facing home.' },
   { icon: 'star', text: 'Blossom Isle is easier to spot from the beach now, and it has its own corner on your map with a pin at the landing spot.' },

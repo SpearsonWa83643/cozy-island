@@ -1,5 +1,7 @@
 /** Light build-piece metadata for Hud (keeps BuildMode + models out of the first paint chunk). */
-export interface BuildMeta { id: string; label: string; icon: string }
+export interface BuildMeta { id: string; label: string; icon: string; cat?: 'house' }
+export type BuildTab = 'items' | 'house';
+export const tabOf = (m: BuildMeta | undefined): BuildTab => (m?.cat === 'house' ? 'house' : 'items');
 
 export const BUILD_CATALOG: BuildMeta[] = [
   { id: 'block', label: 'Wood Block', icon: '🟫' },
@@ -22,4 +24,9 @@ export const BUILD_CATALOG: BuildMeta[] = [
   { id: 'path', label: 'Stone Path', icon: '🪨' },
   { id: 'stairs', label: 'Stairs', icon: '🪜' },
   { id: 'bridge', label: 'Bridge', icon: '🌉' },
+  // Order 44: cottage kit (House tab)
+  { id: 'wall', label: 'Wall', icon: '🧱', cat: 'house' },
+  { id: 'window', label: 'Window', icon: '🪟', cat: 'house' },
+  { id: 'door', label: 'Door', icon: '🚪', cat: 'house' },
+  { id: 'roof', label: 'Roof', icon: '🛖', cat: 'house' },
 ];

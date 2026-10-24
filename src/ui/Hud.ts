@@ -2,7 +2,7 @@ import { setTheme, themeSetting, themeForDate, THEMES, VISIBLE_THEMES, type Them
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtWin = (w: { from: [number, number]; to: [number, number] }) => `${MON[w.from[0] - 1]} ${w.from[1]} – ${MON[w.to[0] - 1]} ${w.to[1]}`;
 import type { Input, Handedness } from '../core/Input';
-import { BUILD_CATALOG } from '../build/catalog';
+import { BUILD_CATALOG, tabOf, type BuildTab } from '../build/catalog';
 import type { Quality } from '../render/Renderer';
 import type { AudioEngine } from '../audio/Audio';
 
@@ -12,6 +12,9 @@ export class Hud {
   private hotbar: HTMLElement;
   private modeEl: HTMLElement;
   private slots: HTMLElement[] = [];
+  private tabsEl!: HTMLElement;
+  private tab: BuildTab = 'items';
+  private avail: (i: number) => boolean = () => true;
   private qBtns: Record<Quality, HTMLButtonElement>;
   private frames = 0;
   private last = performance.now();
@@ -56,6 +59,20 @@ export class Hud {
       this.hotbar.appendChild(s);
       this.slots.push(s);
     });
+    // Order 44: Items / House tabs above the piece bar (tap a tab to jump to its first piece)
+    this.tabsEl = el(`<div class="hud build-tabs off"><button class="btab" data-tab="items">🧺 Items</button><button class="btab" data-tab="house">🏠 House</button></div>`);
+    const stop = (e: Event) => e.stopPropagation();
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.tabsEl.addEventListener(ev, stop);
+    for (const b of this.tabsEl.querySelectorAll<HTMLButtonElement>('.btab')) b.addEventListener('click', (e) => {
+      e.stopPropagation(); b.blur();
+      const t = b.dataset.tab as BuildTab;
+      const i = BUILD_CATALOG.findIndex((m, k) => tabOf(m) === t && this.avail(k));
+      if (i >= 0) this.onSelect(i);
+    });
+  }
+  private syncSlots() {
+    this.slots.forEach((s, i) => { s.style.display = this.avail(i) && tabOf(BUILD_CATALOG[i]) === this.tab ? '' : 'none'; });
+    for (const b of this.tabsEl.querySelectorAll<HTMLButtonElement>('.btab')) b.classList.toggle('on', b.dataset.tab === this.tab);
   }
 
   /** corner dock: ⚙️ toggles the corner panels (hidden by default, persisted), 🎨 opens the theme picker */
@@ -83,7 +100,7 @@ export class Hud {
   }
   closePicker() { this.picker?.classList.remove('open'); this.dock?.querySelector('.theme-btn')?.classList.remove('on'); }
   /** hotbar shows only pieces the active theme allows */
-  syncBuildables(avail: (i: number) => boolean) { this.slots.forEach((s, i) => { s.style.display = avail(i) ? '' : 'none'; }); }
+  syncBuildables(avail: (i: number) => boolean) { this.avail = avail; this.syncSlots(); }
   /** handedness for the floating joystick (touch only) */
   bindHand(input: Input) {
     const btns = [...this.stats.querySelectorAll<HTMLButtonElement>('.hand')];
@@ -138,6 +155,9 @@ export class Hud {
 
   setBuild(active: boolean, selected: number, count: number, removing = false) {
     this.hotbar.classList.toggle('off', !active);
+    this.tabsEl.classList.toggle('off', !active || removing);
+    const t = tabOf(BUILD_CATALOG[selected]);
+    if (t !== this.tab) { this.tab = t; this.syncSlots(); }
     this.modeEl.classList.toggle('off', !active);
     this.modeEl.style.background = removing ? '#ff7b7b' : '';
     this.modeEl.textContent = removing

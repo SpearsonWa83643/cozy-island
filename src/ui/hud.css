@@ -83,6 +83,12 @@ body.touch .hotbar { left: 185px; right: 290px; transform: none; overflow-x: aut
 body.touch .hotbar::-webkit-scrollbar { display: none; }
 body.touch .hotbar.off { transform: translateY(20px); pointer-events: none; }
 .hotbar .slot { flex: 0 0 auto; }
+.build-tabs { bottom: 112px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; transition: opacity .25s, transform .25s; }
+.build-tabs.off { opacity: 0; transform: translate(-50%, 20px); pointer-events: none; }
+.btab { min-height: 44px; padding: 6px 16px; border-radius: 22px; border: 3px solid transparent; background: rgba(255, 250, 240, 0.85); font: 800 16px system-ui, sans-serif; color: #4a3b2f; box-shadow: 0 3px 0 rgba(160,120,80,.25); cursor: pointer; touch-action: manipulation; }
+.btab.on { border-color: #7cc95b; background: #fffaf0; }
+body.touch .build-tabs { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 96px); left: 185px; transform: none; }
+body.touch .build-tabs.off { transform: translateY(20px); }
 body.touch .slot { width: 70px; height: 70px; }
 body.touch .mode { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px); }
 

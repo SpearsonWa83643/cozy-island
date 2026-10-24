@@ -332,7 +332,7 @@ export class TapReact {
   tapProp(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number }, lim: number, player: THREE.Vector3): false | 'core' | 'slop' {
     const build = this.build;
     if (!build) return false;
-    let best: { obj: THREE.Object3D; d: number; y: number } | null = null;
+    let best: { obj: THREE.Object3D; d: number; y: number; p: (typeof build.pieces)[number]; far: number } | null = null;
     for (const p of build.pieces) {
       const o = p.obj;
       const far = Math.hypot(o.position.x - player.x, o.position.z - player.z);
@@ -342,9 +342,19 @@ export class TapReact {
       const d = Math.hypot(s.x - cx, s.y - cy);
       const reach = lim + 8;
       if (d > reach) continue;
-      if (!best || d < best.d) best = { obj: o, d, y: midY };
+      if (!best || d < best.d) best = { obj: o, d, y: midY, p, far };
     }
     if (!best) return false;
+    // Order 44: doors swing open / shut instead of squashing
+    if (best.p.def.id === 'door' && best.far < 9) {
+      const key = `door|${best.obj.position.x.toFixed(2)}|${best.obj.position.z.toFixed(2)}`;
+      if ((this.cool.get(key) ?? 0) > this.now) return 'core';
+      this.cool.set(key, this.now + 0.35);
+      build.toggleDoor(best.p);
+      this.audio.rockClack(0.45); this.audio.pop(0.5);
+      this.propHits++;
+      return 'core';
+    }
     const key = `prop|${best.obj.position.x.toFixed(2)}|${best.obj.position.z.toFixed(2)}|${best.obj.position.y.toFixed(2)}`;
     const until = this.cool.get(key) ?? 0;
     const core = best.d <= lim * 0.9;
