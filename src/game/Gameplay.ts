@@ -880,13 +880,15 @@ export class Gameplay implements System {
     // Lighthouse Point lookout: first visit gets a little welcome
     if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
     // Blossom Isle hot spring (Order 46a): steam drifts up; walk in to sit and soak
+    g.islets.tickFlora(dt);
     { let soak = false;
       for (const s of g.islets.springs()) { s.tick(dt); if (!g.player.mounted && !g.cave.inside && s.group.parent?.visible !== false && s.inside(p.x, p.y, p.z)) soak = true; }
       g.player.soaking = soak;
       if (soak) {
         this.soakT += dt;
+        if (this.soakT === dt) g.audio.springSoak(true);
         if (!d.soaked) { d.soaked = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('♨️ <b>Blossom Isle hot spring</b>: ahh, lovely warm water. Stay and soak a while!', 4000); }
-        if (this.soakT > 2.4) { this.soakT = 0; this.soaks++; this.juice.pop(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 1.2, 0)), Math.random() < 0.5 ? '♨️' : '💗', 'emote', 1.6, 50); }
+        if (this.soakT > 2.4) { this.soakT = 1e-6; this.soaks++; g.audio.springSoak(false); this.juice.pop(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 1.2, 0)), Math.random() < 0.5 ? '♨️' : '💗', 'emote', 1.6, 50); }
       } else this.soakT = 0;
     }
     this.forage.update(dt, p);

@@ -1,11 +1,12 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-25-hot-spring';
+export const VERSION = '2026-10-25-lantern-path';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
-  { icon: 'heart', text: 'A hot spring on Blossom Isle! Look for the steaming rock pool in the meadow, next to a little stone lantern. Walk in to sit down for a warm soak. It steams extra on snowy winter days.' },
+  { icon: 'star', text: 'Blossom Isle got prettier! A stepping-stone path lined with little stone lanterns now leads from the landing to the hot spring, and cherry petals drift down through the grove. They turn orange in autumn and purple at Halloween.' },
+  { icon: 'heart', text: 'A hot spring on Blossom Isle! Look for the steaming rock pool in the meadow, next to a little stone lantern. Walk in to sit down for a warm, bubbly soak. It steams extra on snowy winter days.' },
   { icon: 'star', text: 'Treasure across the sea! Every fourth treasure map now leads to Blossom Isle. Look for the red X in the little island\'s corner of your map, then fly over on a winged mount and dig in the meadow.' },
   { icon: 'star', text: 'The scenic tour now visits Blossom Isle! Let go of the stick while flying and your mount heads out over the sea, circles the little island\'s coast, then brings you back home.' },
   { icon: 'wood', text: 'Build your own cottage! Build Mode has a new House tab with walls, windows, a door and a red tiled roof. Walls snap to the edges of the grid, so a 2x2 cottage takes just a few taps. Tap the door to swing it open and walk inside.' },

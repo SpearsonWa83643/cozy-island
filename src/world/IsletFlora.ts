@@ -51,6 +51,13 @@ export class IsletFlora {
   /** Blossom Isle's signature landmark (Order 46a) */
   spring: HotSpring | null = null;
   private cherryMeshes: { mesh: THREE.InstancedMesh; seed: number }[] = [];
+  /** cherry trunk positions (petals fall from these) */
+  private cherryPts: { x: number; y: number; z: number }[] = [];
+  /** stone lantern path from the landing to the hot spring (Order 46b) */
+  path: { x: number; z: number }[] = []; lanterns: { x: number; z: number }[] = [];
+  private petals: THREE.InstancedMesh | null = null; private petalMat: THREE.MeshBasicNodeMaterial | null = null;
+  private petalSeeds: number[] = []; private pt = 0; petalTicks = 0;
+  private pm = new THREE.Matrix4(); private pq = new THREE.Quaternion(); private pe = new THREE.Euler(); private ps = new THREE.Vector3(); private pp = new THREE.Vector3();
 
   constructor(readonly def: IsletDef, private physics: Physics) {
     this.group.name = `islet-flora-${def.id}`;
@@ -59,7 +66,7 @@ export class IsletFlora {
     this.findLanding();
     if (def.id === 'blossom') {
       this.spring = new HotSpring(def, this.occ);
-      if (this.spring.found) { this.occ.push({ x: this.spring.pos.x, z: this.spring.pos.z, r: SPRING_R + 2.2 }); this.group.add(this.spring.group); }
+      if (this.spring.found) { this.occ.push({ x: this.spring.pos.x, z: this.spring.pos.z, r: SPRING_R + 2.2 }); this.group.add(this.spring.group); this.planPath(); }
     }
     themeEvents.on(() => this.recolour());
   }
@@ -81,7 +88,7 @@ export class IsletFlora {
     if (this.built) return;
     if (this.spring?.found && !this.spring.group.children.length) { this.spring.build(); return; }
     const spec = this.queue.shift();
-    if (!spec) { this.buildPennant(); this.built = true; return; }
+    if (!spec) { this.buildPennant(); this.buildPath(); this.buildPetals(); this.built = true; return; }
     this.buildSpec(spec);
   }
 
@@ -114,6 +121,7 @@ export class IsletFlora {
         im.setMatrixAt(n, m4.compose(p3, q.setFromEuler(e), s3.setScalar(sc)));
         const br = 0.9 + rnd() * 0.2; im.setColorAt(n, tint.setRGB(br, br, br));
         if (spec.trunk) this.physics.addCylinder(x, h + 1, z, 1, 0.28 * sc);
+        if (spec.cherry) this.cherryPts.push({ x, y: h + 2.2 * sc, z });
         n++;
       }
       im.count = n; im.name = spec.name;
@@ -143,6 +151,73 @@ export class IsletFlora {
     this.physics.addCylinder(L.x, L.y + 1.3, L.z, 1.3, 0.1);
   }
 
+  /** stepping stones every ~1.7 m from the landing to the spring's rim, lanterns every ~7 m on alternating sides */
+  private planPath() {
+    const L = this.landing, S = this.spring!.pos;
+    const dx = S.x - L.x, dz = S.z - L.z, len = Math.hypot(dx, dz), ux = dx / len, uz = dz / len;
+    const start = 4, end = len - SPRING_R - 1.2;
+    const ts: number[] = []; for (let t = start; t < end - 0.8; t += 1.7) ts.push(t); ts.push(end);
+    for (const t of ts) {
+      const w = Math.sin(t * 0.09) * 2.2; // a gentle wiggle so it reads as a garden path
+      const x = L.x + ux * t - uz * w, z = L.z + uz * t + ux * w;
+      this.path.push({ x, z }); this.occ.push({ x, z, r: 1.3 });
+    }
+    for (let i = 2; i < this.path.length - 1; i += 4) {
+      const a = this.path[i], side = (i / 4) % 2 < 1 ? 1 : -1, x = a.x - uz * 1.5 * side, z = a.z + ux * 1.5 * side;
+      this.lanterns.push({ x, z }); this.occ.push({ x, z, r: 0.8 });
+    }
+  }
+
+  private buildPath() {
+    if (!this.path.length) return;
+    const rnd = mulberry32(this.def.seed + 461), b = new Baker(), glow = new Baker(), O = this.path[0], oy = heightAt(O.x, O.z);
+    for (const s of this.path) {
+      const y = heightAt(s.x, s.z) - oy, g = new THREE.CylinderGeometry(0.42 + rnd() * 0.12, 0.5, 0.12, 7);
+      b.add(g, rnd() < 0.5 ? '#c8c0b4' : '#b4ac9f', [s.x - O.x, y + 0.02, s.z - O.z], [0, rnd() * 3, 0], [1.1 + rnd() * 0.25, 1, 0.85]);
+    }
+    for (const l of this.lanterns) {
+      const x = l.x - O.x, z = l.z - O.z, y = heightAt(l.x, l.z) - oy;
+      b.add(new THREE.CylinderGeometry(0.24, 0.3, 0.18, 6), '#b8b0a4', [x, y + 0.09, z]);
+      b.add(new THREE.CylinderGeometry(0.08, 0.1, 0.6, 6), '#b8b0a4', [x, y + 0.48, z]);
+      b.add(new THREE.ConeGeometry(0.4, 0.3, 4), '#9a9288', [x, y + 1.24, z], [0, Math.PI / 4, 0]);
+      glow.add(new THREE.BoxGeometry(0.38, 0.3, 0.38), '#ffe2a0', [x, y + 0.93, z]);
+    }
+    const mesh = new THREE.Mesh(b.build(), new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
+    mesh.name = 'lantern-path'; mesh.position.set(O.x, oy, O.z); mesh.castShadow = mesh.receiveShadow = true;
+    const gm = new THREE.MeshBasicNodeMaterial({ vertexColors: true }); gm.toneMapped = false;
+    const lights = new THREE.Mesh(glow.build(), gm); lights.name = 'lantern-lights'; lights.position.copy(mesh.position);
+    this.group.add(mesh, lights);
+  }
+
+  /** a few dozen petals drift down from the cherry canopies and swirl in the breeze (one instanced draw) */
+  private buildPetals() {
+    if (!this.cherryPts.length) return;
+    const N = 90, g = new THREE.PlaneGeometry(0.16, 0.1);
+    this.petalMat = new THREE.MeshBasicNodeMaterial({ color: cherryPal()[0], side: THREE.DoubleSide });
+    this.petals = new THREE.InstancedMesh(g, this.petalMat, N); this.petals.name = 'cherry-petals';
+    this.petals.castShadow = this.petals.receiveShadow = false; this.petals.frustumCulled = false;
+    const rnd = mulberry32(this.def.seed + 462);
+    for (let i = 0; i < N; i++) this.petalSeeds.push(rnd());
+    this.group.add(this.petals);
+    this.tick(0);
+  }
+
+  /** animate petals (cheap: 90 matrices); skipped while the islet is hidden */
+  tick(dt: number) {
+    if (!this.petals || !this.group.visible && dt > 0) return;
+    this.pt += dt; this.petalTicks++;
+    const T = this.cherryPts, n = this.petalSeeds.length;
+    for (let i = 0; i < n; i++) {
+      const sd = this.petalSeeds[i], tr = T[Math.floor(sd * 9973) % T.length], ph = (this.pt * (0.07 + sd * 0.05) + sd * 5.1) % 1;
+      const a = sd * 31 + this.pt * (0.6 + sd), drift = ph * 3.2, sw = 0.5 + sd * 0.7;
+      this.pp.set(tr.x + Math.cos(a) * sw + drift * 0.8, Math.max(heightAt(tr.x, tr.z) + 0.05, tr.y + 0.6 - ph * (tr.y - heightAt(tr.x, tr.z) + 0.6)), tr.z + Math.sin(a) * sw + drift * 0.5);
+      this.pe.set(this.pt * (1.3 + sd * 2) + sd * 9, sd * 6.28, this.pt * (0.9 + sd) + sd * 4);
+      const sc = ph > 0.93 ? (1 - ph) / 0.07 : 1;
+      this.petals.setMatrixAt(i, this.pm.compose(this.pp, this.pq.setFromEuler(this.pe), this.ps.setScalar(sc)));
+    }
+    this.petals.instanceMatrix.needsUpdate = true;
+  }
+
   /** theme switch: rebake the cherry canopies with the new blossom palette (same seed = same shapes) */
   recolour() {
     for (const c of this.cherryMeshes) {
@@ -151,8 +226,9 @@ export class IsletFlora {
       old.dispose();
       c.mesh.computeBoundingSphere();
     }
+    this.petalMat?.color.set(cherryPal()[0]);
     if (this.cherryMeshes.length) this.recolours++;
   }
 
-  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, visible: this.group.visible, recolours: this.recolours, spring: this.spring?.found ? { x: +this.spring.pos.x.toFixed(1), z: +this.spring.pos.z.toFixed(1), y: +this.spring.pos.y.toFixed(2), water: +this.spring.water.toFixed(2), built: this.spring.group.children.length > 0 } : null, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
+  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, petals: this.petals?.count ?? 0, petalTicks: this.petalTicks, path: this.path.length, lanterns: this.lanterns.length, visible: this.group.visible, recolours: this.recolours, spring: this.spring?.found ? { x: +this.spring.pos.x.toFixed(1), z: +this.spring.pos.z.toFixed(1), y: +this.spring.pos.y.toFixed(2), water: +this.spring.water.toFixed(2), built: this.spring.group.children.length > 0 } : null, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
 }

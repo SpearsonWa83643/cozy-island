@@ -164,6 +164,8 @@ export class Islets {
   physUpdate(px: number, pz: number) { for (const it of this.list) { if (it.state === 'ready') it.phys?.update(px, pz); } }
   get stats() { return this.list.map((it) => ({ id: it.def.id, ...it.stats })); }
   get log() { return streamLog; }
+  /** per-frame flora animation (cherry petals, Order 46b) */
+  tickFlora(dt: number) { for (const it of this.list) if (it.flora.built) it.flora.tick(dt); }
   /** hot springs (Order 46a) that are built and shown */
   springs() { return this.list.map((it) => it.flora.spring).filter((s): s is NonNullable<typeof s> => !!s && s.group.children.length > 0); }
   get floraStats() { return this.list.map((it) => ({ id: it.def.id, ...it.flora.stats })); }

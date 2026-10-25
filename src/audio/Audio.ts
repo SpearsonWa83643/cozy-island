@@ -640,6 +640,20 @@ export class AudioEngine {
   }
   /** friendship level up: a warm rising arpeggio */
   levelUp() { const t = this.go(); if (t < 0) return; const d = this.sfx(0, 0.7, 0.4); [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone('sine', f, t + i * 0.09, 0.4, d, 0.16, 0.006)); }
+  /** hot spring (Order 46b): a warm splashy sigh as you sit down, then soft low bubbles while you soak */
+  springSoak(enter: boolean) {
+    this.springSoaks++; const t = this.go(); if (t < 0) return;
+    const d = this.sfx(0, 0.5, 0.5);
+    if (enter) {
+      this.noiseHit(t, 0.6, d, 'lowpass', 700, 0.8, 0.16, 0.02, this.pink);
+      [262, 330, 392].forEach((f, i) => this.tone('sine', f, t + 0.15 + i * 0.12, 1.4, d, 0.07, 0.25));
+    }
+    for (let i = 0; i < 4; i++) {
+      const tt = t + 0.1 + Math.random() * 1.6, o = this.tone('sine', 180 + Math.random() * 140, tt, 0.09, d, 0.08, 0.004);
+      o.frequency.exponentialRampToValueAtTime(420 + Math.random() * 300, tt + 0.08);
+    }
+  }
+  springSoaks = 0;
   ui() { if (!this.started) return; const t = this.ctx!.currentTime; this.tone('sine', 1320, t, 0.12, this.sfx(0, 0.5, 0.1), 0.08, 0.003); }
   /** RMS output level (debug / tests) */
   level(): number {
