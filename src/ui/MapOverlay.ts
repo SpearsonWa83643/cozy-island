@@ -127,7 +127,8 @@ export class MapOverlay {
       const rnd = mulberry32(info.n * 131 + 7);
       if (active) {
         // torn fragment: everything outside a ragged circle is faded back to blank parchment
-        const fx = toPx(info.x + (rnd() - 0.5) * 14), fz = toPx(info.z + (rnd() - 0.5) * 14), fr = (22 / (2 * EXTENT)) * N;
+        // (the fragment + X go on whichever map shows the spot: the main map or an islet inset, Order 45c)
+        const fq = mapPx(info.x + (rnd() - 0.5) * 14, info.z + (rnd() - 0.5) * 14), fx = fq.x, fz = fq.y, fr = (22 / (2 * EXTENT)) * N;
         g.save();
         g.beginPath(); g.rect(0, 0, N, N);
         for (let i = 0; i <= 48; i++) { const a = -(i / 48) * Math.PI * 2, r = fr * (0.88 + rnd() * 0.24); i ? g.lineTo(fx + Math.cos(a) * r, fz + Math.sin(a) * r) : g.moveTo(fx + Math.cos(a) * r, fz + Math.sin(a) * r); }
@@ -137,7 +138,7 @@ export class MapOverlay {
         g.save(); g.setLineDash([3, 5]); g.strokeStyle = 'rgba(90,58,34,0.55)'; g.lineWidth = 1.5;
         g.beginPath(); g.arc(fx, fz, fr * 1.02, 0, Math.PI * 2); g.stroke(); g.restore();
         // the X, in red brush strokes
-        const X = toPx(info.x), Z = toPx(info.z);
+        const xq = mapPx(info.x, info.z), X = xq.x, Z = xq.y;
         g.save(); g.strokeStyle = '#c0392b'; g.lineCap = 'round'; g.lineWidth = 7;
         g.beginPath(); g.moveTo(X - 13, Z - 12); g.quadraticCurveTo(X, Z + 1, X + 14, Z + 13); g.moveTo(X + 12, Z - 13); g.quadraticCurveTo(X - 1, Z, X - 13, Z + 12); g.stroke(); g.restore();
         this.x.style.display = 'block';

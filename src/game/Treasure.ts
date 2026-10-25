@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { Baker } from '../world/Baker';
 import { heightAt, slopeAt, biomeWeights } from '../world/Terrain';
-import { ISLAND_RADIUS } from '../world/config';
+import { ISLAND_RADIUS, ISLETS } from '../world/config';
 import { Biome, BIOME_CENTERS, BIOME_COUNT, BIOME_NAMES, POND } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
 import type { Flora } from '../world/Flora';
@@ -127,6 +127,9 @@ export class Treasure {
     const target = (mt && TREASURE_BIOME[mt] !== undefined) ? TREASURE_BIOME[mt] as Biome : BIOME_ORDER[mp.n % BIOME_ORDER.length];
     const w = new Float32Array(BIOME_COUNT);
     const px = mp.x || this.spawn.x, pz = mp.z || this.spawn.y;
+    // Order 45c: every 4th map (from map No. 4 on) leads across the sea to an islet, cycling through the archipelago
+    const k = Treasure.isletFor(mp.n, !!mt && TREASURE_BIOME[mt] !== undefined); // zone-bound mount chests stay in their zone
+    if (k >= 0 && this.isletSpot(k, rnd)) return;
     let best: [number, number] | null = null;
     for (let tries = 0; tries < 3000 && !best; tries++) {
       const strict = tries < 2000;
@@ -150,6 +153,30 @@ export class Treasure {
     mp.x = x; mp.z = z; mp.biome = bi; mp.state = 'active';
     mp.hint = this.hintFor(x, z, bi);
     this.syncVisuals();
+  }
+
+  /** which islet (ISLETS index) map No. n+1 leads to, or -1 for the main island */
+  static isletFor(n: number, mountTreasure = false) { return !mountTreasure && ISLETS.length && n >= 3 && n % 4 === 3 ? Math.floor(n / 4) % ISLETS.length : -1; }
+
+  /** a dig spot on islet k: dry, gentle meadow on its home-facing half (clear of the cherry grove and the landing pennant) */
+  private isletSpot(k: number, rnd: () => number) {
+    const d = ISLETS[k], mp = this.save.map;
+    const home = Math.atan2(-d.z, -d.x), lx = d.x + Math.cos(home) * d.r * 0.81, lz = d.z + Math.sin(home) * d.r * 0.81;
+    for (let tries = 0; tries < 1500; tries++) {
+      const a = home + (rnd() - 0.5) * 2.6, r = (0.2 + Math.sqrt(rnd()) * 0.45) * d.r;
+      const x = d.x + Math.cos(a) * r, z = d.z + Math.sin(a) * r;
+      const h = heightAt(x, z);
+      if (h < 0.8 || h > 13 || slopeAt(x, z) > 0.42) continue;
+      if (Math.hypot(x - lx, z - lz) < 10) continue;
+      mp.x = x; mp.z = z; mp.biome = Biome.Meadow; mp.state = 'active';
+      const side = r < d.r * 0.3 ? 'in the middle of' : `on the ${dirWord(x - d.x, z - d.z)} side of`;
+      mp.hint = `Across the sea! Dig ${side} ${d.name}, in the soft meadow grass. Fly over on a winged mount.`;
+      const mt = nextMountTreasure(this.save);
+      if (mt) mp.hint += ` ✨ Something warm and magical is inside — a ${mountForTreasure(mt)?.short ?? 'flying'} friend's treasure!`;
+      this.syncVisuals();
+      return true;
+    }
+    return false;
   }
 
   private hintFor(x: number, z: number, bi: number) {
