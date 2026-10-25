@@ -164,6 +164,8 @@ export class Islets {
   physUpdate(px: number, pz: number) { for (const it of this.list) { if (it.state === 'ready') it.phys?.update(px, pz); } }
   get stats() { return this.list.map((it) => ({ id: it.def.id, ...it.stats })); }
   get log() { return streamLog; }
+  /** hot springs (Order 46a) that are built and shown */
+  springs() { return this.list.map((it) => it.flora.spring).filter((s): s is NonNullable<typeof s> => !!s && s.group.children.length > 0); }
   get floraStats() { return this.list.map((it) => ({ id: it.def.id, ...it.flora.stats })); }
   /** test hook: true once every islet's grid is generated and its tiles are built */
   get ready() { return this.list.every((it) => it.state === 'ready' && it.tiles.every((t) => t.loaded)); }

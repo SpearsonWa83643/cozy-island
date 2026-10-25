@@ -79,6 +79,8 @@ export class Player implements System {
   private airVy = 0;
   /** swimming state + 0..1 blend for the animation */
   swimming = false;
+  /** soaking in a hot spring (Order 46a): the body sinks down so you sit in the water */
+  soaking = false; soakBlend = 0;
   /** solid props in the water (shipwreck hull) where the shoreline anti-stuck hop must not push you through */
   solidNear: ((x: number, z: number) => boolean) | null = null;
   swimBlend = 0;
@@ -306,6 +308,8 @@ export class Player implements System {
     footR.position.z = 0.04 - Math.sin(this.walkPhase) * 0.18 * amt;
     footL.position.y = 0.08 + Math.max(0, Math.cos(this.walkPhase)) * 0.08 * amt;
     footR.position.y = 0.08 + Math.max(0, -Math.cos(this.walkPhase)) * 0.08 * amt;
+    this.soakBlend += ((this.soaking ? 1 : 0) - this.soakBlend) * Math.min(1, dt * 4);
+    if (this.soakBlend > 0.01) { body.position.y -= 0.42 * this.soakBlend; footL.position.y -= 0.3 * this.soakBlend; footR.position.y -= 0.3 * this.soakBlend; }
     // idle breathing
     const breathe = 1 + Math.sin(performance.now() * 0.003) * 0.015 * (1 - amt);
     if (this.cheerT > 0) {

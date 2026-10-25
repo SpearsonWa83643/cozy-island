@@ -7,6 +7,7 @@ import * as P from './Plants';
 import { theme, themeEvents } from '../theme/theme';
 import type { IsletDef } from './config';
 import type { Physics } from '../core/Physics';
+import { HotSpring, SPRING_R } from './HotSpring';
 
 /**
  * Blossom Isle flora (Order 42b): a cherry grove (pink blossoms, recoloured per theme), meadow bushes and
@@ -47,6 +48,8 @@ export class IsletFlora {
   private mat = floraMaterial();
   private rnd: () => number;
   private occ: { x: number; z: number; r: number }[] = [];
+  /** Blossom Isle's signature landmark (Order 46a) */
+  spring: HotSpring | null = null;
   private cherryMeshes: { mesh: THREE.InstancedMesh; seed: number }[] = [];
 
   constructor(readonly def: IsletDef, private physics: Physics) {
@@ -54,6 +57,10 @@ export class IsletFlora {
     this.group.visible = false;
     this.rnd = mulberry32(def.seed * 7 + 1);
     this.findLanding();
+    if (def.id === 'blossom') {
+      this.spring = new HotSpring(def, this.occ);
+      if (this.spring.found) { this.occ.push({ x: this.spring.pos.x, z: this.spring.pos.z, r: SPRING_R + 2.2 }); this.group.add(this.spring.group); }
+    }
     themeEvents.on(() => this.recolour());
   }
 
@@ -72,6 +79,7 @@ export class IsletFlora {
   /** call once per frame after the islet is ready; builds one species per call */
   step() {
     if (this.built) return;
+    if (this.spring?.found && !this.spring.group.children.length) { this.spring.build(); return; }
     const spec = this.queue.shift();
     if (!spec) { this.buildPennant(); this.built = true; return; }
     this.buildSpec(spec);
@@ -146,5 +154,5 @@ export class IsletFlora {
     if (this.cherryMeshes.length) this.recolours++;
   }
 
-  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, visible: this.group.visible, recolours: this.recolours, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
+  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, visible: this.group.visible, recolours: this.recolours, spring: this.spring?.found ? { x: +this.spring.pos.x.toFixed(1), z: +this.spring.pos.z.toFixed(1), y: +this.spring.pos.y.toFixed(2), water: +this.spring.water.toFixed(2), built: this.spring.group.children.length > 0 } : null, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
 }

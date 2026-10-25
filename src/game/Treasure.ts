@@ -4,6 +4,7 @@ import { heightAt, slopeAt, biomeWeights } from '../world/Terrain';
 import { ISLAND_RADIUS, ISLETS } from '../world/config';
 import { Biome, BIOME_CENTERS, BIOME_COUNT, BIOME_NAMES, POND } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';
+import { springSites } from '../world/HotSpring';
 import type { Flora } from '../world/Flora';
 import type { SaveData } from './Save';
 import { theme, HALLOWEEN_WEAR } from '../theme/theme';
@@ -168,6 +169,7 @@ export class Treasure {
       const h = heightAt(x, z);
       if (h < 0.8 || h > 13 || slopeAt(x, z) > 0.42) continue;
       if (Math.hypot(x - lx, z - lz) < 10) continue;
+      if (springSites.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + 5)) continue; // not in the hot spring (Order 46a)
       mp.x = x; mp.z = z; mp.biome = Biome.Meadow; mp.state = 'active';
       const side = r < d.r * 0.3 ? 'in the middle of' : `on the ${dirWord(x - d.x, z - d.z)} side of`;
       mp.hint = `Across the sea! Dig ${side} ${d.name}, in the soft meadow grass. Fly over on a winged mount.`;

@@ -35,6 +35,9 @@ export class Gameplay implements System {
   forage: Forage;
   treasure: Treasure;
   guide = new Guide();
+  private soakT = 0;
+  /** soak bubbles shown (test hook) */
+  soaks = 0;
   walk: TapWalk;
   digger = new Dig();
   harvest!: Harvest;
@@ -876,6 +879,16 @@ export class Gameplay implements System {
       if (!d.wreckSeen && !g.cave.inside && Math.hypot(p.x - wk.pos.x, p.z - wk.pos.z) < 7) { d.wreckSeen = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('⚓ <b>Shipwreck Cove</b> — an old ship broke in two on the reef. Swim through the gap and look for the captain\'s chest!', 4200); } }
     // Lighthouse Point lookout: first visit gets a little welcome
     if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
+    // Blossom Isle hot spring (Order 46a): steam drifts up; walk in to sit and soak
+    { let soak = false;
+      for (const s of g.islets.springs()) { s.tick(dt); if (!g.player.mounted && !g.cave.inside && s.group.parent?.visible !== false && s.inside(p.x, p.y, p.z)) soak = true; }
+      g.player.soaking = soak;
+      if (soak) {
+        this.soakT += dt;
+        if (!d.soaked) { d.soaked = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('♨️ <b>Blossom Isle hot spring</b>: ahh, lovely warm water. Stay and soak a while!', 4000); }
+        if (this.soakT > 2.4) { this.soakT = 0; this.soaks++; this.juice.pop(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 1.2, 0)), Math.random() < 0.5 ? '♨️' : '💗', 'emote', 1.6, 50); }
+      } else this.soakT = 0;
+    }
     this.forage.update(dt, p);
     this.treasure.update(dt, p);
     this.guide.update(dt, p, d.map.state === 'active' && !this.treasure.busy && !g.cave.inside ? this.treasure.spot : null);

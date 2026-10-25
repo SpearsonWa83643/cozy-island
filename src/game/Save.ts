@@ -19,6 +19,8 @@ export interface SaveData {
   lookout?: boolean;
   /** Shipwreck Cove: visited (welcome toast shown) / chest looted */
   wreckSeen?: boolean;
+  /** soaked in Blossom Isle's hot spring (Order 46a) */
+  soaked?: boolean;
   wreckChest?: boolean;
   shells: number;
   candy?: number;
