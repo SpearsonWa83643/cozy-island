@@ -21,6 +21,8 @@ export interface SaveData {
   wreckSeen?: boolean;
   /** soaked in Blossom Isle's hot spring (Order 46a) */
   soaked?: boolean;
+  /** first Sakura blossom picked (Order 46c) */
+  sakuraSeen?: boolean;
   wreckChest?: boolean;
   shells: number;
   candy?: number;

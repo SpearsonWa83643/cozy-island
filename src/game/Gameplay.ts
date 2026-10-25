@@ -35,7 +35,7 @@ export class Gameplay implements System {
   forage: Forage;
   treasure: Treasure;
   guide = new Guide();
-  private soakT = 0;
+  private soakT = 0; isletForage = 0;
   /** soak bubbles shown (test hook) */
   soaks = 0;
   walk: TapWalk;
@@ -497,6 +497,7 @@ export class Gameplay implements System {
     this.juice.pop(pos.clone().add(new THREE.Vector3(0, 0.3, 0)), '+1', 'plus', 0.9, 40);
     // count immediately (never lost if the page closes mid-flight); the badge updates when the icon lands
     const f = this.save.data.food; f[it.id] = (f[it.id] ?? 0) + 1; this.save.touch();
+    if (it.id === 'sakura' && !this.save.data.sakuraSeen) { this.save.data.sakuraSeen = true; this.juice.toast('🌸 <b>Sakura blossom</b>: a sweet treat from the Blossom Isle grove. Deer love it, and bunnies and birds like it too!', 3800); }
     this.juice.fly(pos, FOODS[it.id].icon, this.panels.bagBtn, () => this.panels.refreshBadges());
     if (it.id === 'geode') this.crackGeode(pos);
   }
@@ -881,6 +882,7 @@ export class Gameplay implements System {
     if (!d.lookout && !g.cave.inside) { const L = g.lighthouse.lookout; if (Math.hypot(p.x - L.x, p.z - L.z) < 2.6 && Math.abs(p.y - L.y) < 2.5) { d.lookout = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('🗼 <b>Lighthouse Point</b> — the best view on the island. Tap the lighthouse to sound the foghorn!', 3800); } }
     // Blossom Isle hot spring (Order 46a): steam drifts up; walk in to sit and soak
     g.islets.tickFlora(dt);
+    if (!this.isletForage) { const fl = g.islets.list.find((it) => it.def.id === 'blossom')?.flora; if (fl?.built) { const pts = fl.forageSpots(); this.forage.addSpots('sakura', pts); this.isletForage = pts.length || -1; } }
     { let soak = false;
       for (const s of g.islets.springs()) { s.tick(dt); if (!g.player.mounted && !g.cave.inside && s.group.parent?.visible !== false && s.inside(p.x, p.y, p.z)) soak = true; }
       g.player.soaking = soak;

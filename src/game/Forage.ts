@@ -36,6 +36,7 @@ function foodGeo(id: FoodId): THREE.BufferGeometry {
     case 'glowcap': b.add(cyl(0.02, 0.03, 0.12), '#f0e0d0', [0, 0.06, 0]).add(new THREE.SphereGeometry(0.08, 10, 6, 0, 6.29, 0, 1.6), '#ff9a58', [0, 0.11, 0], [0, 0, 0], [1, 0.7, 1]).add(cyl(0.012, 0.018, 0.08), '#f0e0d0', [0.08, 0.04, 0.03]).add(new THREE.SphereGeometry(0.045, 8, 5, 0, 6.29, 0, 1.6), '#ffc078', [0.08, 0.075, 0.03]); break;
     case 'relic': b.add(cyl(0.07, 0.05, 0.16), '#c98a5a', [0, 0.1, 0]).add(sph(0.09), '#c98a5a', [0, 0.1, 0], [0, 0, 0], [1, 0.8, 1]).add(cyl(0.045, 0.06, 0.05), '#a8704a', [0, 0.21, 0]).add(new THREE.TorusGeometry(0.085, 0.012, 4, 12), '#ffd84d', [0, 0.12, 0], [Math.PI / 2, 0, 0]); break;
     case 'reed': for (let i = 0; i < 3; i++) b.add(new THREE.CapsuleGeometry(0.02, 0.1, 2, 5), '#d9b25a', [(i - 1) * 0.04, 0.2, 0], [0, 0, (i - 1) * 0.2]).add(cyl(0.005, 0.005, 0.2), '#a8944a', [(i - 1) * 0.03, 0.08, 0]); break;
+    case 'sakura': for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; b.add(sph(0.05), i % 2 ? '#ffc4d6' : '#ffb0c8', [Math.cos(a) * 0.055, 0.05, Math.sin(a) * 0.055], [0, -a, 0], [1.3, 0.35, 0.9]); } b.add(sph(0.025), '#ffe066', [0, 0.065, 0]).add(cyl(0.006, 0.006, 0.08), '#4f7a2a', [0.07, 0.03, 0], [0, 0, 1.2]); break;
     case 'wood': b.add(cyl(0.06, 0.07, 0.22), '#b87a45', [0, 0.11, 0]).add(cyl(0.055, 0.055, 0.04), '#e9c08a', [0, 0.24, 0]); break;
   }
   return b.build();
@@ -144,6 +145,20 @@ export class Forage {
       if (d < bd && Math.abs(it.y - p.y) < (it.y < -0.3 ? 2.1 : 1.6)) { bd = d; best = it; }
     }
     return best;
+  }
+
+  /** late spawns once an islet's flora is built (heights are final then), e.g. sakura under Blossom Isle cherries */
+  addSpots(id: FoodId, pts: { x: number; y: number; z: number }[]) {
+    if (!pts.length || this.meshes.has(id)) return;
+    const rnd = mulberry32(4646);
+    pts.forEach((p, i) => this.items.push({ id, x: p.x, y: p.y - 0.02, z: p.z, rot: rnd() * 6.28, idx: i, active: true, t: 1, respawn: 0, near: false }));
+    const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.5, flatShading: true });
+    mat.emissive = new THREE.Color('#ffffff'); mat.emissiveIntensity = 0.12;
+    const im = new THREE.InstancedMesh(foodGeo(id), mat, pts.length);
+    im.castShadow = true; im.frustumCulled = false; im.name = 'food-' + id;
+    this.meshes.set(id, im); this.group.add(im);
+    for (const it of this.items) if (it.id === id) this.write(it, 0);
+    this.cullT = 0;
   }
 
   pick(it: FoodItem) { it.active = false; it.t = 0; it.respawn = 120 + Math.random() * 120; }

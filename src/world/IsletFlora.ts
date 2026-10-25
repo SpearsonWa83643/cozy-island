@@ -52,7 +52,7 @@ export class IsletFlora {
   spring: HotSpring | null = null;
   private cherryMeshes: { mesh: THREE.InstancedMesh; seed: number }[] = [];
   /** cherry trunk positions (petals fall from these) */
-  private cherryPts: { x: number; y: number; z: number }[] = [];
+  cherryPts: { x: number; y: number; z: number }[] = [];
   /** stone lantern path from the landing to the hot spring (Order 46b) */
   path: { x: number; z: number }[] = []; lanterns: { x: number; z: number }[] = [];
   private petals: THREE.InstancedMesh | null = null; private petalMat: THREE.MeshBasicNodeMaterial | null = null;
@@ -187,6 +187,18 @@ export class IsletFlora {
     const gm = new THREE.MeshBasicNodeMaterial({ vertexColors: true }); gm.toneMapped = false;
     const lights = new THREE.Mesh(glow.build(), gm); lights.name = 'lantern-lights'; lights.position.copy(mesh.position);
     this.group.add(mesh, lights);
+  }
+
+  /** forage spots under the cherry canopies (Order 46c): one per ~2 trees, on dry gentle ground */
+  forageSpots(max = 18) {
+    const rnd = mulberry32(this.def.seed + 463), out: { x: number; y: number; z: number }[] = [];
+    for (const t of this.cherryPts) {
+      if (out.length >= max || rnd() < 0.45) continue;
+      const a = rnd() * 6.28, r = 0.8 + rnd() * 0.9, x = t.x + Math.cos(a) * r, z = t.z + Math.sin(a) * r, h = heightAt(x, z);
+      if (h < 0.6 || slopeAt(x, z) > 0.6) continue;
+      out.push({ x, y: h, z });
+    }
+    return out;
   }
 
   /** a few dozen petals drift down from the cherry canopies and swirl in the breeze (one instanced draw) */

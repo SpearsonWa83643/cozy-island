@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-25-lantern-path';
+export const VERSION = '2026-10-25-sakura';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'fruit', text: 'New forage: Sakura blossoms! Pick them up under the cherry trees on Blossom Isle. Deer love them, and bunnies and birds like them too.' },
   { icon: 'star', text: 'Blossom Isle got prettier! A stepping-stone path lined with little stone lanterns now leads from the landing to the hot spring, and cherry petals drift down through the grove. They turn orange in autumn and purple at Halloween.' },
   { icon: 'heart', text: 'A hot spring on Blossom Isle! Look for the steaming rock pool in the meadow, next to a little stone lantern. Walk in to sit down for a warm, bubbly soak. It steams extra on snowy winter days.' },
   { icon: 'star', text: 'Treasure across the sea! Every fourth treasure map now leads to Blossom Isle. Look for the red X in the little island\'s corner of your map, then fly over on a winged mount and dig in the meadow.' },
