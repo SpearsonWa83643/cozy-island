@@ -240,6 +240,15 @@ export class Game {
         const pp = this.dress?.patch; if (pp && (pp.x || pp.z)) out.push({ x: pp.x, z: pp.z });
         return out;
       },
+      padSpot: (x, z) => {
+        let best: { x: number; z: number } | null = null, bd = Infinity;
+        for (const p of this.build?.pieces ?? []) {
+          if (p.def.id !== 'balloonpad') continue;
+          const d = Math.hypot(p.obj.position.x - x, p.obj.position.z - z);
+          if (d < bd) { bd = d; best = { x: p.obj.position.x, z: p.obj.position.z }; }
+        }
+        return best;
+      },
     });
     // last picked mount (if still unlocked) is the one Call Mount / V brings
     { const m = mountById(sd().mountId); if (isMountUnlocked(m, sd())) this.mount.select(m.id); }
@@ -395,9 +404,16 @@ export class Game {
   ensureBuild(): Promise<BuildMode> {
     if (this.build) return Promise.resolve(this.build);
     if (this.buildP) return this.buildP;
-    this.buildP = import('../build/BuildMode').then(({ BuildMode }) => {
+    this.buildP = import('../build/BuildMode').then(({ BuildMode, BUILDABLES }) => {
       const b = new BuildMode(this.scene, this.camera, this.terrain, this.physics, this.input, () => this.player.position);
-      b.onPlace = (type) => this.audio.place(type);
+      b.onPlace = (type) => {
+        this.audio.place(type);
+        // Order 47: the first Balloon Pad unlocks the hot-air balloon mount
+        if (BUILDABLES[type]?.id === 'balloonpad' && !this.play.save.data.balloonPad) {
+          this.play.save.data.balloonPad = true; this.play.save.touch();
+          this.play.toast('🎈 <b>Hot-Air Balloon unlocked!</b> Tap Call Mount and pick it: it floats over from its pad.', 4500);
+        }
+      };
       b.onRemove = () => this.audio.remove();
       b.onChange = () => {
         this.hud.setBuild(b.active, b.selected, b.count, b.removeMode);

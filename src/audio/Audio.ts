@@ -672,8 +672,14 @@ export class AudioEngine {
   /** rising whistle before a firework bursts */
   whistle(pan = 0) { const t = this.go(); if (t < 0) return; const o = this.tone('sine', 700, t, 0.9, this.sfx(pan, 0.12, 0.4), 0.05, 0.05); o.frequency.exponentialRampToValueAtTime(1900, t + 0.85); }
   /** eagle mount: call / hop / flap / land / leave */
-  mount(kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz') {
+  mount(kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz' | 'burner') {
     const t = this.go(); if (t < 0) return;
+    if (kind === 'burner') {
+      // balloon burner: a warm, breathy roar that swells and fades (brown noise through a low bandpass)
+      this.noiseHit(t, 0.9, this.sfx(0, 0.42, 0.6), 'bandpass', 260, 0.6, 0.45, 0.12, this.brown);
+      this.noiseHit(t + 0.04, 0.6, this.sfx(0, 0.2, 0.4), 'bandpass', 900, 0.9, 0.18, 0.1, this.pink);
+      return;
+    }
     if (kind === 'buzz') {
       // dragonfly wing hum: a soft filtered saw with a fast wobble, plus a breathy flutter
       const d = this.sfx((Math.random() - 0.5) * 0.4, 0.16, 0.12);

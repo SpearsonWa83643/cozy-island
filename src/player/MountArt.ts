@@ -30,6 +30,14 @@ export interface MountRig {
   buzz?: boolean;
   /** swims at the sea surface instead of flying (sea turtle): flippers on the wing hinges, no shadow */
   swim?: boolean;
+  /** hot-air balloon (Order 47): drifts slowly and high, basket rests on the ground while it waits, Jump fires the burner */
+  balloon?: boolean;
+  /** body-centre height above ground while waiting, and cruising height (defaults: 1.05 / 5.6) */
+  waitAlt?: number; rideAlt?: number;
+  /** speed multiplier for steering + tour (balloon drifts) */
+  speedK?: number;
+  /** burner heat 0..~6, set by Mount each frame (flame size) */
+  heat?: number;
   animate?: (t: number, dt: number, phase: RigPhase, speed: number, flap: number) => void;
 }
 
@@ -442,4 +450,44 @@ function seaTurtle(): MountRig {
   return finish(r, 1.6);
 }
 
-export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle };
+/** hot-air balloon (Order 47): striped lathe envelope, wicker basket (origin = basket floor), ropes, a burner flame that flares on Jump */
+function balloon(): MountRig {
+  const k = new Kit(), r = empty('balloon', k);
+  const { body, head } = r;
+  r.seat.set(0, 0.04, 0); r.amp = 0; r.rate = 0.3; r.shadow = 1.9; r.fanTail = false; r.balloon = true;
+  r.turn = 0.55; r.accel = 0.45; r.waitAlt = 0.02; r.rideAlt = 9.5; r.speedK = 0.38;
+  // envelope: teardrop lathe with 12 gores, alternating coral / cream with a sky-blue band
+  const prof: THREE.Vector2[] = [];
+  for (let i = 0; i <= 18; i++) { const t = i / 18, y = t * 2.5, rad = t < 0.62 ? 0.32 + Math.sin((t / 0.62) * Math.PI * 0.5) ** 0.8 * 1.02 : Math.cos(((t - 0.62) / 0.38) * Math.PI * 0.5) ** 0.55 * 1.34; prof.push(new THREE.Vector2(Math.max(0.02, rad), y)); }
+  const gores = 12, env = new THREE.Group(); env.position.y = 1.35; body.add(env);
+  const cA = k.m('#ff7a6b', 0.7, false), cB = k.m('#ffe3a8', 0.7, false), band = k.m('#5cb7e8', 0.65, false);
+  for (let i = 0; i < gores; i++) env.add(k.mesh(new THREE.LatheGeometry(prof, 2, (i / gores) * Math.PI * 2, (Math.PI * 2) / gores), i % 2 ? cB : cA, [0, 0, 0]));
+  env.add(k.mesh(new THREE.TorusGeometry(1.2, 0.05, 6, 32), band, [0, 1.08, 0], [1, 1, 1], [Math.PI / 2, 0, 0]));
+  env.add(k.mesh(new THREE.CylinderGeometry(0.35, 0.34, 0.06, 16), band, [0, 0.02, 0]));
+  // basket: wicker box with a darker rim, four ropes up to the envelope throat
+  const wick = k.m('#c08850', 0.9), rim = k.m('#7a5230', 0.85), rope = k.m('#6b4a2a', 0.9, false);
+  body.add(k.mesh(new THREE.BoxGeometry(0.62, 0.42, 0.62), wick, [0, 0.21 - 0.02, 0]));
+  body.add(k.mesh(new THREE.BoxGeometry(0.7, 0.06, 0.7), rim, [0, 0.42, 0]));
+  for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    const a = new THREE.Vector3(x * 0.3, 0.44, z * 0.3), b = new THREE.Vector3(x * 0.26, 1.38, z * 0.26), m = a.clone().add(b).multiplyScalar(0.5), len = a.distanceTo(b);
+    const c = k.mesh(new THREE.CylinderGeometry(0.012, 0.012, len, 4), rope, [m.x, m.y, m.z]); c.lookAt(b); c.rotateX(Math.PI / 2); body.add(c);
+  }
+  // burner on the head group (so the generic head-turn is harmless): metal ring + flame that grows with heat
+  head.position.set(0, 1.18, 0);
+  head.add(k.mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.1, 10), k.m('#8a8f99', 0.4), [0, 0, 0]));
+  const flame = k.mesh(new THREE.ConeGeometry(0.08, 0.32, 8), k.m('#ffb347', 0.4, false, 1.6), [0, 0.2, 0]);
+  const core = k.mesh(new THREE.ConeGeometry(0.04, 0.2, 6), k.m('#fff2a8', 0.3, false, 2.2), [0, 0.15, 0]);
+  head.add(flame, core);
+  r.animate = (t, _dt, ph) => {
+    const heat = r.heat ?? 0, burn = ph === 'ride' || ph === 'arrive' ? 0.45 + Math.min(1, heat / 3) * 1.4 : 0.25;
+    const f = burn * (0.85 + Math.sin(t * 23) * 0.08 + Math.sin(t * 37) * 0.06);
+    flame.scale.set(0.8 + burn * 0.3, f, 0.8 + burn * 0.3); core.scale.set(1, f * 0.9, 1);
+    head.rotation.set(0, 0, 0);
+    // envelope breathes a little; the whole basket sways on its ropes
+    env.scale.setScalar(1 + Math.sin(t * 0.9) * 0.012);
+    body.rotation.z = Math.sin(t * 0.7) * 0.035; body.rotation.x = Math.sin(t * 0.53 + 1) * 0.03;
+  };
+  return finish(r, 1.25);
+}
+
+export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle, balloon };

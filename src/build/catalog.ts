@@ -29,4 +29,6 @@ export const BUILD_CATALOG: BuildMeta[] = [
   { id: 'window', label: 'Window', icon: '🪟', cat: 'house' },
   { id: 'door', label: 'Door', icon: '🚪', cat: 'house' },
   { id: 'roof', label: 'Roof', icon: '🛖', cat: 'house' },
+  // Order 47: unlocks the hot-air balloon mount
+  { id: 'balloonpad', label: 'Balloon Pad', icon: '🎈' },
 ];

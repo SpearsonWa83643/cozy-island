@@ -55,7 +55,9 @@ export interface MountHooks {
   /** true when a ride must end now (build mode opened, cave) */
   mustLand: () => boolean;
   toast: (html: string, ms?: number) => void;
-  sfx: (kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz') => void;
+  sfx: (kind: 'call' | 'hop' | 'flap' | 'land' | 'leave' | 'buzz' | 'burner') => void;
+  /** nearest placed Balloon Pad to (x, z), if any (the balloon floats over from it) */
+  padSpot?: (x: number, z: number) => { x: number; z: number } | null;
   /** stop tap-to-walk */
   cancelWalk: () => void;
   /** a ride started (save stats) */
@@ -151,6 +153,11 @@ export class Mount implements System {
   canCall() { return this.phase === 'off' && !this.player.inCave && !this.hooks.blocked(); }
   /** the selected mount swims (sea turtle) rather than flies */
   get swims() { return !!this.current.swim; }
+  /** the selected mount is the hot-air balloon (Order 47) */
+  get floats() { return !!this.current.balloon; }
+  private get waitAlt() { return this.current.waitAlt ?? WAIT_ALT; }
+  /** balloon: the pad it last floated over from */
+  padFrom: { x: number; z: number } | null = null;
   /** water depth under a point (0 on land) */
   private depthAt(x: number, z: number) { return Math.max(0, WATER_LEVEL - heightAt(x, z)); }
   /** a swimming mount can only come to you in or right by the sea */
@@ -179,6 +186,7 @@ export class Mount implements System {
     }
     if (id && id !== this.id) this.select(id);
     if (this.swims) return this.callSwim();
+    if (this.floats) return this.callBalloon();
     this.calls++;
     const p = this.player.position;
     // swoop in from behind the camera's right shoulder, high and wide, ending hovering just beside you
@@ -201,6 +209,29 @@ export class Mount implements System {
     this.glideAmt = 1; this.glide = 0;
     this.hooks.sfx('call');
     this.hooks.toast(`${this.def.icon} Here comes your ${this.def.short}!`, 1500);
+    return true;
+  }
+
+  /** hot-air balloon: floats over from the nearest Balloon Pad (or sinks down from the sky) and settles its basket beside you */
+  private callBalloon() {
+    this.calls++;
+    const p = this.player.position, camYaw = this.rig.yaw;
+    const to = { x: p.x + Math.cos(camYaw) * 2.4, z: p.z - Math.sin(camYaw) * 2.4 };
+    const pad = this.hooks.padSpot?.(p.x, p.z) ?? null;
+    this.padFrom = pad && Math.hypot(pad.x - p.x, pad.z - p.z) < 90 && Math.hypot(pad.x - p.x, pad.z - p.z) > 6 ? pad : null;
+    const from = this.padFrom ?? { x: p.x + Math.cos(camYaw) * 14 + Math.sin(camYaw) * 10, z: p.z - Math.sin(camYaw) * 14 + Math.cos(camYaw) * 10 };
+    const fy = this.groundAt(from.x, from.z) + (this.padFrom ? 6 : 18), ty = this.groundAt(to.x, to.z) + this.waitAlt;
+    const h0 = Math.atan2(to.x - from.x, to.z - from.z), d = Math.hypot(to.x - from.x, to.z - from.z), v0 = Math.min(6, d * 0.25);
+    this.seg = { x0: from.x, z0: from.z, y0: fy, vx0: Math.sin(h0) * v0, vz0: Math.cos(h0) * v0, x1: to.x, z1: to.z, y1: ty, vx1: 0, vz1: 0,
+      T: Math.max(3.2, Math.min(7, d / 6)), ease: (t) => (t < 0.7 ? t * 0.5 / 0.7 : 0.5 + 0.5 * (1 - (1 - (t - 0.7) / 0.3) ** 2)) };
+    this.segT = 0;
+    this.gx = from.x; this.gy = fy; this.gz = from.z; this.heading = camYaw + Math.PI;
+    this.phase = 'arrive';
+    this.setAlpha(1);
+    this.object.visible = this.shadow.visible = true;
+    this.glideAmt = 0; this.glide = 0;
+    this.hooks.sfx('burner');
+    this.hooks.toast(`${this.def.icon} Your ${this.def.short} is drifting over${this.padFrom ? ' from its pad' : ''}!`, 1800);
     return true;
   }
 
@@ -279,6 +310,13 @@ export class Mount implements System {
       this.seg = { x0: this.gx, z0: this.gz, y0: this.gy, vx0: Math.sin(this.heading) * sp, vz0: Math.cos(this.heading) * sp,
         x1: out.x, z1: out.z, y1: WATER_LEVEL - 2.4, vx1: Math.sin(h) * 6, vz1: Math.cos(h) * 6, T: fast ? 1.0 : LEAVE_T * 1.3, ease: (t) => t * t };
       this.segT = 0; this.phase = 'leave'; this.hooks.sfx('leave');
+      return;
+    }
+    if (this.floats) {
+      const a = this.heading + 0.4;
+      this.seg = { x0: this.gx, z0: this.gz, y0: this.gy, vx0: 0, vz0: 0, x1: this.gx + Math.sin(a) * 14, z1: this.gz + Math.cos(a) * 14, y1: this.gy + 26, vx1: Math.sin(a) * 5, vz1: Math.cos(a) * 5,
+        T: fast ? 1.2 : 3.2, ease: (t) => t * t };
+      this.segT = 0; this.phase = 'leave'; this.hooks.sfx('burner');
       return;
     }
     const ang = this.heading + 0.5;
@@ -378,10 +416,10 @@ export class Mount implements System {
     this.gz = hermite(s.z0, s.vz0 * s.T, s.z1, s.vz1 * s.T, t);
     this.gy = s.y0 + (s.y1 - s.y0) * s.ease(t);
     // never clip the terrain on the way in
-    this.gy = Math.max(this.gy, this.swims ? heightAt(this.gx, this.gz) + 0.35 : this.groundAt(this.gx, this.gz) + 0.6);
+    this.gy = Math.max(this.gy, this.swims ? heightAt(this.gx, this.gz) + 0.35 : this.groundAt(this.gx, this.gz) + (this.floats ? 0.6 * (1 - t) : 0.6));
     const dx = this.gx - px, dz = this.gz - pz, d = Math.hypot(dx, dz);
     if (dt > 0) this.speed = d / dt;
-    if (d > 0.002) this.turnTo(Math.atan2(dx, dz), dt, 8);
+    if (d > 0.002 && !this.floats) this.turnTo(Math.atan2(dx, dz), dt, 8);
     return t >= 1;
   }
 
@@ -421,16 +459,16 @@ export class Mount implements System {
       const cy = Math.cos(this.rig.yaw), sy = Math.sin(this.rig.yaw);
       const mx = fx * cy + fz * sy, mz = -fx * sy + fz * cy;
       this.turnTo(Math.atan2(mx, mz), dt, 3.2 * (this.current.turn ?? 1));
-      want = (this.swims ? (fast ? SWIM_FAST : SWIM_SPEED) : (fast ? FLY_FAST : FLY_SPEED)) * Math.max(0.35, analog);
+      want = (this.swims ? (fast ? SWIM_FAST : SWIM_SPEED) : (fast ? FLY_FAST : FLY_SPEED)) * Math.max(0.35, analog) * (this.current.speedK ?? 1);
     } else if (this.target) {
       const dx = this.target.x - this.gx, dz = this.target.z - this.gz, d = Math.hypot(dx, dz);
       if (d < 1.2) this.target = null;
-      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6 * (this.current.turn ?? 1)); want = Math.min(this.swims ? SWIM_SPEED : FLY_SPEED, d * 1.4); }
+      else { this.turnTo(Math.atan2(dx, dz), dt, 2.6 * (this.current.turn ?? 1)); want = Math.min((this.swims ? SWIM_SPEED : FLY_SPEED) * (this.current.speedK ?? 1), d * 1.4); }
     } else if (this.autopilot) {
       this.autoK = Math.min(1, this.autoK + dt / 2.5);
       const p = this.tourAim();
       this.turnTo(Math.atan2(p.x - this.gx, p.z - this.gz), dt, 0.5 + 1.1 * this.autoK);
-      want = (this.swims ? SWIM_TOUR : TOUR_SPEED) * (0.35 + 0.65 * this.autoK);
+      want = (this.swims ? SWIM_TOUR : TOUR_SPEED) * (0.35 + 0.65 * this.autoK) * (this.floats ? 0.62 : 1);
     } else this.bank += (0 - this.bank) * Math.min(1, dt * 3);
     const ac = this.current.accel ?? 1;
     this.speed += (want - this.speed) * Math.min(1, dt * ac * (want > this.speed ? 1.8 : 1.4));
@@ -453,13 +491,14 @@ export class Mount implements System {
     }
     this.gx = nx; this.gz = nz;
     // Space: one big flap upward (eases back down)
-    if (en && this.input.pressed.has(' ')) { this.boost = Math.min(6, this.boost + 3.2); this.hooks.sfx('flap'); this.glide = 0; }
-    this.boost = Math.max(0, this.boost - dt * 0.9);
+    if (en && this.input.pressed.has(' ')) { this.boost = Math.min(this.floats ? 9 : 6, this.boost + (this.floats ? 4 : 3.2)); this.hooks.sfx(this.floats ? 'burner' : 'flap'); this.glide = 0; }
+    this.boost = Math.max(0, this.boost - dt * (this.floats ? 0.45 : 0.9));
+    this.current.heat = this.boost;
     // height: look ahead so it lifts over hills before reaching them
     const la = 2 + this.speed * 0.6;
     const g = Math.max(this.groundAt(this.gx, this.gz), this.groundAt(this.gx + Math.sin(this.heading) * la, this.gz + Math.cos(this.heading) * la) - 0.6);
-    const wy = g + RIDE_ALT + this.boost + Math.sin(this.t * 1.3) * 0.25;
-    this.gy += (wy - this.gy) * Math.min(1, dt * 1.8);
+    const wy = g + (this.current.rideAlt ?? RIDE_ALT) + this.boost + Math.sin(this.t * (this.floats ? 0.5 : 1.3)) * (this.floats ? 0.45 : 0.25);
+    this.gy += (wy - this.gy) * Math.min(1, dt * (this.floats ? 0.7 : 1.8));
     this.gy = Math.max(this.gy, this.groundAt(this.gx, this.gz) + 1.4);
   }
 
@@ -487,28 +526,29 @@ export class Mount implements System {
         this.waitT += dt;
         // hover beside you, turning to keep you in view
         const p = this.player.position;
-        const wy = this.swims ? SURF + Math.sin(this.t * 1.6) * 0.05 : this.groundAt(this.gx, this.gz) + WAIT_ALT + Math.sin(this.t * 2.1) * 0.08;
+        const wy = this.swims ? SURF + Math.sin(this.t * 1.6) * 0.05 : this.groundAt(this.gx, this.gz) + this.waitAlt + (this.floats ? 0 : Math.sin(this.t * 2.1) * 0.08);
         this.gy += (wy - this.gy) * Math.min(1, dt * 3);
         // drift to stay close if you wander a little (a swimmer only through water)
         const dx = p.x - this.gx, dz = p.z - this.gz, d = Math.hypot(dx, dz);
-        if (d > 3.2) {
+        if (d > 3.2 && !this.floats) {
           const k = Math.min(1, dt * 1.5) * (d - 2.2) / d, nx = this.gx + dx * k, nz = this.gz + dz * k;
           if (!this.swims || this.depthAt(nx, nz) > SHALLOW) { this.gx = nx; this.gz = nz; }
           this.turnTo(Math.atan2(dx, dz), dt, 3);
         }
         this.bank += (0 - this.bank) * Math.min(1, dt * 3);
-        if (this.waitT > WAIT_MAX || d > (this.swims ? 22 : 18) || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and ${this.swims ? 'swam' : 'flew'} off. Call it again any time!`, 2000); this.startLeave(); }
+        if (this.waitT > WAIT_MAX || d > (this.swims ? 22 : this.floats ? 24 : 18) || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and ${this.swims ? 'swam' : this.floats ? 'drifted' : 'flew'} off. Call it again any time!`, 2000); this.startLeave(); }
         break;
       }
       case 'hop': {
         this.hopT = Math.min(1, this.hopT + dt / HOP_T);
-        this.gy += ((this.swims ? SURF - 0.06 : this.groundAt(this.gx, this.gz) + WAIT_ALT - 0.15) - this.gy) * Math.min(1, dt * 6);
+        this.gy += ((this.swims ? SURF - 0.06 : this.groundAt(this.gx, this.gz) + this.waitAlt - (this.floats ? 0 : 0.15)) - this.gy) * Math.min(1, dt * 6);
         if (this.hopT >= 1) {
           this.phase = 'ride'; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
           this.autopilot = false; this.idleT = 0; this.toured = false; this.diveT = 0;
           this.hooks.onRide();
           this.hooks.sfx('flap');
-          if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
+          if (this.floats && this.def.id === 'balloon' && this.rides >= 1 && !this.balloonToast) { this.balloonToast = true; this.hooks.toast(`${this.def.icon} Up, up and away! Steer with the stick · <b>Jump</b> fires the burner · rest the stick for a drift between the islands · <b>Land</b> to step out`, 4000); }
+          else if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
         }
         break;
       }
@@ -530,13 +570,13 @@ export class Mount implements System {
     if (this.carrying) this.seatRider();
   }
 
-  private buzzT = 0;
+  private buzzT = 0; private balloonToast = false;
   private draw(dt: number) {
     const ph = this.phase;
     // wing hum (dragonfly): a soft buzz every couple of seconds while it's about
     if (this.current.buzz && ph !== 'leave') { this.buzzT -= dt; if (this.buzzT <= 0) { this.buzzT = 1.6 + Math.random() * 1.4; this.hooks.sfx('buzz'); } }
     // gliding now and then on a ride, wings held in a soaring V
-    if (ph === 'ride' && this.boost < 0.5 && !this.swims) { this.nextGlide -= dt; if (this.nextGlide <= 0 && this.glide <= 0) { this.glide = 1.6 + Math.random(); this.nextGlide = 4 + Math.random() * 4; } }
+    if (ph === 'ride' && this.boost < 0.5 && !this.swims && !this.floats) { this.nextGlide -= dt; if (this.nextGlide <= 0 && this.glide <= 0) { this.glide = 1.6 + Math.random(); this.nextGlide = 4 + Math.random() * 4; } }
     if (this.glide > 0) this.glide -= dt;
     const gWant = this.swims ? 0 : (this.glide > 0 && this.speed > 3) || (ph === 'arrive' && this.segT < 0.55) ? 1 : 0;
     this.glideAmt += (gWant - this.glideAmt) * Math.min(1, dt * 4);
@@ -553,19 +593,20 @@ export class Mount implements System {
     // a little forward sweep on the downstroke
     this.wingL.rotation.y = -Math.sin(this.flap) * 0.12; this.wingR.rotation.y = Math.sin(this.flap) * 0.12;
     const bob = -Math.sin(this.flap) * 0.07 * (1 - this.glideAmt);
-    this.object.position.set(this.gx, this.gy + (this.swims ? 0 : bob), this.gz);
+    this.object.position.set(this.gx, this.gy + (this.swims || this.floats ? 0 : bob), this.gz);
     // pitch: nose up while hovering / braking, level at speed
     const pitch = this.swims ? (ph === 'leave' ? 0.3 : ph === 'arrive' ? -0.2 * this.segT : ph === 'ride' ? (this.diveT > 0 && this.dive < 0.85 ? 0.28 : this.diveT <= 0 && this.dive > 0.12 ? -0.22 : 0) : 0) : ph === 'wait' || ph === 'hop' ? -0.25 : THREE.MathUtils.clamp(-0.25 + this.speed * 0.022, -0.25, 0.1);
     this.object.rotation.set(0, 0, 0);
     this.object.rotateY(this.heading);
-    this.object.rotateX(pitch);
-    this.object.rotateZ(this.bank);
+    this.object.rotateX(this.floats ? 0 : pitch);
+    this.object.rotateZ(this.floats ? this.bank * 0.25 : this.bank);
     // tail fans while hovering; legs drop when it's close to the ground
     if (this.current.fanTail) {
       this.tail.scale.x = ph === 'wait' || ph === 'hop' ? 1.25 : 1;
       this.tail.rotation.x = ph === 'wait' ? 0.25 : -0.05;
     }
     this.current.animate?.(this.t, dt, ph, this.speed, this.flap);
+    if (this.floats && ph !== 'ride') this.current.heat = 0;
     if (this.swims) { this.shadow.visible = false; return; }
     this.legs.position.y = this.alt < 2.2 ? -0.06 : 0.06;
     // head looks at you while waiting, into the turn while flying
@@ -614,7 +655,7 @@ export class Mount implements System {
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
-      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, blocked: +this.blockedT.toFixed(2),
+      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, blocked: +this.blockedT.toFixed(2), balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
     };
   }
 }

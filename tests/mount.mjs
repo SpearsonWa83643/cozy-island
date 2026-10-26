@@ -134,7 +134,7 @@ async function unlocks(label, page) {
   await press(label, page, '.mount-btn');
   await page.waitForSelector('.mount-picker.show'); await page.waitForTimeout(500);
   const tiles = await page.evaluate(() => [...document.querySelectorAll('.mp-tile')].map((t) => ({ id: t.dataset.mount, locked: t.classList.contains('locked'), last: t.classList.contains('last'), sub: t.querySelector('.mp-sub').textContent, r: t.getBoundingClientRect().height })));
-  ok(`${label}: picker shows 5 mounts`, tiles.length === 5, JSON.stringify(tiles));
+  ok(`${label}: picker shows every mount (7)`, tiles.length === 7, JSON.stringify(tiles.map((t) => t.id)));
   ok(`${label}: eagle + pterodactyl unlocked, pterodactyl = last`, !tiles[0].locked && !tiles[1].locked && tiles[1].last, JSON.stringify(tiles));
   ok(`${label}: cloud puppy + unicorn locked with unlock hint`, tiles[2].locked && tiles[3].locked && tiles[4].locked && /Cloud Tuft/.test(tiles[2].sub) && /Rainbow Horseshoe/.test(tiles[3].sub) && /Shimmer Wing/.test(tiles[4].sub), JSON.stringify(tiles));
   ok(`${label}: tiles are big touch targets`, tiles.every((t) => t.r >= 120), JSON.stringify(tiles.map((t) => t.r)));

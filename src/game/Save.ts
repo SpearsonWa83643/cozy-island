@@ -23,6 +23,8 @@ export interface SaveData {
   soaked?: boolean;
   /** first Sakura blossom picked (Order 46c) */
   sakuraSeen?: boolean;
+  /** placed a Balloon Pad: the hot-air balloon mount is unlocked (Order 47) */
+  balloonPad?: boolean;
   wreckChest?: boolean;
   shells: number;
   candy?: number;

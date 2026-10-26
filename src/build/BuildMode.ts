@@ -60,7 +60,22 @@ export const BUILDABLES: Buildable[] = [
   { id: 'door', label: 'Door', icon: '🚪', make: makeDoor, box: [0.55, 1.15, 0.07, 0.85], stackable: false, height: 2, snap: 'edge',
     boxes: [[-0.5, 0.85, 0, 0.07, 1.15, 0.07], [0.5, 0.85, 0, 0.07, 1.15, 0.07], [0, 1.9, 0, 0.55, 0.1, 0.07], [0, 0.85, 0, 0.43, 0.95, 0.05]] },
   { id: 'roof', label: 'Roof', icon: '🛖', make: makeRoof, box: [1.25, 0.08, 1.25, 2.1], stackable: false, height: 1, snap: 'corner' },
+  // Order 47: placing one unlocks the hot-air balloon mount (it floats over from its pad)
+  { id: 'balloonpad', label: 'Balloon Pad', icon: '🎈', make: makeBalloonPad, box: [0.95, 0.08, 0.95, 0.08], stackable: false, height: 0.16 },
 ];
+/** round plank deck with a coral ring, a mooring post and a little striped windsock */
+function makeBalloonPad() {
+  const g = new THREE.Group();
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 0.16, 20), mat('#b98a58', { rough: 0.85 })); deck.position.y = 0.08; g.add(deck);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 6, 28), mat('#ff7a6b', { rough: 0.6 })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.17; g.add(ring);
+  const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.02, 14), mat('#ffe3a8', { rough: 0.6 })); dot.position.y = 0.17; g.add(dot);
+  for (let i = 0; i < 6; i++) { const pl = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.012, 0.03), mat('#8a6238', { rough: 0.9 })); pl.position.set(0, 0.165, -0.8 + i * 0.32); pl.scale.x = Math.sqrt(Math.max(0.05, 1 - ((-0.8 + i * 0.32) / 0.95) ** 2)); g.add(pl); }
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.3, 8), timber()); post.position.set(0.8, 0.8, 0.1); g.add(post);
+  const sock = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.45, 10, 1, true), mat('#ff7a6b', { rough: 0.7 })); sock.rotation.z = Math.PI / 2; sock.position.set(1.02, 1.36, 0.1); g.add(sock);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.1, 10, 1, true), mat('#ffffff', { rough: 0.7 })); band.rotation.z = Math.PI / 2; band.position.set(1.0, 1.36, 0.1); g.add(band);
+  g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
 const WALL_H = 2.0, DOOR_W = 0.86, DOOR_H = 1.8;
 const plaster = () => mat('#f3e6cf', { rough: 0.9 }), timber = () => mat('#9a6a3e', { rough: 0.8 });
 type Mat = THREE.Material;
