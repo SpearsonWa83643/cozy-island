@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-25-sakura';
+export const VERSION = '2026-10-26-balloon';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'New mount: the Hot-Air Balloon! Build a Balloon Pad (Build Mode, Items tab) to unlock it. Tap Call Mount, pick the balloon and it floats over from its pad. Ride slow and high, tap Jump to puff the burner, and let go of the stick for a dreamy drift out to Blossom Isle and back.' },
   { icon: 'fruit', text: 'New forage: Sakura blossoms! Pick them up under the cherry trees on Blossom Isle. Deer love them, and bunnies and birds like them too.' },
   { icon: 'star', text: 'Blossom Isle got prettier! A stepping-stone path lined with little stone lanterns now leads from the landing to the hot spring, and cherry petals drift down through the grove. They turn orange in autumn and purple at Halloween.' },
   { icon: 'heart', text: 'A hot spring on Blossom Isle! Look for the steaming rock pool in the meadow, next to a little stone lantern. Walk in to sit down for a warm, bubbly soak. It steams extra on snowy winter days.' },
@@ -31,5 +32,5 @@ export const ITEMS: WhatsNewItem[] = [
   { icon: 'heart', text: 'Steer any time to take the reins back. Rest a few seconds and the tour picks up again.' },
   { icon: 'wood', text: 'Themes trimmed to the four seasons plus Halloween.' },
   { icon: 'star', text: 'New mounts! Treasure chests hide a Pterodactyl Egg, a Cloud Tuft and a Rainbow Horseshoe.' },
-  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy, unicorn, dragonfly or sea turtle.' },
+  { icon: 'heart', text: 'Tap Call Mount to pick your ride: eagle, pterodactyl, cloud puppy, unicorn, dragonfly, sea turtle or hot-air balloon.' },
 ];

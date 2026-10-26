@@ -177,7 +177,7 @@ async function unlocks(label, page) {
   ok(`${label}: selected mount persists`, st.id === 'pterodactyl' && st.sel === 'pterodactyl' && st.t?.includes('pterodactyl_egg'), JSON.stringify(st));
 
   // ---- all treasures: every tile unlocked; pick the unicorn (keyboard 4 on desktop, tap on iPad)
-  await page.evaluate(() => { const d = window.game.play.save.data; d.treasures = ['pterodactyl_egg', 'cloud_puppy_tuft', 'rainbow_horseshoe', 'shimmer_wing']; window.game.audio.unlock?.(); window.game.player.teleport(0, 8); });
+  await page.evaluate(() => { const d = window.game.play.save.data; d.treasures = ['pterodactyl_egg', 'cloud_puppy_tuft', 'rainbow_horseshoe', 'shimmer_wing', 'sea_pearl']; d.balloonPad = true; window.game.audio.unlock?.(); window.game.player.teleport(0, 8); });
   await step(page, 5);
   if (label === 'ipad') await page.tap('.mount-btn'); else await page.keyboard.press('v');
   await step(page, 2);
