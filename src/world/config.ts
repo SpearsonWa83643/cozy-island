@@ -74,7 +74,10 @@ export function randomIslandPoint(rnd: () => number, k = 1, out = { x: 0, z: 0 }
  * separate generated height field outside the main grid, streamed in near the camera (Order 42).
  * x/z = centre (world m), r = mean shoreline radius (m), peak = central knoll height (m).
  */
-export interface IsletDef { id: string; name: string; x: number; z: number; r: number; seed: number; peak: number }
+/** generated islets' flora palette (Order 48b): green wood, pine forest or palm beach */
+export type IsletKind = 'wood' | 'pine' | 'palm';
+export const ISLET_KINDS: IsletKind[] = ['wood', 'pine', 'palm'];
+export interface IsletDef { id: string; name: string; x: number; z: number; r: number; seed: number; peak: number; kind?: IsletKind }
 /** hand-placed islets (they carry bespoke content: Blossom Isle's grove, hot spring, path, sakura) */
 const FIXED_ISLETS: IsletDef[] = [
   // Blossom Isle (Order 42): ~120 m across, ~270 m from the centre (~210 m of open sea) to the north-east, past Lighthouse Point
@@ -82,7 +85,7 @@ const FIXED_ISLETS: IsletDef[] = [
 ];
 /** Order 48a: seed + count for the generated part of the archipelago (bump GEN_COUNT to add islands) */
 export const ARCHIPELAGO_SEED = 4810;
-export const GEN_COUNT = 1;
+export const GEN_COUNT = 3; // Order 48b: 4 islets in all (Blossom + 3 generated)
 const ISLE_NAMES = ['Fern Isle', 'Pebble Isle', 'Willow Isle', 'Moss Isle', 'Driftwood Isle', 'Clover Isle', 'Heron Isle', 'Juniper Isle'];
 
 /**
@@ -107,7 +110,7 @@ export function placeIslets(seed: number, count: number, fixed: IsletDef[] = [])
       let name = ISLE_NAMES[Math.floor(rnd() * ISLE_NAMES.length)];
       for (let k = 0; used.has(name) && k < ISLE_NAMES.length; k++) name = ISLE_NAMES[(ISLE_NAMES.indexOf(name) + 1) % ISLE_NAMES.length];
       used.add(name);
-      out.push({ id: `gen${i}`, name, x, z, r, seed: Math.floor(rnd() * 1e6), peak: +(5 + rnd() * 3).toFixed(1) });
+      out.push({ id: `gen${i}`, name, x, z, r, seed: Math.floor(rnd() * 1e6), peak: +(5 + rnd() * 3).toFixed(1), kind: ISLET_KINDS[i % ISLET_KINDS.length] });
       break;
     }
   }

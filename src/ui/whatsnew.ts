@@ -1,10 +1,11 @@
 // "What's new" note shown once on load after each release.
 // Bump VERSION and replace the bullets to ship a new note. Leave ITEMS empty for no note.
-export const VERSION = '2026-10-27-heron';
+export const VERSION = '2026-10-27-archipelago';
 
 export type WhatsNewItem = { icon: 'wood' | 'fruit' | 'star' | 'heart'; text: string };
 
 export const ITEMS: WhatsNewItem[] = [
+  { icon: 'star', text: 'Two more islands! Juniper Isle rose up to the north, covered in pine trees, birches, ferns and red mushrooms. Driftwood Isle is out east, a sunny palm beach with tropical plants and lots of shells. Each one has a pink pennant at its landing spot and its own corner on your map, and the scenic tour now laps all four islands.' },
   { icon: 'star', text: 'The archipelago grows! A second little island, Heron Isle, has appeared off the south beach. It grew all by itself, with a leafy green wood, wildflowers and shells, plus a pink pennant marking the landing spot. Fly over on a winged mount, and look for its new corner on your map.' },
   { icon: 'star', text: 'New mount: the Hot-Air Balloon! Build a Balloon Pad (Build Mode, Items tab) to unlock it. Tap Call Mount, pick the balloon and it floats over from its pad. Ride slow and high, tap Jump to puff the burner, and let go of the stick for a dreamy drift out to Blossom Isle and back.' },
   { icon: 'fruit', text: 'New forage: Sakura blossoms! Pick them up under the cherry trees on Blossom Isle. Deer love them, and bunnies and birds like them too.' },

@@ -40,6 +40,25 @@ const SPECS: Spec[] = [
   { name: 'isleshell', make: P.shell, variants: 2, count: 30, h: [0.05, 0.65], space: 0.4, scale: [0.8, 1.2], shadow: false, tilt: true },
 ];
 
+/** flora list for a generated islet: the cherry grove is swapped for the kind's trees, plus an understory accent */
+function kindSpecs(kind: string): Spec[] {
+  const base = SPECS.filter((sp) => !sp.cherry);
+  if (kind === 'pine') return [
+    { name: 'islepine', make: (r) => P.pine(r), variants: 3, count: 40, h: [1.1, 99], space: 2.0, scale: [0.9, 1.35], trunk: true },
+    { name: 'islebirch', make: P.birch, variants: 2, count: 10, h: [1.1, 99], space: 2.0, scale: [0.9, 1.2], trunk: true },
+    { name: 'islefern', make: P.fern, variants: 2, count: 34, h: [0.9, 99], space: 0.7, scale: [0.8, 1.3], shadow: false },
+    { name: 'islemushroom', make: (r) => P.mushrooms(r, true), variants: 1, count: 14, h: [1.0, 99], space: 0.6, scale: [0.8, 1.2], shadow: false },
+    ...base.filter((sp) => sp.name !== 'islerose'),
+  ];
+  if (kind === 'palm') return [
+    { name: 'islepalm', make: P.palm, variants: 3, count: 26, h: [0.6, 99], space: 2.2, scale: [0.9, 1.3], trunk: true },
+    { name: 'isletropic', make: P.tropicalPlant, variants: 2, count: 34, h: [0.8, 99], space: 0.9, scale: [0.8, 1.3] },
+    ...base.filter((sp) => sp.name !== 'islefoxglove'),
+    { name: 'isleshell2', make: P.shell, variants: 1, count: 24, h: [0.05, 0.65], space: 0.4, scale: [0.9, 1.3], shadow: false, tilt: true },
+  ];
+  return [{ name: 'isleoak', make: (r) => P.roundTree(r, WOOD), variants: 3, count: 34, h: [1.1, 99], space: 2.1, scale: [0.95, 1.4], trunk: true }, ...base];
+}
+
 export class IsletFlora {
   group = new THREE.Group();
   /** grassy landing spot facing the main island (kept clear of plants) */
@@ -65,7 +84,8 @@ export class IsletFlora {
     this.group.visible = false;
     this.rnd = mulberry32(def.seed * 7 + 1);
     // Order 48a: generated islets get a green wood instead of Blossom Isle's cherry grove (no petals / sakura)
-    this.queue = def.id === 'blossom' ? [...SPECS] : SPECS.map((sp) => (sp.cherry ? { ...sp, name: 'isleoak', make: (r: () => number) => P.roundTree(r, WOOD), cherry: false } : sp));
+    // Order 48b: each generated islet has a palette by kind (wood / pine forest / palm beach)
+    this.queue = def.id === 'blossom' ? [...SPECS] : kindSpecs(def.kind ?? 'wood');
     this.findLanding();
     if (def.id === 'blossom') {
       this.spring = new HotSpring(def, this.occ);

@@ -26,6 +26,20 @@ try {
   ok('islet boxes do not overlap each other', pairOk, JSON.stringify(geo));
   ok('islets inside the ocean plane', defs.every((d) => Math.max(Math.abs(d.x), Math.abs(d.z)) + BOX / 2 <= 600), JSON.stringify(geo));
   ok('generated names unique', new Set(defs.map((d) => d.name)).size === defs.length, defs.map((d) => d.name).join(', '));
+  ok('3-5 islets in the archipelago (Order 48b)', defs.length >= 3 && defs.length <= 5, String(defs.length));
+  ok('generated islets cycle wood / pine / palm', defs.slice(1).map((d) => d.kind).join() === ['wood', 'pine', 'palm', 'wood'].slice(0, defs.length - 1).join(), defs.map((d) => d.kind).join());
+  const TREE = { wood: 'isleoak', pine: 'islepine', palm: 'islepalm' };
+  for (let k = 2; k < defs.length; k++) {
+    const d = defs[k];
+    await page.evaluate((d) => { window.game.player.teleport(d.x - Math.sign(d.x) * d.r * 0.4, d.z - Math.sign(d.z) * d.r * 0.4, 0); }, d);
+    await step(200);
+    for (let i = 0; i < 80 && (await page.evaluate((k) => window.game.islets.stats[k].state, k)) !== 'ready'; i++) { await page.waitForTimeout(250); await step(2); }
+    for (let i = 0; i < 60 && !(await page.evaluate((k) => window.game.islets.floraStats[k].built, k)); i++) await step(2);
+    const r = await page.evaluate((k) => { const it = window.game.islets.list[k]; return { st: it.state, built: it.flora.built, placed: it.flora.placed, names: [...new Set(it.flora.group.children.map((c) => c.name))] }; }, k);
+    ok(`${d.name} (${d.kind}) streams in with its ${TREE[d.kind]} trees`, r.st === 'ready' && r.built && r.placed > 80 && r.names.includes(TREE[d.kind]) && !r.names.includes('cherry'), JSON.stringify(r));
+    if (shots && d.kind === 'palm') { await page.evaluate((k) => { const g = window.game, L = g.islets.list[k].flora.landing; g.player.teleport(L.x, L.z, 0); for (let i = 0; i < 90; i++) g.step(1 / 30); g.rig.yaw = Math.atan2(-L.x, -L.z); g.rig.pitch = 0.3; g.rig.distance = 18; }, k); await step(40); await page.waitForTimeout(700); await page.screenshot({ path: 'test-results/archipelago-palm.png' }).catch(() => {}); }
+    if (shots && d.kind === 'pine') { await page.evaluate((k) => { const g = window.game, L = g.islets.list[k].flora.landing; g.player.teleport(L.x, L.z, 0); for (let i = 0; i < 90; i++) g.step(1 / 30); g.rig.yaw = Math.atan2(-L.x, -L.z); g.rig.pitch = 0.3; g.rig.distance = 18; }, k); await step(40); await page.waitForTimeout(700); await page.screenshot({ path: 'test-results/archipelago-pine.png' }).catch(() => {}); }
+  }
   const k = 1, g1 = defs[k];
   // fly over: put the player on the generated islet's knoll so it streams in
   await page.evaluate((d) => { const g = window.game; g.player.teleport(d.x - Math.sign(d.x) * d.r * 0.4, d.z - Math.sign(d.z) * d.r * 0.4, 0); }, g1);
