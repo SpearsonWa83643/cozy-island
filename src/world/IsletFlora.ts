@@ -28,6 +28,7 @@ export const CHERRY: Record<string, string[]> = {
 };
 const cherryPal = () => CHERRY[theme.id] ?? CHERRY.spring;
 const MEADOW = ['#7ccf5a', '#5fb84a', '#8fdc63', '#a3d95f'];
+const WOOD = ['#4f9a3c', '#3f8a35', '#62ab45', '#7bbf4e'];
 
 const SPECS: Spec[] = [
   { name: 'cherry', make: (r) => P.roundTree(r, cherryPal(), '#7a5040'), variants: 3, count: 34, h: [1.1, 99], space: 2.1, scale: [0.95, 1.4], trunk: true, cherry: true },
@@ -44,7 +45,7 @@ export class IsletFlora {
   /** grassy landing spot facing the main island (kept clear of plants) */
   landing = new THREE.Vector3();
   built = false; cherries = 0; placed = 0; recolours = 0;
-  private queue = [...SPECS];
+  private queue: Spec[];
   private mat = floraMaterial();
   private rnd: () => number;
   private occ: { x: number; z: number; r: number }[] = [];
@@ -63,6 +64,8 @@ export class IsletFlora {
     this.group.name = `islet-flora-${def.id}`;
     this.group.visible = false;
     this.rnd = mulberry32(def.seed * 7 + 1);
+    // Order 48a: generated islets get a green wood instead of Blossom Isle's cherry grove (no petals / sakura)
+    this.queue = def.id === 'blossom' ? [...SPECS] : SPECS.map((sp) => (sp.cherry ? { ...sp, name: 'isleoak', make: (r: () => number) => P.roundTree(r, WOOD), cherry: false } : sp));
     this.findLanding();
     if (def.id === 'blossom') {
       this.spring = new HotSpring(def, this.occ);

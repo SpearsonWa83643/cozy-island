@@ -75,10 +75,44 @@ export function randomIslandPoint(rnd: () => number, k = 1, out = { x: 0, z: 0 }
  * x/z = centre (world m), r = mean shoreline radius (m), peak = central knoll height (m).
  */
 export interface IsletDef { id: string; name: string; x: number; z: number; r: number; seed: number; peak: number }
-export const ISLETS: IsletDef[] = [
+/** hand-placed islets (they carry bespoke content: Blossom Isle's grove, hot spring, path, sakura) */
+const FIXED_ISLETS: IsletDef[] = [
   // Blossom Isle (Order 42): ~120 m across, ~270 m from the centre (~210 m of open sea) to the north-east, past Lighthouse Point
   { id: 'blossom', name: 'Blossom Isle', x: 190, z: -190, r: 66, seed: 4242, peak: 6.5 },
 ];
+/** Order 48a: seed + count for the generated part of the archipelago (bump GEN_COUNT to add islands) */
+export const ARCHIPELAGO_SEED = 4810;
+export const GEN_COUNT = 1;
+const ISLE_NAMES = ['Fern Isle', 'Pebble Isle', 'Willow Isle', 'Moss Isle', 'Driftwood Isle', 'Clover Isle', 'Heron Isle', 'Juniper Isle'];
+
+/**
+ * Seeded island placement (Order 48a, procedural archipelago): adds `count` islets around the main island, deterministic
+ * for a seed. Rules: an islet's height-field box (ISLET_SIZE) never overlaps the main grid or another islet's box, it stays
+ * inside the ocean plane, and its open-sea gap to the main shore is 110-160 m so a flying mount's 85 m leash (FLY_LEASH)
+ * always reaches it. Pure function (shared by the main thread and the terrain worker).
+ */
+export function placeIslets(seed: number, count: number, fixed: IsletDef[] = []): IsletDef[] {
+  let a = seed >>> 0;
+  const rnd = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const out = [...fixed], half = ISLET_SIZE / 2, used = new Set(fixed.map((d) => d.name));
+  for (let i = 0; i < count; i++) {
+    for (let tries = 0; tries < 200; tries++) {
+      const th = rnd() * Math.PI * 2, r = 54 + Math.round(rnd() * 10), c = Math.cos(th), sn = Math.sin(th);
+      const dMin = (WORLD_HALF + half + 2) / Math.max(Math.abs(c), Math.abs(sn));
+      const D = Math.max(dMin, ISLAND_RADIUS + r + 112 + rnd() * 30), gap = D - r - ISLAND_RADIUS;
+      if (gap < 110 || gap > 160) continue;
+      const x = Math.round(c * D), z = Math.round(sn * D);
+      if (Math.max(Math.abs(x), Math.abs(z)) + half > OCEAN_SIZE / 2 - 20) continue;
+      if (out.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) < ISLET_SIZE + 8)) continue;
+      let name = ISLE_NAMES[Math.floor(rnd() * ISLE_NAMES.length)];
+      for (let k = 0; used.has(name) && k < ISLE_NAMES.length; k++) name = ISLE_NAMES[(ISLE_NAMES.indexOf(name) + 1) % ISLE_NAMES.length];
+      used.add(name);
+      out.push({ id: `gen${i}`, name, x, z, r, seed: Math.floor(rnd() * 1e6), peak: +(5 + rnd() * 3).toFixed(1) });
+      break;
+    }
+  }
+  return out;
+}
 /** islet height-field extent (m, square around the islet centre) and grid spacing (m) */
 export const ISLET_SIZE = 184; // islet boxes must not overlap the main grid (|x|,|z| <= WORLD_HALF)
 export const ISLET_RES = 1;
@@ -86,3 +120,6 @@ export const ISLET_RES = 1;
 export const ISLET_GEN_RADIUS = STREAM_RADIUS + 120;
 /** flying mounts may roam this far past the nearest shore (m); swimmers keep the reef leash */
 export const FLY_LEASH = 85;
+
+/** the archipelago: hand-placed islets + the seeded ones (after ISLET_SIZE / FLY_LEASH so placement can use them) */
+export const ISLETS: IsletDef[] = placeIslets(ARCHIPELAGO_SEED, GEN_COUNT, FIXED_ISLETS);

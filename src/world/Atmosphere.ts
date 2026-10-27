@@ -42,14 +42,15 @@ export class Atmosphere {
     const near = reference('near', 'float', fogState);
     const far = reference('far', 'float', fogState);
     const { hazeColor, aerial, height, top } = this;
-    const isl = ISLETS[0] ?? { x: 1e5, z: 1e5, r: 1 };
-    const islC = vec2(isl.x, isl.z), islR = float(isl.r);
+    const isls = ISLETS.length ? ISLETS : [{ x: 1e5, z: 1e5, r: 1 }];
     const clearK = this.isletClear;
     this.node = Fn(() => {
       const viewZ = positionView.z.negate();
       // islet land (inside its shore + a bit, above sea level) keeps most of its colour at range
-      const dI = length(positionWorld.xz.sub(islC));
-      const onIslet = smoothstep(islR.mul(1.15), islR.mul(0.8), dI).mul(smoothstep(float(-0.1), float(0.5), positionWorld.y)).mul(clearK);
+      // every archipelago islet (Order 48a): the nearest one wins
+      let landK = smoothstep(float(isls[0].r * 1.15), float(isls[0].r * 0.8), length(positionWorld.xz.sub(vec2(isls[0].x, isls[0].z))));
+      for (let k = 1; k < isls.length; k++) landK = max(landK, smoothstep(float(isls[k].r * 1.15), float(isls[k].r * 0.8), length(positionWorld.xz.sub(vec2(isls[k].x, isls[k].z)))));
+      const onIslet = landK.mul(smoothstep(float(-0.1), float(0.5), positionWorld.y)).mul(clearK);
       const lift = float(1).sub(onIslet);
       const range = smoothstep(near, far, viewZ).mul(lift);
       // aerial perspective: starts well before the fog, desaturates + tints toward the haze
