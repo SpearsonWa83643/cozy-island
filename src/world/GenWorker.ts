@@ -14,6 +14,7 @@ import { sampleHeights, sampleBiomes, BIOME_COUNT, type GenRegion } from './gen'
 import { WORLD_SIZE, ISLET_SIZE, ISLET_RES } from './config';
 import { ISLET_N } from './isletGrid';
 import type { GenReply, GenRequest } from './gen.worker';
+import { loadBakedIslet } from './bakedTiles';
 
 export const GEN_WORKER_DEFAULT = true;
 
@@ -125,8 +126,10 @@ export async function pregenerateWorld(timeoutMs = 20000): Promise<GenStats> {
  * Order 42a: generate one archipelago islet's height grid off the main thread (one worker, one job;
  * ~34k samples). Falls back to the main thread on ?gen=main, no Worker support, an error or a timeout.
  */
-export async function generateIsletGrid(k: number, timeoutMs = 15000): Promise<{ grid: Float32Array; mode: 'worker' | 'main'; ms: number }> {
+export async function generateIsletGrid(k: number, timeoutMs = 15000): Promise<{ grid: Float32Array; mode: 'baked' | 'worker' | 'main'; ms: number }> {
   const t0 = performance.now();
+  // Order 48c: a build-time baked tile from Cloudflare (immutable, usually a warm-cache hit) beats generating it
+  if (genMode() !== 'main') { const g = await loadBakedIslet(k); if (g) return { grid: g, mode: 'baked', ms: performance.now() - t0 }; }
   const region: GenRegion = { size: ISLET_SIZE, res: ISLET_RES, i0: 0, j0: 0, w: ISLET_N, h: ISLET_N, islet: k };
   if (genMode() !== 'main' && typeof Worker !== 'undefined') {
     const w = new Worker(new URL('./gen.worker.ts', import.meta.url), { type: 'module' });

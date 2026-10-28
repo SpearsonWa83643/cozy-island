@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "bake": "node scripts/bake.mjs",
     "preview": "vite preview --port 4180 --strictPort --host",
     "shots": "node tests/screenshots.mjs",
     "serve:subpath": "node tests/subpath-server.mjs",
@@ -20,7 +21,9 @@
     "test:load": "node tests/load-timing.mjs",
     "test:heightfield": "node tests/heightfield.mjs",
     "test:autopilot": "node tests/autopilot.mjs",
-    "test:soundscape": "node tests/soundscape.mjs"
+    "test:soundscape": "node tests/soundscape.mjs",
+    "test:bake": "node tests/bake.mjs",
+    "perf:bake-load": "node tests/bake-load.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d": "^0.21.0",

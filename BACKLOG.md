@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-10-27 (CT). Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-10-28 (CT). Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -10,7 +10,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
-| 48 | Big island phase 3: grow into a procedural archipelago | In progress (48a, 48b done) | 2026-11-11 | 0.25 (as exported from Notion on 2026-10-27; looks low for what is left, re-estimate at the next session) |
+| 48 | Big island phase 3: grow into a procedural archipelago | In progress (48a, 48b, 48c done) | 2026-11-11 | 1.5 (re-estimated 2026-10-28: 48d landmarks ~0.75, 48e impostor forests ~0.75) |
 
 ### Order 48 detail (Mechanic, Medium priority, deps: Orders 29-45, all done)
 
@@ -18,7 +18,7 @@ Walker, 2026-10-23: final world is a cluster of islands with generated terrain; 
 
 - 48a DONE (b93a2d7, 2026-10-27): seeded `placeIslets()` generator (`ARCHIPELAGO_SEED`/`GEN_COUNT`, no-overlap and fly-leash-reachable rules), adds Heron Isle (south, woodland). Map inset, scenic tour, treasure maps and haze are driven by the `ISLETS` list.
 - 48b DONE (32f49b8, 2026-10-27): archipelago is now 4 islets: Blossom, Heron (woodland), Juniper Isle (pine, north), Driftwood Isle (palm beach, east). Per-islet flora kinds. tests/archipelago.mjs 14/14, islet-stream-perf 9/9, iPad touch 20/20.
-- 48c TODO: `npm run bake` macro heightmap tile step in CI (procedural only), tiles served from Cloudflare, so islets load faster.
+- 48c DONE (2026-10-28): `npm run bake` (scripts/bake.mjs) bakes every islet's height grid with the game's own pure generator; a Vite plugin runs the same bake inside `npm run build`, so the Cloudflare Pages build (`npm ci && npm run build`) emits hashed, immutable `assets/islet-<id>-<hash>.tile` files (lossless: gzip of a byte-shuffled Float32 grid, 50-70 KB each, 235 KB for 4 islets, ~0.35 s at build). The game fetches the tile (DecompressionStream) instead of running the gen worker, validates it against the live generator, and falls back to the worker on any problem, in dev, or with `?bake=off`. Islet grid ready 42-79 ms (worker) -> 20-26 ms (baked); first playable frame unchanged within noise. tests/bake.mjs 6/6 (bit-identical heights).
 - 48d TODO: islet landmarks.
 - 48e TODO: simplified (impostor) distant forests.
 - Acceptance (iPad test): Cloudflare build bakes tiles; first playable frame not slower than today on a warm cache; fly edge to edge with flat memory; iPad suite passes.

@@ -29,7 +29,7 @@ try {
   for (let i = 0; i < 60 && (await stats()).state !== 'ready'; i++) { await page.waitForTimeout(250); await step(2); }
   for (let i = 0; i < 20 && !(await page.evaluate(() => window.game.islets.ready)); i++) await step(2);
   const s1 = await stats();
-  ok('islet generated in the gen worker', s1.state === 'ready' && s1.genMode === 'worker', JSON.stringify(s1));
+  ok('islet generated in the gen worker (or baked tile, Order 48c)', s1.state === 'ready' && (s1.genMode === 'worker' || s1.genMode === 'baked'), JSON.stringify(s1));
   ok('islet tiles streamed in', s1.loaded === 4 && s1.bytes > 0, JSON.stringify(s1));
 
   // ---- shape: land in the middle, beach ring, open sea in the channel
