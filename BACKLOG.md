@@ -10,9 +10,9 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
-| 48 | Big island phase 3: grow into a procedural archipelago | In progress (48a-48d done) | 2026-11-11 | 0.75 (re-estimated 2026-10-29: 48e impostor forests ~0.75 left) |
+| - | No open tasks (Order 48 closed 2026-10-29). The Boss pinged with priority; polishing on the daily schedule until Walker sets the next backlog. | - | - | - |
 
-### Order 48 detail (Mechanic, Medium priority, deps: Orders 29-45, all done)
+### Order 48 detail (DONE 2026-10-29, live 13 days ahead of the 2026-11-11 ETA)
 
 Walker, 2026-10-23: final world is a cluster of islands with generated terrain; no hand-sculpting, no paid tools. Perf: 60 fps target on high-end iPads, 30 fps floor on low-end.
 
@@ -20,8 +20,8 @@ Walker, 2026-10-23: final world is a cluster of islands with generated terrain; 
 - 48b DONE (32f49b8, 2026-10-27): archipelago is now 4 islets: Blossom, Heron (woodland), Juniper Isle (pine, north), Driftwood Isle (palm beach, east). Per-islet flora kinds. tests/archipelago.mjs 14/14, islet-stream-perf 9/9, iPad touch 20/20.
 - 48c DONE (2026-10-28): `npm run bake` (scripts/bake.mjs) bakes every islet's height grid with the game's own pure generator; a Vite plugin runs the same bake inside `npm run build`, so the Cloudflare Pages build (`npm ci && npm run build`) emits hashed, immutable `assets/islet-<id>-<hash>.tile` files (lossless: gzip of a byte-shuffled Float32 grid, 50-70 KB each, 235 KB for 4 islets, ~0.35 s at build). The game fetches the tile (DecompressionStream) instead of running the gen worker, validates it against the live generator, and falls back to the worker on any problem, in dev, or with `?bake=off`. Islet grid ready 42-79 ms (worker) -> 20-26 ms (baked); first playable frame unchanged within noise. tests/bake.mjs 6/6 (bit-identical heights).
 - 48d DONE (2026-10-29): one landmark per generated islet, picked by kind: Heron Stones (standing-stone ring with a lintel gate and altar, Heron Isle), Juniper Lookout (timber watchtower with ladder, railed deck and shingle roof, Juniper Isle), Driftwood Arch (driftwood gateway with shell charms over a fire ring, Driftwood Isle). Sited on high gentle ground near each knoll, 40+ m from the landing, faces the main island, one baked mesh each (280-668 tris), solid colliders, flora kept 7+ m clear, built first in the lazy islet flora build. tests/landmarks.mjs 11/11, islet-flora 10/10, iPad touch suite passes (Jump check hardened against box load).
-- 48e TODO: simplified (impostor) distant forests.
-- Acceptance (iPad test): Cloudflare build bakes tiles; first playable frame not slower than today on a warm cache; fly edge to edge with flat memory; iPad suite passes.
+- 48e DONE (2026-10-29): distant-forest impostors. Each islet bakes all its trees into one low-poly canopy mesh (pine cones, palm crowns, round blobs; 756-1120 tris, same flora material so seasons still tint it, no shadows). More than 110 m past an islet's shore the full instanced flora (trees, bushes, flowers, shells, petals, hot spring) hides and only the impostor, landmark and pennant draw: 2-3 meshes instead of 15-19, 27-40x fewer triangles; back under 95 m it swaps back (hysteresis, no flicker), and far islets skip petal animation. tests/impostor.mjs 8/8, archipelago 14/14, islet-stream-perf 9/9 (heap and geometry flat), iPad touch suite passes.
+- Acceptance met 2026-10-29 (iPad test): Cloudflare build bakes tiles; first playable frame not slower than today on a warm cache; fly edge to edge with flat memory; iPad suite passes.
 
 ## Waiting on Walker (goes via The Boss; none of these block work, defaults are in place)
 
@@ -35,7 +35,8 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 ## Done (from git log)
 
 Oct 29
-- 48d: islet landmarks (Heron Stones, Juniper Lookout, Driftwood Arch)
+- 48e: distant-forest impostors, Order 48 closed
+- 48d: islet landmarks (Heron Stones, Juniper Lookout, Driftwood Arch) (d04ee06)
 
 Oct 27
 - 48b: 4 islets, Juniper Isle and Driftwood Isle (32f49b8)
@@ -67,6 +68,10 @@ Oct 23 (overnight run)
 - 29: world config groundwork (`src/world/config.ts`)
 
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
+
+## Session log
+
+- 2026-10-29 (CT): recovery restored node_modules and src/build (removed by a shared-box cleanup again) and restarted the 5180 dev server. Shipped 48d (landmarks, d04ee06) and 48e (impostor forests), closing Order 48. Hardened the iPad Jump check against box load. Backlog is now empty: The Boss gets a priority ping; polish on the daily schedule (load time, perf, visuals, iPad feel) until Walker sets the next backlog. Walker reviews on production (Bot Rules D4).
 
 ## Session notes (for the daily dev session)
 

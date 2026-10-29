@@ -71,6 +71,7 @@ class OneIslet {
     if (want) { const t0 = performance.now(); this.load(want); logEv('load', t0); }
     else if (!this.flora.built) { const t0 = performance.now(); this.flora.step(); logEv('flora', t0); } // never in the same frame as a tile build
     this.flora.group.visible = this.stats.loaded > 0;
+    this.flora.lod(cx, cz);
     { const t0 = performance.now(); this.phys?.update(px, pz); logEv('phys', t0); }
     this.stats.colliders = this.phys?.active ?? 0;
   }
@@ -165,7 +166,7 @@ export class Islets {
   get stats() { return this.list.map((it) => ({ id: it.def.id, ...it.stats })); }
   get log() { return streamLog; }
   /** per-frame flora animation (cherry petals, Order 46b) */
-  tickFlora(dt: number) { for (const it of this.list) if (it.flora.built) it.flora.tick(dt); }
+  tickFlora(dt: number) { for (const it of this.list) if (it.flora.built && it.flora.lodMode === 'near') it.flora.tick(dt); } // far islets skip petal work (Order 48e)
   /** hot springs (Order 46a) that are built and shown */
   springs() { return this.list.map((it) => it.flora.spring).filter((s): s is NonNullable<typeof s> => !!s && s.group.children.length > 0); }
   get floraStats() { return this.list.map((it) => ({ id: it.def.id, ...it.flora.stats })); }

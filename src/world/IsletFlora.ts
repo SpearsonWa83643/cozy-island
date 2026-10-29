@@ -60,6 +60,9 @@ function kindSpecs(kind: string): Spec[] {
   return [{ name: 'isleoak', make: (r) => P.roundTree(r, WOOD), variants: 3, count: 34, h: [1.1, 99], space: 2.1, scale: [0.95, 1.4], trunk: true }, ...base];
 }
 
+/** Order 48e: beyond this many metres past the islet's shore the flora swaps to the impostor (back under FAR - HYST) */
+export const IMPOSTOR_FAR = 110, IMPOSTOR_HYST = 15;
+
 export class IsletFlora {
   group = new THREE.Group();
   /** grassy landing spot facing the main island (kept clear of plants) */
@@ -73,6 +76,13 @@ export class IsletFlora {
   spring: HotSpring | null = null;
   /** generated islets' landmark (Order 48d) */
   landmark: IsletLandmark | null = null;
+  /** Order 48e: tree canopies (world xz, ground y, scale, kind) for the distant-forest impostor */
+  trees: { x: number; y: number; z: number; s: number; k: string; c: number }[] = [];
+  /** Order 48e: one cheap merged canopy mesh shown instead of the full flora when the camera is far */
+  impostor: THREE.Mesh | null = null;
+  /** 'near' = full flora, 'far' = impostor only */
+  lodMode: 'near' | 'far' = 'near'; lodSwaps = 0;
+  private detail: THREE.Object3D[] = [];
   private cherryMeshes: { mesh: THREE.InstancedMesh; seed: number }[] = [];
   /** cherry trunk positions (petals fall from these) */
   cherryPts: { x: number; y: number; z: number }[] = [];
@@ -115,7 +125,7 @@ export class IsletFlora {
     if (this.spring?.found && !this.spring.group.children.length) { this.spring.build(); return; }
     if (this.landmark?.found && !this.landmark.mesh) { const m = this.landmark.build(this.physics); if (m) this.group.add(m); return; }
     const spec = this.queue.shift();
-    if (!spec) { this.buildPennant(); this.buildPath(); this.buildPetals(); this.built = true; return; }
+    if (!spec) { this.buildPennant(); this.buildPath(); this.buildPetals(); this.buildImpostor(); this.built = true; return; }
     this.buildSpec(spec);
   }
 
@@ -149,6 +159,7 @@ export class IsletFlora {
         const br = 0.9 + rnd() * 0.2; im.setColorAt(n, tint.setRGB(br, br, br));
         if (spec.trunk) this.physics.addCylinder(x, h + 1, z, 1, 0.28 * sc);
         if (spec.cherry) this.cherryPts.push({ x, y: h + 2.2 * sc, z });
+        if (spec.trunk) this.trees.push({ x, y: h - 0.05, z, s: sc, k: spec.cherry ? 'cherry' : spec.name, c: Math.floor(rnd() * 4) });
         n++;
       }
       im.count = n; im.name = spec.name;
@@ -158,6 +169,44 @@ export class IsletFlora {
       this.placed += n;
       if (spec.cherry) { this.cherries += n; this.cherryMeshes.push({ mesh: im, seed }); }
     }
+  }
+
+  /**
+   * Order 48e: distant-forest impostor. Every tree becomes one low-poly canopy blob (pine: a single cone, palm: a
+   * flat crown on a thin stem, round trees: one icosahedron on a stub), all baked into ONE mesh with the same
+   * flora material (season tint, grain) but no sway or shadows. Past IMPOSTOR_FAR the full instanced flora
+   * (trees, bushes, flowers, shells, petals) is hidden and only this mesh draws: 1 draw call instead of ~20.
+   * The landmark and landing pennant stay (they are single cheap meshes and read from afar).
+   */
+  private buildImpostor() {
+    if (!this.trees.length) return;
+    const b = new Baker(); b.ao = false;
+    const pal = (k: string): string[] => k === 'cherry' ? cherryPal() : k === 'islepine' ? ['#3f9a5a', '#4aa864', '#378a52', '#3f9a5a'] : k === 'islepalm' ? ['#4fbf4a', '#62cc52', '#3fae46', '#56c24e'] : WOOD;
+    const cone = new THREE.ConeGeometry(1, 1, 6), ico = new THREE.IcosahedronGeometry(1, 0), stem = new THREE.CylinderGeometry(0.14, 0.2, 1, 4, 1, true);
+    for (const t of this.trees) {
+      const x = t.x - this.def.x, z = t.z - this.def.z, y = t.y, s = t.s, col = pal(t.k)[t.c % 4];
+      if (t.k === 'islepine') { b.add(stem, '#8a5c3e', [x, y + 0.5 * s, z], [0, 0, 0], [s, s, s]); b.add(cone, col, [x, y + 2.35 * s, z], [0, t.c, 0], [1.3 * s, 3.3 * s, 1.3 * s]); }
+      else if (t.k === 'islepalm') { b.add(stem, '#9c7348', [x, y + 2.1 * s, z], [0, 0, 0], [s, 4.2 * s, s]); b.add(ico, col, [x, y + 4.3 * s, z], [0, t.c, 0], [1.9 * s, 0.45 * s, 1.9 * s]); }
+      else { b.add(stem, '#7a5040', [x, y + 0.8 * s, z], [0, 0, 0], [s, 1.6 * s, s]); b.add(ico, col, [x, y + 2.75 * s, z], [0, t.c, 0], [1.45 * s, 1.25 * s, 1.45 * s]); }
+    }
+    const mesh = new THREE.Mesh(b.build(), this.mat);
+    mesh.name = `islet-impostor-${this.def.id}`; mesh.position.set(this.def.x, 0, this.def.z);
+    mesh.castShadow = false; mesh.receiveShadow = true; mesh.visible = this.lodMode === 'far';
+    this.impostor?.geometry.dispose(); if (this.impostor) this.group.remove(this.impostor);
+    this.impostor = mesh; this.group.add(mesh);
+    this.detail = this.group.children.filter((o) => o !== mesh && o !== this.landmark?.mesh && o.name !== 'landing-pennant');
+  }
+
+  /** Order 48e: pick near (full flora) or far (impostor) by camera distance to the islet centre, with hysteresis */
+  lod(cx: number, cz: number) {
+    if (!this.built || !this.impostor) return;
+    const d = Math.hypot(cx - this.def.x, cz - this.def.z) - this.def.r;
+    const want = this.lodMode === 'near' ? (d > IMPOSTOR_FAR ? 'far' : 'near') : (d < IMPOSTOR_FAR - IMPOSTOR_HYST ? 'near' : 'far');
+    if (want === this.lodMode) return;
+    this.lodMode = want; this.lodSwaps++;
+    const far = want === 'far';
+    for (const o of this.detail) o.visible = !far;
+    this.impostor.visible = far;
   }
 
   /** a little pink pennant on a post + a ring of flat stones marks the landing spot */
@@ -259,6 +308,7 @@ export class IsletFlora {
 
   /** theme switch: rebake the cherry canopies with the new blossom palette (same seed = same shapes) */
   recolour() {
+    if (this.impostor && this.cherryMeshes.length) this.buildImpostor();
     for (const c of this.cherryMeshes) {
       const old = c.mesh.geometry;
       c.mesh.geometry = P.roundTree(mulberry32(c.seed), cherryPal(), '#7a5040');
@@ -269,5 +319,5 @@ export class IsletFlora {
     if (this.cherryMeshes.length) this.recolours++;
   }
 
-  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, petals: this.petals?.count ?? 0, petalTicks: this.petalTicks, path: this.path.length, lanterns: this.lanterns.length, visible: this.group.visible, recolours: this.recolours, spring: this.spring?.found ? { x: +this.spring.pos.x.toFixed(1), z: +this.spring.pos.z.toFixed(1), y: +this.spring.pos.y.toFixed(2), water: +this.spring.water.toFixed(2), built: this.spring.group.children.length > 0 } : null, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
+  get stats() { return { built: this.built, placed: this.placed, cherries: this.cherries, petals: this.petals?.count ?? 0, petalTicks: this.petalTicks, path: this.path.length, lanterns: this.lanterns.length, visible: this.group.visible, lod: this.lodMode, lodSwaps: this.lodSwaps, impostorTris: this.impostor ? this.impostor.geometry.attributes.position.count / 3 : 0, trees: this.trees.length, recolours: this.recolours, spring: this.spring?.found ? { x: +this.spring.pos.x.toFixed(1), z: +this.spring.pos.z.toFixed(1), y: +this.spring.pos.y.toFixed(2), water: +this.spring.water.toFixed(2), built: this.spring.group.children.length > 0 } : null, landing: { x: +this.landing.x.toFixed(1), y: +this.landing.y.toFixed(2), z: +this.landing.z.toFixed(1) } }; }
 }
