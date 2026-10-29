@@ -86,8 +86,10 @@ const center = (page, sel) => page.evaluate((sel) => { const r = document.queryS
 
   // Jump button
   const jb = await center(page, '.tbtn.jump');
+  // y0 before the tap: on a loaded box real frames can advance the jump between the tap and the measurement
+  const y0 = await page.evaluate(() => window.game.player.position.y);
   await page.touchscreen.tap(jb.x, jb.y);
-  const jumped = await page.evaluate(() => { const g = window.game; const y0 = g.player.position.y; let m = y0; for (let i = 0; i < 25; i++) { g.step(1 / 60); m = Math.max(m, g.player.position.y); } return m - y0; });
+  const jumped = await page.evaluate((y0) => { const g = window.game; let m = Math.max(y0, g.player.position.y); for (let i = 0; i < 25; i++) { g.step(1 / 60); m = Math.max(m, g.player.position.y); } return m - y0; }, y0);
   ok('ipad: Jump button jumps', jumped > 0.5, `(${jumped.toFixed(2)} m)`);
 
   // Orbit drag on the right side + pinch zoom

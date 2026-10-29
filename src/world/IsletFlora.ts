@@ -8,6 +8,7 @@ import { theme, themeEvents } from '../theme/theme';
 import type { IsletDef } from './config';
 import type { Physics } from '../core/Physics';
 import { HotSpring, SPRING_R } from './HotSpring';
+import { IsletLandmark } from './Landmark';
 
 /**
  * Blossom Isle flora (Order 42b): a cherry grove (pink blossoms, recoloured per theme), meadow bushes and
@@ -70,6 +71,8 @@ export class IsletFlora {
   private occ: { x: number; z: number; r: number }[] = [];
   /** Blossom Isle's signature landmark (Order 46a) */
   spring: HotSpring | null = null;
+  /** generated islets' landmark (Order 48d) */
+  landmark: IsletLandmark | null = null;
   private cherryMeshes: { mesh: THREE.InstancedMesh; seed: number }[] = [];
   /** cherry trunk positions (petals fall from these) */
   cherryPts: { x: number; y: number; z: number }[] = [];
@@ -90,7 +93,7 @@ export class IsletFlora {
     if (def.id === 'blossom') {
       this.spring = new HotSpring(def, this.occ);
       if (this.spring.found) { this.occ.push({ x: this.spring.pos.x, z: this.spring.pos.z, r: SPRING_R + 2.2 }); this.group.add(this.spring.group); this.planPath(); }
-    }
+    } else this.landmark = new IsletLandmark(def, this.occ, this.landing);
     themeEvents.on(() => this.recolour());
   }
 
@@ -110,6 +113,7 @@ export class IsletFlora {
   step() {
     if (this.built) return;
     if (this.spring?.found && !this.spring.group.children.length) { this.spring.build(); return; }
+    if (this.landmark?.found && !this.landmark.mesh) { const m = this.landmark.build(this.physics); if (m) this.group.add(m); return; }
     const spec = this.queue.shift();
     if (!spec) { this.buildPennant(); this.buildPath(); this.buildPetals(); this.built = true; return; }
     this.buildSpec(spec);
