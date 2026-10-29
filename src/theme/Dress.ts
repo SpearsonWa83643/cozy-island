@@ -3,6 +3,7 @@ import { float, hash, instanceIndex, sin, time, uniform, vec3 } from 'three/tsl'
 import { Baker } from '../world/Baker';
 import { heightAt } from '../world/Terrain';
 import { mulberry32 } from '../world/noise';
+import { ISLETS } from '../world/config';
 import { theme, type Theme } from './theme';
 import { applyGrade } from '../render/Renderer';
 import { updateSeason, snapSeason } from './Season';
@@ -83,6 +84,12 @@ export class Dress {
   /** falling petals / leaves / snow / fireflies */
   private fx: { x: number; y: number; z: number; vx: number; vy: number; vz: number; ph: number; kind: number }[] = [];
   private fxMesh: THREE.InstancedMesh | null = null;
+  /** Walker, 2026-10-29: drifting pink petals stay on the main island and Blossom Isle, never at the generated islets */
+  fxKind = -1; petalsHidden = false;
+  private petalsBlocked(x: number, z: number) {
+    for (const d of ISLETS) if (d.id !== 'blossom' && Math.hypot(x - d.x, z - d.z) < d.r + 30) return true;
+    return false;
+  }
   /** brief wiggle timers for tapped props (index into reactables) */
   private wiggle: { i: number; t: number; mesh: THREE.InstancedMesh; base: THREE.Matrix4 }[] = [];
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private v = new THREE.Vector3(); private s = new THREE.Vector3();
@@ -106,7 +113,7 @@ export class Dress {
   rebuild() {
     for (const c of [...this.group.children]) { this.group.remove(c); c.traverse((o) => { if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose(); }); }
     this.ghosts = []; this.candies = []; this.lanterns = []; this.bats = []; this.mist = []; this.lights = []; this.batMesh = this.candyMesh = null;
-    this.reactables = []; this.fx = []; this.fxMesh = null; this.wiggle = [];
+    this.reactables = []; this.fx = []; this.fxMesh = null; this.fxKind = -1; this.petalsHidden = false; this.wiggle = [];
     this.eggs = []; this.eggsFound = 0; this.fw = []; this.fwMesh = null; this.fwNext = 1.5; this.skyL = []; this.skyLMesh = null; this.balloons = []; this.balloonMesh = null;
     applyGrade(theme.grade);
     this.g.audio.setSoundscape(soundscapeFor(theme));
@@ -406,6 +413,11 @@ export class Dress {
     // falling / floating dress particles
     if (this.fxMesh && this.fx.length) {
       const sp = this.g.player.position;
+      this.petalsHidden = this.fxKind === 0 && this.petalsBlocked(sp.x, sp.z);
+      this.fxMesh.visible = !this.petalsHidden;
+    }
+    if (this.fxMesh && this.fx.length && !this.petalsHidden) {
+      const sp = this.g.player.position;
       this.fx.forEach((f, i) => {
         f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt; f.ph += dt;
         if (f.y < Math.max(0.2, heightAt(f.x, f.z)) + 0.15 || Math.hypot(f.x - sp.x, f.z - sp.z) > 42) {
@@ -476,6 +488,7 @@ export class Dress {
         ph: Math.random() * 6.28, kind: kind === 'petal' ? 0 : kind === 'leaf' ? 1 : kind === 'snow' ? 2 : 3,
       });
     }
+    this.fxKind = kind === 'petal' ? 0 : kind === 'leaf' ? 1 : kind === 'snow' ? 2 : 3;
     this.fxMesh = new THREE.InstancedMesh(geo, mat, n);
     this.fxMesh.frustumCulled = false; this.fxMesh.renderOrder = 4; this.group.add(this.fxMesh);
     // tint variety via vertex colors isn't free here; swap a second mesh color by cycling material isn't needed

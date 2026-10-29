@@ -114,7 +114,8 @@ class OneIslet {
       const sandTop = 0.7;
       const g0 = noiseB.fbm(x * 0.05 + 13, z * 0.05 - 3, 3) * 0.5 + 0.5, warm = noiseB.noise(x * 0.11 - 4, z * 0.11 + 9) * 0.5 + 0.5;
       const grass = c.copy(GRASS[0]).lerp(GRASS[1], smooth(0.15, 0.55, g0)).lerp(GRASS[2], smooth(0.5, 0.9, g0) * 0.85).lerp(GRASS[3], smooth(0.6, 0.85, warm) * 0.45);
-      const petals = smooth(0.62, 0.82, noiseB.noise(x * 0.07 + 31, z * 0.07 - 17) * 0.5 + 0.5) * smooth(1.6, 3.2, h);
+      // Walker, 2026-10-29: pink petals only on Blossom Isle (generated islets keep plain meadow greens)
+      const petals = d.id !== 'blossom' ? 0 : smooth(0.62, 0.82, noiseB.noise(x * 0.07 + 31, z * 0.07 - 17) * 0.5 + 0.5) * smooth(1.6, 3.2, h);
       grass.lerp(PETAL, petals * 0.55).lerp(ROCK, smooth(0.6, 0.95, slope) * 0.8);
       if (h < -3.3) c.copy(SEABED);
       else if (h < -0.2) c.copy(SEABED).lerp(WET, smooth(-2, -0.2, h));

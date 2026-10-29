@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-10-29 (CT). Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-10-29 (CT), 11:10 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -10,7 +10,21 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
-| - | No open tasks (Order 48 closed 2026-10-29). The Boss pinged with priority; polishing on the daily schedule until Walker sets the next backlog. | - | - | - |
+| 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | To do (daily session starts it 2026-10-30) | 2026-11-03 | 2 |
+| 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | To do | 2026-11-06 | 2 |
+| 51 | Rowboat or sailboat for travelling between the islets | To do | 2026-11-10 | 2.5 |
+| 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
+| 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
+
+Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The claimable home islet was not picked and is not on the backlog.
+
+### Acceptance criteria (Orders 49-53)
+
+- 49 Day/night: smooth sun/moon arc with sky, light, fog and water colours per time of day on top of each theme's grade; a star field (and moon) at night that fades at dawn; the Misty Marsh frog chorus plays at night in every theme and is quiet by day; the Lighthouse Point beam sweeps only at night; a settings/URL override (e.g. `?time=`) for testing; 60 fps target held on iPad (stars one draw); iPad touch suite passes.
+- 50 Weather: gentle rain (particles, ripples on water, rain soundscape layer) that comes and goes; winter shows snowfall instead of rain; a rainbow can appear after rain clears in daylight; per-theme look (e.g. Halloween drizzle tint); no weather inside caves; `?weather=` override for tests; perf within budget on iPad.
+- 51 Boat: a rowboat or sailboat found or built at a dock, boarded with a tap; steers with the iPad joystick, floats with gentle bob and wake, cannot beach on land; reaches every islet and docks at its landing; respects the sea edge; save restores it; iPad test sails main island to an islet and back.
+- 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
+- 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
 
 ### Order 48 detail (DONE 2026-10-29, live 13 days ahead of the 2026-11-11 ETA)
 
@@ -25,16 +39,19 @@ Walker, 2026-10-23: final world is a cluster of islands with generated terrain; 
 
 ## Waiting on Walker (goes via The Boss; none of these block work, defaults are in place)
 
-For Order 48, sent to The Boss 2026-10-27:
-1. Islet names and types: keep Heron Isle (woodland), Juniper Isle (pine) and Driftwood Isle (palm beach), or rename or retype them?
-2. Stop at 4 islets, or grow to 5 (scope allows 3-5)?
-3. Keep the pink petals on the generated islets, or only on Blossom Isle?
-
 Earlier small calls (default in place, confirm when convenient): purple Halloween frogs in Misty Marsh; Blossom Isle as the first islet; undo history is per-session only; lighthouse beam strength is set per theme; new mounts unlock through treasure; 85 m flier leash.
+
+## Resolved decisions
+
+- 2026-10-29 (Walker via The Boss, 10:53 AM CT), Order 48:
+  1. Islet names and types: "Keep the islet names and types" (Heron Isle woodland, Juniper Isle pine, Driftwood Isle palm beach). No change.
+  2. Islet count: "Stop at 4 islets". `GEN_COUNT` stays at 3 generated + Blossom Isle.
+  3. Pink petals: "Pink petals only on Blossom Isle". Shipped 2026-10-29: generated islets lose the petal-pink ground drifts, and the season's drifting petals hide within 30 m of a generated islet (main island and Blossom Isle unchanged). tests/islet-petals.mjs 30/30.
 
 ## Done (from git log)
 
 Oct 29
+- Pink petals only on Blossom Isle (Walker's Order 48 answer), tests/islet-petals.mjs
 - 48e: distant-forest impostors, Order 48 closed
 - 48d: islet landmarks (Heron Stones, Juniper Lookout, Driftwood Arch) (d04ee06)
 
@@ -71,6 +88,7 @@ Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s t
 
 ## Session log
 
+- 2026-10-29 (CT), 11:10 AM: Walker answered the three Order 48 questions (keep names/types, stop at 4 islets, petals only on Blossom Isle); moved to Resolved. Shipped petals-only-on-Blossom (terrain tint + season petal particles), new tests/islet-petals.mjs 30/30 (spring + summer), archipelago 14/14. Added Walker's next backlog, Orders 49-53 (picked 10:54 AM CT); the daily session starts Order 49 on 2026-10-30.
 - 2026-10-29 (CT): recovery restored node_modules and src/build (removed by a shared-box cleanup again) and restarted the 5180 dev server. Shipped 48d (landmarks, d04ee06) and 48e (impostor forests), closing Order 48. Hardened the iPad Jump check against box load. Backlog is now empty: The Boss gets a priority ping; polish on the daily schedule (load time, perf, visuals, iPad feel) until Walker sets the next backlog. Walker reviews on production (Bot Rules D4).
 
 ## Session notes (for the daily dev session)
