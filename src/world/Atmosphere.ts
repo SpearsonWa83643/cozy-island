@@ -36,6 +36,9 @@ export class Atmosphere {
   under = 0;
   /** islet haze lift (uniform, 0..1) */
   readonly isletClear = uniform(ISLET_CLEAR);
+  /** Order 49: time-of-day haze colour + strength (the game sets these each frame) */
+  readonly tod = new THREE.Color(); todK = 0;
+  private tmp = new THREE.Color();
 
   constructor(fogState: THREE.Fog) {
     const color = reference('color', 'color', fogState);
@@ -74,7 +77,7 @@ export class Atmosphere {
 
   update(dt: number) {
     const k = Math.min(1, dt * 1.5), t = this.target, off = 1 - this.under;
-    this.hazeColor.value.lerp(this.tc, k);
+    this.hazeColor.value.lerp(this.todK > 0.001 ? this.tmp.copy(this.tc).lerp(this.tod, this.todK) : this.tc, this.todK > 0.001 ? 1 : k);
     this.aerial.value += (t.aerial * off - this.aerial.value) * k;
     this.height.value += (t.height * off - this.height.value) * k;
     this.top.value += (t.top - this.top.value) * k;

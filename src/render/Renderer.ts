@@ -6,7 +6,7 @@ export type Quality = 'low' | 'high';
 
 /** WebGPU renderer (auto WebGL2 fallback) + bloom/grade post pipeline + quality presets. */
 /** live colour grade (theme system sets these) */
-export const gradeU = { tint: uniform(new THREE.Color('#ffffff')), sat: uniform(1.12), vignette: uniform(new THREE.Color(1.0, 0.93, 0.86)) };
+export const gradeU = { tint: uniform(new THREE.Color('#ffffff')), sat: uniform(1.12), vignette: uniform(new THREE.Color(1.0, 0.93, 0.86)), tod: uniform(new THREE.Color(1, 1, 1)) };
 export function applyGrade(g: { tint: string; sat: number; vignette: string }) { gradeU.tint.value.set(g.tint); gradeU.sat.value = g.sat; gradeU.vignette.value.set(g.vignette); }
 
 export class Renderer {
@@ -38,7 +38,7 @@ export class Renderer {
     // gentle grade: saturation lift + warm vignette
     const c = color.add(glow).rgb;
     const lum = dot(c, vec3(0.299, 0.587, 0.114));
-    const sat = mix(vec3(lum), c, gradeU.sat).mul(gradeU.tint);
+    const sat = mix(vec3(lum), c, gradeU.sat).mul(gradeU.tint).mul(gradeU.tod);
     const d = length(uv().sub(0.5));
     const vig = smoothstep(float(0.85), float(0.35), d).mul(0.22).add(0.78);
     const graded = sat.mul(mix(gradeU.vignette, vec3(1), vig)).mul(vig.mul(0.15).add(0.85));

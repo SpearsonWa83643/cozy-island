@@ -30,6 +30,8 @@ export class Lighthouse {
   private beamMat: THREE.MeshBasicNodeMaterial;
   private coreMat: THREE.MeshBasicNodeMaterial;
   private base = 0.1; private flash = 0; private spin = 0;
+  /** 0 = day .. 1 = night (set by the day/night clock, Order 49c) */
+  night = 0;
 
   constructor(physics: Physics, flora: Flora) {
     this.findSite(flora);
@@ -175,11 +177,14 @@ export class Lighthouse {
     this.spin += dt * (0.55 + this.flash * 2.2);
     this.beams.rotation.y = this.spin;
     const f = this.flash * this.flash;
-    this.beamMat.opacity = Math.min(0.85, this.base + f * 0.6 + Math.sin(this.spin * 7) * 0.008);
+    // Order 49c: the beams sweep only at night (strength still per theme); by day only a tap's flash shows them
+    const nk = this.night, sweep = (0.2 + this.base * 0.6) * nk;
+    this.beamMat.opacity = Math.min(0.85, sweep + f * 0.6 + Math.sin(this.spin * 7) * 0.008 * nk);
+    this.beams.visible = nk > 0.01 || f > 0.003;
     this.coreMat.color.setRGB(1, 0.95 + f * 0.05, 0.69 + f * 0.31);
     this.beams.scale.setScalar(1 + f * 0.25);
   }
 
   /** test/debug */
-  get debug() { return { x: +this.pos.x.toFixed(1), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(1), sea: [+this.sea.x.toFixed(2), +this.sea.z.toFixed(2)], beam: +this.beamMat.opacity.toFixed(3), base: this.base, reactions: this.reactions, flashes: this.flashes, path: this.path.length, lookout: { x: +this.lookout.x.toFixed(1), z: +this.lookout.z.toFixed(1) } }; }
+  get debug() { return { x: +this.pos.x.toFixed(1), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(1), sea: [+this.sea.x.toFixed(2), +this.sea.z.toFixed(2)], beam: +this.beamMat.opacity.toFixed(3), base: this.base, night: +this.night.toFixed(2), sweeping: this.beams.visible, reactions: this.reactions, flashes: this.flashes, path: this.path.length, lookout: { x: +this.lookout.x.toFixed(1), z: +this.lookout.z.toFixed(1) } }; }
 }

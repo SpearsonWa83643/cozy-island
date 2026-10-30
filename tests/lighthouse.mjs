@@ -14,7 +14,7 @@ try {
   const ctx = await browser.newContext({ ...devices['iPad Pro 11'], hasTouch: true });
   const page = await ctx.newPage(); page.setDefaultTimeout(300000);
   const errors = []; page.on('console', (m) => { if (errFilter(m)) errors.push(m.text()); }); page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(base + '?webgl&q=low&touch=1&theme=halloween'); await page.waitForFunction(() => window.game?.ready);
+  await page.goto(base + '?webgl&q=low&touch=1&theme=halloween&time=night'); await page.waitForFunction(() => window.game?.ready);
   await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForFunction(() => window.game?.ready);
   let d = await page.evaluate(() => window.game.lighthouse.debug);
   console.log(JSON.stringify(d));
@@ -51,6 +51,10 @@ try {
   await page.waitForTimeout(300); await frames(page, 90);
   d = await page.evaluate(() => window.game.lighthouse.debug);
   ok('Spring beam subtle', d.base <= 0.12, JSON.stringify(d.base));
+  // Order 49c: by day the beams do not sweep (hidden); back at night they do
+  const dn = await page.evaluate(async () => { const g = window.game, T = g.time; const st = () => { for (let i = 0; i < 4; i++) g.step(1 / 30); return g.lighthouse.debug; };
+    T.set('noon', true); const day = st(); T.set('night', true); const night = st(); return { day: { beam: day.beam, sweeping: day.sweeping }, night: { beam: night.beam, sweeping: night.sweeping } }; });
+  ok('beam sweeps only at night (hidden at noon)', !dn.day.sweeping && dn.day.beam < 0.01 && dn.night.sweeping && dn.night.beam > 0.2, JSON.stringify(dn));
   // scenic tour includes the lighthouse
   const tour = await page.evaluate(() => { const g = window.game; const st = g.mount.hooks?.tourStops?.() ?? []; const L = g.lighthouse.tourSpot; return st.some((p) => Math.hypot(p.x - L.x, p.z - L.z) < 0.1); });
   ok('lighthouse is a scenic-tour stop', tour);

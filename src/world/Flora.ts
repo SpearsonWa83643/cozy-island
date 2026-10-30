@@ -8,6 +8,7 @@ import { mulberry32 } from './noise';
 import { Biome, BIOME_COUNT, POND, AREA } from './Biomes';
 import { biomeWeights, heightAt, slopeAt, snowAt, terrainColor, smooth } from './Terrain';
 import { ISLAND_RADIUS } from './config';
+import { dayU } from './Sky';
 import * as P from './Plants';
 import { seasonFoliage, grassTint, snowK } from '../theme/Season';
 import type { Physics } from '../core/Physics';
@@ -43,7 +44,7 @@ export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) 
   const rim = pow(float(1).sub(clamp(dot(normalView, positionViewDirection), 0, 1)), 2.6);
   const back = pow(clamp(dot(vdir, sunDirU), 0, 1), 2.4).mul(sway.min(1));
   const sss = green.mul(back.mul(0.72).add(rim.mul(0.22))).add(rim.mul(0.08));
-  m.emissiveNode = vc.mul(sss);
+  m.emissiveNode = vc.mul(sss).mul(dayU);
   m.maskNode = occlusionMask();
   m.maskShadowNode = bool(true); // shadows stay solid
   return m;
@@ -413,9 +414,12 @@ export class Flora {
     this.scalable.push({ mesh: im, max: i, low: 0.4 });
   }
 
+  /** cloud material (Order 49b: the day/night clock dims their glow and tints them at night) */
+  cloudMat: THREE.MeshStandardNodeMaterial | null = null;
   private buildClouds(rnd: () => number) {
     const cm = new THREE.MeshStandardNodeMaterial({ color: '#ffffff', roughness: 1, flatShading: true });
     cm.emissive = new THREE.Color('#fff4ea'); cm.emissiveIntensity = 0.45;
+    this.cloudMat = cm;
     const geo = new THREE.IcosahedronGeometry(1, 1);
     for (let k = 0; k < 11; k++) {
       const g = new THREE.Group();

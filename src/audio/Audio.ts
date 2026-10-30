@@ -19,6 +19,7 @@ export interface Listen {
   swim?: number;           // 0..1 swimming
   reef?: number;           // 0..1 over the reef
   cave?: number;           // 0..1 underground
+  night?: number;          // 0 day .. 1 night (Order 49c: marsh frog chorus)
 }
 
 type Ctx = AudioContext;
@@ -285,7 +286,10 @@ export class AudioEngine {
     if (Math.random() < cricket * 0.09 * m.crickets) this.cricket();
     // spring: a bumblebee drifts past now and then (meadows and flowers most)
     if (m.bees > 0.05 && t > this.nextBee && (l.swim ?? 0) < 0.3) { if (this.nextBee) this.bee(); this.nextBee = t + (9 + Math.random() * 16) / (m.bees * (0.5 + w[Biome.Meadow] + l.grass * 0.5)); }
-    if (Math.random() < w[Biome.Marsh] * 0.07) this.frog();
+    // Misty Marsh frogs (Order 49c): quiet by day, a chorus of overlapping croaks at night (every theme)
+    const nt = l.night ?? 0;
+    if (Math.random() < w[Biome.Marsh] * 0.07 * (0.1 + nt * 1.6)) this.frog();
+    if (nt > 0.4 && Math.random() < w[Biome.Marsh] * 0.05 * nt) { this.chorusCalls++; for (let i = 0; i < 3; i++) this.frog(0.12 + i * (0.18 + Math.random() * 0.2)); }
     if (Math.random() < w[Biome.Autumn] * 0.012 + m.leaves * 0.004) this.woodpecker();
     // winter: a distant wind chime tinkles on a gust; halloween: a friendly ghost "woo" drifts by
     if (m.chimes > 0.05 && t > this.nextChime && gust > 0.6) { if (this.nextChime) this.windChime(); this.nextChime = t + (10 + Math.random() * 18) / m.chimes; }
@@ -428,8 +432,10 @@ export class AudioEngine {
     const f = rand(4200, 5200), reps = 2 + Math.floor(Math.random() * 3);
     for (let r = 0; r < reps; r++) for (let i = 0; i < 4; i++) this.tone('sine', f, t + r * 0.32 + i * 0.035, 0.02, dest, 0.6, 0.004);
   }
-  private frog() {
-    const ctx = this.ctx!, t = ctx.currentTime + 0.05;
+  /** night frog-chorus bursts so far (tests) */
+  chorusCalls = 0;
+  private frog(delay = 0) {
+    const ctx = this.ctx!, t = ctx.currentTime + 0.05 + delay;
     const dest = this.out(rand(-0.9, 0.9), rand(0.04, 0.09), 0.2);
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 6; lp.connect(dest);
     const f = rand(150, 260);

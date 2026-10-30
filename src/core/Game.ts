@@ -7,12 +7,15 @@ import { Renderer, type Quality } from '../render/Renderer';
 import { pregenerateWorld, type GenStats } from '../world/GenWorker';
 import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface, WORLD_SIZE } from '../world/Terrain';
 import { SHADOW_HALF, SHADOW_HALF_LOW } from '../world/config';
-import { createSky, SUN_DIR, skyFog, skyU, SKY_CLASSIC } from '../world/Sky';
+import { createSky, skyFog, skyU, skyDirs, dayU, SKY_CLASSIC } from '../world/Sky';
+import { TimeOfDay } from '../world/TimeOfDay';
+import { waterTod } from '../world/Water';
+import { gradeU } from '../render/Renderer';
 import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
 import { createWater } from '../world/Water';
 import { Loader, nextPaint } from '../ui/Loader';
-import { Flora, fadeCam, fadeTarget } from '../world/Flora';
+import { Flora, fadeCam, fadeTarget, sunDirU } from '../world/Flora';
 import { Particles } from '../world/Particles';
 import { Fauna } from '../world/Fauna';
 import { Reef } from '../world/Reef';
@@ -37,6 +40,9 @@ import { Gameplay } from '../game/Gameplay';
 import { beginLoadTiming, type LoadTiming } from './LoadTiming';
 
 const SPAWN = new THREE.Vector2(0, 6);
+/** Order 49 palettes layered over the theme: deep blue night, warm golden hour */
+const NIGHT = { zenith: '#050b22', mid: '#0f1c44', low: '#1b2a58', horizon: '#2a3a68', fog: '#16203c', sun: '#a9bcff', hemiSky: '#46578f', hemiGround: '#151a2a', moonI: 0.75, water: '#5a6aa0', grade: '#c4cdf0' };
+const TWILIGHT = { zenith: '#3a4482', mid: '#c28aa0', low: '#f4a37a', horizon: '#ffb46c', fog: '#e0a488', sun: '#ff9850', hemiSky: '#e0a8b0', water: '#ffd0b0', grade: '#fff0e0' };
 
 const CAVE_FOG = new THREE.Color('#0b0912'), CAVE_SUN = new THREE.Color('#ffd9a8'), CAVE_SKY = new THREE.Color('#6a5a9a'), CAVE_GR = new THREE.Color('#1a2a30');
 
@@ -96,6 +102,8 @@ export class Game {
   private forest = { v: 0, t: 0 };
   private tmpW = new Float32Array(BIOME_COUNT);
   private water!: THREE.Mesh;
+  /** day/night clock (Order 49); ?time= freezes it for tests */
+  time = new TimeOfDay();
 
   async start(container: HTMLElement) {
     const params = new URLSearchParams(location.search);
@@ -531,6 +539,48 @@ export class Game {
     this.hemi.color.lerp(new THREE.Color(ts.hemiSky), k); this.hemi.groundColor.lerp(new THREE.Color(ts.hemiGround), k); this.hemi.intensity += (ts.hemiI - this.hemi.intensity) * k;
   }
 
+  private todC = new THREE.Color();
+  /** Order 49 test/debug: what the clock is driving right now */
+  get todDebug() {
+    const L = this.lighthouse.debug, fh = this.fauna.herds.find((h) => h.k.name === 'frog');
+    return { ...this.time.debug, stars: +skyU.stars.value.toFixed(3), moon: +skyU.moon.value.toFixed(3), sunGlow: +skyU.sunGlow.value.toFixed(3), day: +dayU.value.toFixed(3), cloud: +(this.flora.cloudMat?.emissiveIntensity ?? 0).toFixed(3), chorus: +(fh?.chorus ?? 0).toFixed(2), beam: L.beam, sweeping: L.sweeping, water: waterTod.value.getHexString(), grade: gradeU.tod.value.getHexString(), zenith: skyU.zenith.value.getHexString() };
+  }
+  /** Order 49: layer the time of day over the biome + theme look (sky, fog, haze, light, water, grade) */
+  private applyTimeOfDay() {
+    const T = this.time, n = T.night, tw = T.twilight * (1 - this.themeK * 0.25), c = this.todC;
+    const NK = n * 0.86; // themes keep a little of their own colour at night
+    for (const key of ['zenith', 'mid', 'low', 'horizon'] as const) {
+      const u = skyU[key].value;
+      if (tw > 0.001) u.lerp(c.set(TWILIGHT[key]), tw * (key === 'zenith' ? 0.45 : 0.75));
+      if (NK > 0.001) u.lerp(c.set(NIGHT[key]), NK);
+    }
+    if (tw > 0.001) { this.fog.color.lerp(c.set(TWILIGHT.fog), tw * 0.6); this.sun.color.lerp(c.set(TWILIGHT.sun), tw * 0.8); this.hemi.color.lerp(c.set(TWILIGHT.hemiSky), tw * 0.5); }
+    if (NK > 0.001) {
+      this.fog.color.lerp(c.set(NIGHT.fog), NK); this.sun.color.lerp(c.set(NIGHT.sun), n);
+      this.hemi.color.lerp(c.set(NIGHT.hemiSky), NK); this.hemi.groundColor.lerp(c.set(NIGHT.hemiGround), NK);
+      this.fog.near *= 1 - n * 0.2; this.fog.far *= 1 - n * 0.12;
+    }
+    skyFog.value.copy(this.fog.color);
+    // key light: the sun's strength by day, a soft blue moonlight by night (dims through the swap near the horizon)
+    this.sun.intensity = this.sun.intensity * T.sunUp + NIGHT.moonI * T.moonUp;
+    this.hemi.intensity *= 1 - n * 0.55;
+    skyU.sunGlow.value *= T.sunUp * 0.85 + 0.15 * (1 - n);
+    skyU.moon.value = Math.max(skyU.moon.value * (1 - n), T.moonUp);
+    skyU.stars.value = Math.max(skyU.stars.value, n);
+    skyDirs.sun.value.copy(T.sunDir); skyDirs.moon.value.copy(T.moonDir);
+    // water: cooler and darker at night, warmer at golden hour
+    waterTod.value.setRGB(1, 1, 1);
+    if (tw > 0.001) waterTod.value.lerp(c.set(TWILIGHT.water), tw * 0.6);
+    if (n > 0.001) waterTod.value.lerp(c.set(NIGHT.water), n);
+    this.atmos.tod.copy(this.fog.color); this.atmos.todK = Math.max(n * 0.9, tw * 0.5);
+    // fake glows (foliage translucency, cloud self-light) follow the daylight; SSS faces the actual key light
+    dayU.value = 1 - n * 0.8; sunDirU.value.copy(T.lightDir);
+    const cm = this.flora.cloudMat;
+    if (cm) { cm.emissiveIntensity = 0.45 * (1 - n * 0.85); cm.emissive.set('#fff4ea'); if (tw > 0.001) cm.emissive.lerp(c.set('#ffb48a'), tw * 0.7); }
+    gradeU.tod.value.setRGB(1, 1, 1).lerp(c.set(NIGHT.grade), n);
+    if (tw > 0.001) gradeU.tod.value.lerp(c.set(TWILIGHT.grade), tw * 0.5);
+  }
+
   private updateAtmosphere(dt: number, p: THREE.Vector3) {
     biomeWeights(p.x, p.z, this.tmpW);
     const k = Math.min(1, dt * 1.5);
@@ -552,6 +602,7 @@ export class Game {
     this.sun.color.copy(sun); this.sun.intensity = sunI;
     this.hemi.color.copy(sky); this.hemi.groundColor.copy(gr); this.hemi.intensity = hemiI;
     this.applyThemeSky(dt);
+    this.applyTimeOfDay();
     // underground: deep violet fog, a dim cool fill and a faint warm key (the crystals' glow is baked into the rock)
     this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
     const ck = this.caveK;
@@ -583,7 +634,9 @@ export class Game {
     this.sky.position.copy(this.camera.position);
     const p = this.player.position;
     this.sun.target.position.set(p.x, 0, p.z);
-    this.sun.position.copy(this.sun.target.position).addScaledVector(SUN_DIR, 80);
+    this.time.update(dt);
+    { const nk = this.time.night; this.lighthouse.night = nk; this.fauna.setNight(nk); }
+    this.sun.position.copy(this.sun.target.position).addScaledVector(this.time.lightDir, 80);
     // vegetation between camera and player dithers out
     fadeCam.value.copy(this.camera.position);
     fadeTarget.value.set(p.x, p.y + 1.0, p.z);
@@ -599,6 +652,7 @@ export class Game {
       altitude: p.y,
       swim: this.player.swimBlend,
       cave: this.caveK,
+      night: this.time.night,
       reef: Math.max(0, 1 - Math.abs(this.player.offshoreDist - 7) / 12) * (this.player.depth > 0.4 ? 1 : 0),
     });
     this.input.endFrame();

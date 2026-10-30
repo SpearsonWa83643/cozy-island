@@ -140,7 +140,7 @@ let agentIds = 0;
 
 class Herd {
   mesh: THREE.InstancedMesh; agents: Agent[] = []; active = 0; pounces = 0; leaps = 0; hops = 0; padHops = 0; croaks = 0;
-  /** frog croak-rate multiplier: a dusk chorus in the evening-lit themes */
+  /** frog croak-rate multiplier: the night chorus (Order 49c, set from the day/night clock) */
   chorus = 1;
   /** frog croak at a spot (wired to positional audio by the game) */
   onCroak: (x: number, z: number) => void = () => {};
@@ -615,13 +615,20 @@ export class Fauna {
     const frh = new Herd(frog, mat, mulberry32(4343)); frh.onCroak = (x, z) => this.onCroak(x, z); this.herds.push(frh); this.group.add(frh.mesh);
   }
 
+  /** Order 49c: the Misty Marsh frog chorus follows the clock in every theme: a croaking chorus at night, only the odd
+   *  croak by day (0 = day .. 1 = night) */
+  private frogHerd: Herd | null = null;
+  setNight(n: number) {
+    const h = this.frogHerd ?? (this.frogHerd = this.herds.find((q) => q.k.name === 'frog') ?? null); if (!h) return;
+    h.chorus = 0.12 + n * 3.4;
+  }
+
   /** re-skin theme-tinted animals (frogs) for the active theme */
   setTheme(id: string) {
     const h = this.herds.find((q) => q.k.name === 'frog'); if (!h) return;
     const pal = FROG_COLORS[id] ?? FROG_COLORS.summer, c = new THREE.Color();
     h.agents.forEach((a, i) => h.mesh.setColorAt(i, c.set(pal[(a.id * 7 + i) % pal.length])));
     if (h.mesh.instanceColor) h.mesh.instanceColor.needsUpdate = true;
-    h.chorus = id === 'halloween' || id === 'autumn' ? 3 : 1; // dusky themes: evening croak chorus
   }
 
   setQuality(high: boolean) {

@@ -5,6 +5,9 @@ import {
 } from 'three/tsl';
 import { WORLD_SIZE, OCEAN_SIZE, ISLETS, ISLET_SIZE } from './config';
 import { skyU } from './Sky';
+import { uniform } from 'three/tsl';
+/** Order 49: time-of-day water tint (white by day, cool blue at night, warm at golden hour) */
+export const waterTod = uniform(new THREE.Color(1, 1, 1));
 import { waterDeep, waterK, waterMid, waterShallow } from '../theme/Season';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
@@ -72,8 +75,8 @@ export function createWater(heightTex: THREE.Texture, isletTex: THREE.Texture[] 
   // sparkle (kept subtle, mostly mid/deep so shallows stay clear)
   const sparkle = smoothstep(float(0.74), float(0.92), mx_noise_float(vec3(w.x.mul(3.0), w.z.mul(3.0), t.mul(1.2)))).mul(0.11);
 
-  mat.colorNode = mix(col, color('#f4fffc'), foam.mul(0.88));
-  mat.emissiveNode = vec3(sparkle).mul(smoothstep(float(0.45), float(2.8), depth));
+  mat.colorNode = mix(col, color('#f4fffc'), foam.mul(0.88)).mul(waterTod);
+  mat.emissiveNode = vec3(sparkle).mul(waterTod).mul(smoothstep(float(0.45), float(2.8), depth));
   // clearer shallows: reef shelf readable; deep blue stays nearly opaque
   mat.opacityNode = clamp(max(mix(float(0.26), float(0.96), smoothstep(float(0.05), float(4.4), depth)), foam.mul(0.7)), 0, 1);
 

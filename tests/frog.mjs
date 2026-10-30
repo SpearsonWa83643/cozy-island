@@ -60,7 +60,11 @@ try {
   const skin = await page.evaluate(async (H) => { const g = window.game, h = eval(H), col = () => Array.from(h.mesh.instanceColor.array.slice(0, 3)).map((x) => +x.toFixed(2));
     const summer = col(); g.themes.set('halloween'); for (let i = 0; i < 3; i++) g.step(1 / 30); const hw = col(), chHw = h.chorus; g.themes.set('summer'); for (let i = 0; i < 3; i++) g.step(1 / 30); return { summer, hw, back: col(), chHw, chSummer: h.chorus }; }, H);
   ok('frog skins change with the theme (halloween) and back', skin.summer.join() !== skin.hw.join() && skin.back.join() === skin.summer.join(), JSON.stringify(skin));
-  ok('dusk croak chorus in the evening-lit theme (halloween croaks more)', skin.chHw > skin.chSummer, JSON.stringify(skin));
+  // Order 49c: the chorus follows the clock (night) in every theme, not the theme
+  const ch = await page.evaluate((H) => { const g = window.game, h = eval(H), T = g.time, out = {};
+    for (const th of ['summer', 'halloween']) { g.themes.set(th); for (const tm of ['noon', 'night']) { T.set(tm, true); for (let i = 0; i < 3; i++) g.step(1 / 30); out[th + '-' + tm] = h.chorus; } }
+    g.themes.set('summer'); T.set('noon', true); g.step(1 / 30); return out; }, H);
+  ok('night frog chorus in every theme, quiet by day', ch['summer-night'] > ch['summer-noon'] * 10 && ch['halloween-night'] > ch['halloween-noon'] * 10 && ch['summer-night'] === ch['halloween-night'] && ch['summer-noon'] < 0.3, JSON.stringify(ch));
   // feed a beetle -> follower
   const fed = await page.evaluate((H) => { const g = window.game, d = g.play.save.data; d.food = { ...(d.food || {}), bug: 3 }; const h = eval(H); h.k.fleeDist = 2.2;
     const a = h.agents[0]; let sx = a.x, sz = a.z; for (let r = 1; r < 10; r += 0.4) { if (h.valid(a.x + r, a.z) && h.padAt(a.x + r, a.z) < 0) { sx = a.x + r; sz = a.z; break; } }
