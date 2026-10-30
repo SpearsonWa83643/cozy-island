@@ -58,6 +58,16 @@ try {
   ok('night passes faster than day', run.nightRate > run.dayRate * 1.7, JSON.stringify([run.nightRate, run.dayRate]));
   const up = run.arc.map((y) => y > 0);
   ok('sun up 7:00-17:00, down 19:00-5:00, smooth arc peaking at noon', up.slice(7, 18).every(Boolean) && [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5].every((h) => !up[h]) && Math.max(...run.arc) === run.arc[12], JSON.stringify(run.arc));
+  // 49d: 🕒 dock button (real taps) cycles Live → Dawn → Noon → Dusk → Night → Live
+  const tb = page.locator('.dock .time-btn');
+  const seen = [];
+  for (let k = 0; k < 5; k++) { await tb.tap(); await page.waitForTimeout(150); seen.push(await page.evaluate(() => { const T = window.game.time; return { t: document.querySelector('.dock .time-btn').dataset.t, frozen: T.frozen, hour: +T.hour.toFixed(2), night: +T.night.toFixed(2) }; })); }
+  console.log(JSON.stringify(seen));
+  ok('time button cycles dawn/noon/dusk/night (frozen) then back to live clock', seen.map((x) => x.t).join() === 'dawn,noon,dusk,night,live' && seen.slice(0, 4).every((x) => x.frozen) && !seen[4].frozen && seen[1].night === 0 && seen[3].night > 0.95, JSON.stringify(seen));
+  const box = await tb.boundingBox(), vp = page.viewportSize();
+  ok('time button on screen, touch-sized', box && box.width >= 56 && box.x >= 0 && box.x + box.width <= vp.width && box.y >= 0, JSON.stringify(box));
+  await tb.tap(); await tb.tap(); await tb.tap(); await tb.tap(); await page.waitForTimeout(300);
+  await page.screenshot({ path: outDir + '93-ipad-time-button-night.png' });
   ok('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } finally { await ctx?.close().catch(() => {}); await browser.close(); }
 const pass = results.filter(Boolean).length;

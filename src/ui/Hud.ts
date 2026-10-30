@@ -4,6 +4,7 @@ const fmtWin = (w: { from: [number, number]; to: [number, number] }) => `${MON[w
 import type { Input, Handedness } from '../core/Input';
 import { BUILD_CATALOG, tabOf, type BuildTab } from '../build/catalog';
 import type { Quality } from '../render/Renderer';
+import type { TimeOfDay } from '../world/TimeOfDay';
 import type { AudioEngine } from '../audio/Audio';
 
 export class Hud {
@@ -96,6 +97,27 @@ export class Hud {
     for (const b of this.picker.querySelectorAll<HTMLButtonElement>('.tp-item')) b.addEventListener('click', (e) => { e.stopPropagation(); setTheme(b.dataset.t as ThemeSetting); sync(); setTimeout(() => this.closePicker(), 180); });
     tb.addEventListener('click', (e) => { e.stopPropagation(); const o = !this.picker.classList.contains('open'); this.picker.classList.toggle('open', o); tb.classList.toggle('on', o); tb.blur(); });
     window.addEventListener('pointerdown', (e) => { if (this.picker.classList.contains('open') && !this.picker.contains(e.target as Node) && !this.dock.contains(e.target as Node)) this.closePicker(); }, { capture: true });
+    sync();
+  }
+  /** 🌗 dock button: cycles Live clock → Dawn → Noon → Dusk → Night → Live (session only; `?time=` starts frozen) */
+  bindTime(time: TimeOfDay) {
+    if (!this.dock) return;
+    const STEPS = [
+      { id: 'live', icon: '🌗', name: 'Live clock' }, { id: 'dawn', icon: '🌅', name: 'Dawn' },
+      { id: 'noon', icon: '☀️', name: 'Noon' }, { id: 'dusk', icon: '🌇', name: 'Dusk' }, { id: 'night', icon: '🌙', name: 'Night' },
+    ] as const;
+    const b = document.createElement('button');
+    b.className = 'dbtn time-btn';
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) b.addEventListener(ev, (e) => e.stopPropagation());
+    this.dock.insertBefore(b, this.dock.firstChild);
+    let i = time.frozen ? STEPS.findIndex((s) => s.id === (time.phase === 'day' ? 'noon' : time.phase)) : 0;
+    if (i < 0) i = 0;
+    const sync = () => { const s = STEPS[i]; b.textContent = s.icon; b.title = `Time: ${s.name}`; b.setAttribute('aria-label', `Time of day: ${s.name}`); b.dataset.t = s.id; b.classList.toggle('on', s.id !== 'live'); };
+    b.addEventListener('click', (e) => {
+      e.stopPropagation(); i = (i + 1) % STEPS.length; const s = STEPS[i];
+      if (s.id === 'live') time.resume(); else time.set(s.id, true);
+      sync(); this.closePicker(); b.blur();
+    });
     sync();
   }
   closePicker() { this.picker?.classList.remove('open'); this.dock?.querySelector('.theme-btn')?.classList.remove('on'); }

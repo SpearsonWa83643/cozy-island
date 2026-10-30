@@ -426,6 +426,7 @@ body.theme-halloween .mode, body.theme-halloween .biome-name { color: #6a3aa8; }
 .dbtn { width: 56px; height: 56px; border: 0; border-radius: 18px; font-size: 26px; line-height: 1; cursor: pointer; background: var(--panel, rgba(255,250,240,.88)); box-shadow: 0 4px 0 rgba(160,120,80,.3), 0 6px 18px rgba(80,50,20,.15); backdrop-filter: blur(6px); transition: transform .25s var(--ease, ease), background .2s; touch-action: manipulation; }
 .dbtn:active { transform: scale(.92); }
 .dbtn.gear.on { transform: rotate(90deg); background: var(--accent, #f2a93b); }
+.dbtn.time-btn.on { background: var(--accent, #f2a93b); }
 .dbtn.theme-btn.on { background: var(--accent, #f2a93b); }
 body.touch .dbtn { width: 64px; height: 64px; font-size: 30px; }
 /* corner panels slide/fade away unless opened */

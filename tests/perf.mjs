@@ -13,7 +13,7 @@ for (let r = 0; r < rounds; r++) for (const base of urls) {
   const ctx = await browser.newContext({ ...devices['iPad Pro 11 landscape'], deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.setDefaultTimeout(300000);
-  await page.goto(`${base}?webgl&q=low`);
+  await page.goto(`${base}${base.includes("?") ? "&" : "?"}webgl&q=low`);
   await page.waitForFunction(() => window.game?.ready);
   const res = await page.evaluate(async () => {
     const g = window.game;

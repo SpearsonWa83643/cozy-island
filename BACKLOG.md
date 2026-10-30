@@ -10,7 +10,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
-| 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | In progress: 49a-c done 2026-10-30, 49d (perf check + settings time picker) next | 2026-11-03 | 2 |
+| 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | To do | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | To do | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
@@ -26,11 +26,13 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
 
-### Order 49 detail (in progress, started 2026-10-30)
+### Order 49 detail (DONE 2026-10-30, 4 days ahead of the 2026-11-03 ETA)
 
 - 49a DONE (2026-10-30): `src/world/TimeOfDay.ts` game clock. Visits start at 9:00; a game hour lasts 50 s by day and 25 s by night (full cycle about 15 min). The sun rises at 6:00 and sets at 18:00 on a smooth arc (max 55 deg); the moon rises opposite at 18:00 (max 42 deg). The key light and shadows follow the sun by day and the moon by night, switching at the horizon where light is near zero, so nothing pops. Sky, fog, sun/hemi light, water and post grade blend toward twilight and night palettes on top of each theme's own grade (themes keep about 14% of their colour at night). `?time=noon|dawn|dusk|night|midnight|<hours>|HH:MM` freezes the clock for testing; `?timespeed=` scales the pace.
 - 49b DONE (2026-10-30): star field is computed inside the existing sky dome shader (round, twinkling, size and colour varied dots), so it costs zero extra draw calls; it and the moon fade in at dusk and out at dawn. Foliage glow and cloud glow dim at night.
 - 49c DONE (2026-10-30): Misty Marsh frog chorus is driven by the night amount in every theme (herd chorus and ambient croak rate, plus 3-frog chorus bursts after dark), quiet by day; no longer tied to Halloween. The Lighthouse Point beam sweeps only at night (lightning flashes still show it). tests/daynight.mjs 20/20 (new), lighthouse 11/11 (now checks no sweep at noon), frog 15/15 (night chorus in every theme), iPad touch 24/24.
+- 49d DONE (2026-10-30): 🌗 time button in the top-right dock (next to 🎨 and ⚙️, 64 px on touch): each tap cycles Live clock → Dawn → Noon → Dusk → Night → back to Live (frozen while a preset is picked; session only, not saved). Perf A/B against the previous build (tests/perf.mjs, Low, software render, 2 rounds): draw calls 602-616 (noon/night) vs 615-620 before, median frame time and sim time within noise, so the day/night layer and star field add no draws. tests/daynight.mjs 22/22 (real taps on the button), iPad touch 24/24.
+- Acceptance met 2026-10-30: smooth sun/moon arc with per-time sky, light, fog and water colours over each theme; stars + moon at night fading at dawn (zero extra draws); night frog chorus in every theme, quiet by day; lighthouse beam only at night; `?time=` and the dock button override; draw calls unchanged; iPad touch suite passes.
 - Note: the Halloween moon now follows the real moon arc, so it is below the horizon by day instead of hanging in the fixed dusk sky.
 
 ### Order 48 detail (DONE 2026-10-29, live 13 days ahead of the 2026-11-11 ETA)
