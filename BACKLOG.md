@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-10-29 (CT), 11:10 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-10-31 (CT), 10:40 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -11,7 +11,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
 | 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
-| 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | To do | 2026-11-06 | 2 |
+| 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | In progress: 50a-e live 2026-10-31; 50f (weather dock button + perf A/B) next | 2026-11-06 | 2 (1.5 left: 0.5) |
 | 51 | Rowboat or sailboat for travelling between the islets | To do | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
 | 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
@@ -25,6 +25,16 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 51 Boat: a rowboat or sailboat found or built at a dock, boarded with a tap; steers with the iPad joystick, floats with gentle bob and wake, cannot beach on land; reaches every islet and docks at its landing; respects the sea edge; save restores it; iPad test sails main island to an islet and back.
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
+
+### Order 50 detail (in progress, ETA 2026-11-06)
+
+- 50a DONE (2026-10-31): `src/world/Weather.ts` cycle. A visit starts clear for 2-4 min, then showers (1.5-3 min) and clear spells (3-7 min) alternate; a shower eases in over about 12 s and clears over about 16 s. Rain particles (thin streaks, 1400 high / 630 low) and soft snowfall are gated particle fields that are hidden (no update, no draw) when dry. A shower greys the sky, pulls the fog in and dims the sun and hemi light, with a flatter, cooler grade (scaled down at night; stars and moon hide behind cloud). Winter showers fall as snow. Caves are dry (rain fades with the cave blend). `?weather=clear|rain|snow|rainbow` pins it for tests.
+- 50b DONE (2026-10-31): rain soundscape layer: a soft leaf hiss (louder under trees) over a low drumming on open ground, plus fat-drop plinks; birds, crickets and bees go quiet in showers (snow hushes them by half); muted underground and while swimming.
+- 50c DONE (2026-10-31): raindrop ripples on the water, expanding rings in the water shader (one ring per 0.6 m cell, near the camera only, zero extra draws); sparkle fades while it rains.
+- 50d DONE (2026-10-31): a rainbow after a rain shower clears in daylight (90 s window, fades in once the rain thins, fades out before the window ends). One additive arc mesh (one draw, hidden when off) on the anti-solar point (42 deg radius), kept above the horizon when the sun is high; never at night or underground; never after snow.
+- 50e DONE (2026-10-31): theme-aware look: Halloween gets a violet drizzle and a violet overcast; winter gets a bright soft snow sky; other themes use the plain grey-blue rain.
+- Tests: new tests/weather.mjs 19/19 (iPad viewport: pins, overcast, snow in winter, ripples, Halloween tint, rainbow by day/not at night/after a shower, rain beds + plinks, dry cave, the live cycle); iPad touch 24/24.
+- 50f TO DO: 🌦 weather dock button (Live/Clear/Rain/Snow, like the 🌗 time button) so a shower can be seen on demand; perf A/B (draw calls and frame time in rain vs clear on Low).
 
 ### Order 49 detail (DONE 2026-10-30, 4 days ahead of the 2026-11-03 ETA)
 
@@ -58,6 +68,9 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
   3. Pink petals: "Pink petals only on Blossom Isle". Shipped 2026-10-29: generated islets lose the petal-pink ground drifts, and the season's drifting petals hide within 30 m of a generated islet (main island and Blossom Isle unchanged). tests/islet-petals.mjs 30/30.
 
 ## Done (from git log)
+
+Oct 31
+- 50a-e: weather cycle, rain + winter snowfall, overcast sky, rain soundscape, water ripples, rainbow after rain, Halloween violet drizzle
 
 Oct 29
 - Pink petals only on Blossom Isle (Walker's Order 48 answer), tests/islet-petals.mjs

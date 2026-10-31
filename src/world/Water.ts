@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  cameraPosition, clamp, color, step, vec2, cos, dot, float, max, mix, mx_noise_float, normalize,
+  abs, cameraPosition, clamp, color, floor, fract, step, vec2, cos, dot, float, max, mix, mx_noise_float, normalize,
   positionLocal, positionWorld, pow, sin, smoothstep, texture, time, transformNormalToView, vec3,
 } from 'three/tsl';
 import { WORLD_SIZE, OCEAN_SIZE, ISLETS, ISLET_SIZE } from './config';
@@ -8,6 +8,8 @@ import { skyU } from './Sky';
 import { uniform } from 'three/tsl';
 /** Order 49: time-of-day water tint (white by day, cool blue at night, warm at golden hour) */
 export const waterTod = uniform(new THREE.Color(1, 1, 1));
+/** Order 50c: rain on the water (0..1): little expanding ripple rings */
+export const waterRain = uniform(0);
 import { waterDeep, waterK, waterMid, waterShallow } from '../theme/Season';
 
 /** Stylized animated water: vertex swell, depth tint from the terrain height map, shoreline foam. */
@@ -75,8 +77,16 @@ export function createWater(heightTex: THREE.Texture, isletTex: THREE.Texture[] 
   // sparkle (kept subtle, mostly mid/deep so shallows stay clear)
   const sparkle = smoothstep(float(0.74), float(0.92), mx_noise_float(vec3(w.x.mul(3.0), w.z.mul(3.0), t.mul(1.2)))).mul(0.11);
 
+  // Order 50c: raindrop ripples, one ring per 0.6 m cell with its own phase and offset (fragment only, near the camera)
+  const cell = w.xz.mul(1.65), id = floor(cell);
+  const hs = fract(sin(dot(id, vec2(12.9898, 78.233))).mul(43758.5453));
+  const jit = vec2(fract(hs.mul(7.13)), fract(hs.mul(13.37))).sub(0.5).mul(0.5);
+  const ph = fract(t.mul(0.85).add(hs.mul(9.0)));
+  const rd = fract(cell).sub(0.5).sub(jit).length();
+  const ring = smoothstep(float(0.045), float(0.0), abs(rd.sub(ph.mul(0.42)))).mul(ph.oneMinus()).mul(waterRain).mul(fade);
+  col = mix(col, color('#eef6ff'), ring.mul(0.45));
   mat.colorNode = mix(col, color('#f4fffc'), foam.mul(0.88)).mul(waterTod);
-  mat.emissiveNode = vec3(sparkle).mul(waterTod).mul(smoothstep(float(0.45), float(2.8), depth));
+  mat.emissiveNode = vec3(sparkle).mul(waterRain.oneMinus()).mul(waterTod).mul(smoothstep(float(0.45), float(2.8), depth));
   // clearer shallows: reef shelf readable; deep blue stays nearly opaque
   mat.opacityNode = clamp(max(mix(float(0.26), float(0.96), smoothstep(float(0.05), float(4.4), depth)), foam.mul(0.7)), 0, 1);
 

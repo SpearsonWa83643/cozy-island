@@ -9,7 +9,9 @@ import { Terrain, heightAt, biomeWeights, surfaceAt, snowAt, type Surface, WORLD
 import { SHADOW_HALF, SHADOW_HALF_LOW } from '../world/config';
 import { createSky, skyFog, skyU, skyDirs, dayU, SKY_CLASSIC } from '../world/Sky';
 import { TimeOfDay } from '../world/TimeOfDay';
-import { waterTod } from '../world/Water';
+import { Weather } from '../world/Weather';
+import { Rainbow } from '../world/Rainbow';
+import { waterTod, waterRain } from '../world/Water';
 import { gradeU } from '../render/Renderer';
 import { theme, themeEvents, applyThemeCss, setTheme, themeForDate, resolveTheme, themeSource } from '../theme/theme';
 import { Dress } from '../theme/Dress';
@@ -43,6 +45,11 @@ const SPAWN = new THREE.Vector2(0, 6);
 /** Order 49 palettes layered over the theme: deep blue night, warm golden hour */
 const NIGHT = { zenith: '#050b22', mid: '#0f1c44', low: '#1b2a58', horizon: '#2a3a68', fog: '#16203c', sun: '#a9bcff', hemiSky: '#46578f', hemiGround: '#151a2a', moonI: 0.75, water: '#5a6aa0', grade: '#c4cdf0' };
 const TWILIGHT = { zenith: '#3a4482', mid: '#c28aa0', low: '#f4a37a', horizon: '#ffb46c', fog: '#e0a488', sun: '#ff9850', hemiSky: '#e0a8b0', water: '#ffd0b0', grade: '#fff0e0' };
+
+/** Order 50 overcast sky tints (scaled down at night) */
+const OVERCAST = { rain: '#8e98a4', snow: '#c8d0da', halloween: '#6c5f88' };
+/** Order 50e: rain streak colour (Halloween gets a violet drizzle) */
+const RAIN_TINT = { plain: '#cbd6e6', halloween: '#c2a8ee' };
 
 const CAVE_FOG = new THREE.Color('#0b0912'), CAVE_SUN = new THREE.Color('#ffd9a8'), CAVE_SKY = new THREE.Color('#6a5a9a'), CAVE_GR = new THREE.Color('#1a2a30');
 
@@ -104,6 +111,9 @@ export class Game {
   private water!: THREE.Mesh;
   /** day/night clock (Order 49); ?time= freezes it for tests */
   time = new TimeOfDay();
+  /** Order 50 weather (showers come and go; winter snows); ?weather= pins it for tests */
+  weather = new Weather();
+  rainbow = new Rainbow();
 
   async start(container: HTMLElement) {
     const params = new URLSearchParams(location.search);
@@ -129,6 +139,7 @@ export class Game {
     themeEvents.on(() => this.atmos.setTheme(theme.id));
     this.sky = createSky();
     this.scene.add(this.sky);
+    this.scene.add(this.rainbow.mesh);
     this.hemi = new THREE.HemisphereLight('#cfe9ff', '#e9c995', 1.5);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#fff0d8', 3.0);
@@ -582,6 +593,26 @@ export class Game {
     if (tw > 0.001) gradeU.tod.value.lerp(c.set(TWILIGHT.grade), tw * 0.5);
   }
 
+  /** Order 50: a shower greys the sky, pulls the fog in and dims the sun (snow is brighter and softer than rain) */
+  private applyWeather() {
+    const W = this.weather, k = W.amount; if (k < 0.001) return;
+    const n = this.time.night, c = this.todC, snow = W.isSnow;
+    const grey = c.set(snow ? OVERCAST.snow : theme.id === 'halloween' ? OVERCAST.halloween : OVERCAST.rain).multiplyScalar(1 - n * 0.82);
+    for (const key of ['zenith', 'mid', 'low', 'horizon'] as const) skyU[key].value.lerp(grey, k * (key === 'zenith' ? 0.55 : 0.7));
+    this.fog.color.lerp(grey, k * 0.6); this.fog.near *= 1 - k * 0.35; this.fog.far *= 1 - k * (snow ? 0.42 : 0.35);
+    skyFog.value.copy(this.fog.color);
+    this.sun.intensity *= 1 - k * (snow ? 0.45 : 0.55); this.hemi.intensity *= 1 - k * 0.22;
+    gradeU.tod.value.lerp(c.set(snow ? '#e4e8f0' : '#b8c0cc'), k * 0.55); // flatter, cooler light under cloud
+    skyU.sunGlow.value *= 1 - k * 0.8; skyU.stars.value *= 1 - k * 0.92; skyU.moon.value *= 1 - k * 0.75;
+    const cm = this.flora.cloudMat; if (cm) cm.emissiveIntensity *= 1 - k * 0.45;
+    this.atmos.tod.lerp(this.fog.color, k * 0.5); this.atmos.todK = Math.max(this.atmos.todK, k * 0.45);
+  }
+  /** Order 50 test/debug */
+  get weatherDebug() {
+    const f = (n: string) => this.particles.fields.find((x) => x.cfg.name === n)!.mesh;
+    return { ...this.weather.debug, rainVisible: f('rain').visible, snowVisible: f('snowfall').visible, sunI: +this.sun.intensity.toFixed(3), fogFar: +this.fog.far.toFixed(1), zenith: skyU.zenith.value.getHexString(), shelter: +this.particles.weather.shelter.toFixed(2), water: +waterRain.value.toFixed(3), bow: +this.rainbow.strength.value.toFixed(3), bowVisible: this.rainbow.mesh.visible, rainCol: this.particles.rainMat.color.getHexString() };
+  }
+
   private updateAtmosphere(dt: number, p: THREE.Vector3) {
     biomeWeights(p.x, p.z, this.tmpW);
     const k = Math.min(1, dt * 1.5);
@@ -604,6 +635,7 @@ export class Game {
     this.hemi.color.copy(sky); this.hemi.groundColor.copy(gr); this.hemi.intensity = hemiI;
     this.applyThemeSky(dt);
     this.applyTimeOfDay();
+    this.applyWeather();
     // underground: deep violet fog, a dim cool fill and a faint warm key (the crystals' glow is baked into the rock)
     this.caveK += ((this.cave?.inside ? 1 : 0) - this.caveK) * Math.min(1, dt * 2.5);
     const ck = this.caveK;
@@ -636,6 +668,12 @@ export class Game {
     const p = this.player.position;
     this.sun.target.position.set(p.x, 0, p.z);
     this.time.update(dt);
+    { const W = this.weather; W.snowy = theme.id === 'winter'; W.update(dt);
+      const pw = this.particles.weather; pw.rain = W.rain; pw.snow = W.snow; pw.shelter = this.caveK;
+      waterRain.value = W.rain * (1 - this.caveK);
+      // rainbow only by daylight, never underground
+      this.rainbow.update(W.bowK * this.time.sunUp * (1 - this.time.night) * (1 - this.caveK), this.camera.position, this.time.sunDir);
+      this.particles.rainMat.color.set(theme.id === 'halloween' ? RAIN_TINT.halloween : RAIN_TINT.plain); }
     { const nk = this.time.night; this.lighthouse.night = nk; this.fauna.setNight(nk); }
     this.sun.position.copy(this.sun.target.position).addScaledVector(this.time.lightDir, 80);
     // vegetation between camera and player dithers out
@@ -654,6 +692,7 @@ export class Game {
       swim: this.player.swimBlend,
       cave: this.caveK,
       night: this.time.night,
+      rain: this.weather.rain, snow: this.weather.snow,
       reef: Math.max(0, 1 - Math.abs(this.player.offshoreDist - 7) / 12) * (this.player.depth > 0.4 ? 1 : 0),
     });
     this.input.endFrame();

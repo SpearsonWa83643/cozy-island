@@ -20,6 +20,8 @@ export interface Listen {
   reef?: number;           // 0..1 over the reef
   cave?: number;           // 0..1 underground
   night?: number;          // 0 day .. 1 night (Order 49c: marsh frog chorus)
+  rain?: number;           // 0..1 rain shower (Order 50b)
+  snow?: number;           // 0..1 snowfall (Order 50b: hushes the island)
 }
 
 type Ctx = AudioContext;
@@ -159,6 +161,9 @@ export class AudioEngine {
     // reef: a soft, bubbly undertow with a shimmering top
     this.bed('reef', this.pink, [['bandpass', 380, 0.9], ['lowpass', 900, 0.6]]);
     this.bed('fizz', this.white, [['bandpass', 3800, 3]]);
+    // rain (Order 50b): a soft hiss on the leaves over a low drumming on the ground
+    this.bed('rain', this.pink, [['bandpass', 2600, 0.5], ['lowpass', 6500, 0.4]]);
+    this.bed('rainlow', this.brown, [['lowpass', 420, 0.6]]);
     // cicada amplitude modulation
     const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 34;
     const depth = ctx.createGain(); depth.gain.value = 0.5; lfo.connect(depth);
@@ -276,16 +281,24 @@ export class AudioEngine {
     this.setBed('fizz', swim * reef * 0.035 * (0.6 + 0.4 * Math.sin(t * 1.3)), 0.4);
     if (swim > 0.6 && Math.random() < 0.05 + reef * 0.1) this.bubble(reef);
 
+    // rain (Order 50b): hiss louder under trees, drumming on open ground, big drops plinking nearby; snow hushes things
+    const rn = l.rain ?? 0, sn = l.snow ?? 0, dry = 1 - (l.swim ?? 0) * 0.7;
+    this.rainAmt = rn;
+    this.setBed('rain', rn * (0.07 + l.forest * 0.05) * (0.85 + 0.15 * Math.sin(t * 0.23)) * dry, 1.2);
+    this.setBed('rainlow', rn * 0.06 * (1 - l.forest * 0.4) * dry, 1.2);
+    if (rn > 0.15 && Math.random() < rn * 0.45 * this.outdoor) this.plink();
+    const hush = 1 - rn * 0.75 - sn * 0.5; // birds and bugs shelter from showers
+
     // discrete critters
     this.eventClock += 0.1;
-    const birdRate = m.birds * (0.12 + l.forest * 0.5) * (w[Biome.Meadow] + w[Biome.Autumn] + w[Biome.Tropical] * 1.1 + w[Biome.Marsh] * 0.6 + w[Biome.Alpine] * 0.25);
+    const birdRate = hush * m.birds * (0.12 + l.forest * 0.5) * (w[Biome.Meadow] + w[Biome.Autumn] + w[Biome.Tropical] * 1.1 + w[Biome.Marsh] * 0.6 + w[Biome.Alpine] * 0.25);
     if (Math.random() < this.outdoor) {
     if (Math.random() < birdRate * 0.12) this.bird(w);
     if (Math.random() < near * 0.012 * m.gulls) this.gull();
     const cricket = w[Biome.Meadow] * 0.5 + w[Biome.Marsh] * 0.6 + w[Biome.Desert] * 0.4 + w[Biome.Tropical] * 0.3;
-    if (Math.random() < cricket * 0.09 * m.crickets) this.cricket();
+    if (Math.random() < cricket * 0.09 * m.crickets * hush) this.cricket();
     // spring: a bumblebee drifts past now and then (meadows and flowers most)
-    if (m.bees > 0.05 && t > this.nextBee && (l.swim ?? 0) < 0.3) { if (this.nextBee) this.bee(); this.nextBee = t + (9 + Math.random() * 16) / (m.bees * (0.5 + w[Biome.Meadow] + l.grass * 0.5)); }
+    if (m.bees > 0.05 && rn < 0.3 && t > this.nextBee && (l.swim ?? 0) < 0.3) { if (this.nextBee) this.bee(); this.nextBee = t + (9 + Math.random() * 16) / (m.bees * (0.5 + w[Biome.Meadow] + l.grass * 0.5)); }
     // Misty Marsh frogs (Order 49c): quiet by day, a chorus of overlapping croaks at night (every theme)
     const nt = l.night ?? 0;
     if (Math.random() < w[Biome.Marsh] * 0.07 * (0.1 + nt * 1.6)) this.frog();
@@ -336,6 +349,17 @@ export class AudioEngine {
     const v = ctx.createOscillator(); v.frequency.value = rand(9, 14); const vd = ctx.createGain(); vd.gain.value = f * 0.03; v.connect(vd).connect(o.frequency);
     o.connect(lp).connect(g); o.start(t); o.stop(t + dur + 0.05); v.start(t); v.stop(t + dur + 0.05);
   }
+  /** Order 50b: current rain amount + big-drop plinks so far (tests) */
+  rainAmt = 0; plinks = 0;
+  /** one fat raindrop on a leaf or puddle: a tiny falling sine blip */
+  private plink() {
+    const t = this.go(); if (t < 0) return; this.plinks++;
+    const f = 2200 + Math.random() * 2400;
+    const o = this.tone('sine', f, t, 0.035, this.sfx((Math.random() - 0.5) * 1.8, 0.05 + Math.random() * 0.06, 0.2), 0.4, 0.001);
+    o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.03);
+  }
+  /** bed level by name (tests) */
+  bedLevel(name: string) { return this.beds[name]?.level ?? 0; }
   /** a single echoing water drip in the cave */
   private drip() {
     const t = this.go(); if (t < 0) return;

@@ -8,6 +8,8 @@ interface FieldCfg {
   name: string; count: number; low: number; geo: THREE.BufferGeometry; mat: THREE.Material;
   weight: (w: Float32Array, x: number, y: number, z: number) => number;
   fall: number; drift: number; minY: number; maxY: number; spin: number; size: number; glow?: boolean; colors?: string[];
+  /** whole field hidden (no update, no draw) while this returns 0 */
+  gate?: () => number;
 }
 
 /** Ambient biome particles (falling leaves, snow, fireflies, pollen/dust) in a box that follows the player. */
@@ -29,6 +31,7 @@ class Field {
   }
   setQuality(high: boolean) { this.active = Math.floor(this.cfg.count * (high ? 1 : this.cfg.low)); this.mesh.count = this.active; }
   update(dt: number, t: number, cx: number, cz: number, w: Float32Array) {
+    if (this.cfg.gate) { const on = this.cfg.gate() > 0.002; this.mesh.visible = on; if (!on) return; }
     const H = 18, Y = this.cfg.maxY - this.cfg.minY;
     for (let i = 0; i < this.active; i++) {
       const k = i * 3, ph = this.ph[i];
@@ -66,6 +69,9 @@ class Field {
 export class Particles {
   group = new THREE.Group();
   fields: Field[] = [];
+  /** Order 50 weather inputs (0..1), set by the game each frame; `shelter` = in a cave */
+  weather = { rain: 0, snow: 0, shelter: 0 };
+  rainMat: THREE.MeshBasicNodeMaterial;
   private w = new Float32Array(BIOME_COUNT);
   constructor() {
     const rnd = mulberry32(777);
@@ -77,7 +83,16 @@ export class Particles {
     const mistGeo = new THREE.PlaneGeometry(1, 1); mistGeo.rotateX(-Math.PI / 2);
     const mistMat = new THREE.MeshBasicNodeMaterial({ color: '#eef4f0', transparent: true, depthWrite: false, fog: true });
     mistMat.opacityNode = smoothstep(float(0.5), float(0.05), length(uv().sub(0.5))).mul(0.16);
+    const W = this.weather;
+    const rainK = () => W.rain * (1 - W.shelter), snowK = () => W.snow * (1 - W.shelter);
+    this.rainMat = new THREE.MeshBasicNodeMaterial({ color: '#cbd6e6', transparent: true, opacity: 0.5, depthWrite: false, fog: true });
+    const flakeMat = new THREE.MeshBasicNodeMaterial({ color: '#f6f9ff', fog: true });
     const cfgs: FieldCfg[] = [
+      // weather (Order 50): long thin rain streaks; soft drifting snowfall
+      { name: 'rain', count: 1400, low: 0.45, geo: new THREE.BoxGeometry(0.014, 0.62, 0.014), mat: this.rainMat, gate: rainK,
+        weight: () => rainK(), fall: 13, drift: 0.25, minY: 0, maxY: 15, spin: 0, size: 1 },
+      { name: 'snowfall', count: 700, low: 0.5, geo: new THREE.IcosahedronGeometry(1, 0), mat: flakeMat, gate: snowK,
+        weight: () => snowK(), fall: 1.3, drift: 1.0, minY: 0, maxY: 13, spin: 1, size: 0.05 },
       { name: 'mist', count: 70, low: 0.4, geo: mistGeo, mat: mistMat, weight: (w) => Math.max(0, w[Biome.Marsh] - 0.25) * 1.4,
         fall: 0, drift: 0.35, minY: 0.15, maxY: 1.4, spin: 0, size: 7 },
       { name: 'leaves', count: 220, low: 0.35, geo: leafGeo, mat: leafMat, weight: (w) => Math.max(0, w[Biome.Autumn] - 0.2) * 1.25,
