@@ -11,7 +11,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | Order | Task | Status | ETA live | Estimate (dev days) |
 |---|---|---|---|---|
 | 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
-| 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | In progress: 50a-f live; 50g (perf A/B rain vs clear) next | 2026-11-06 | 2 (0.25 left) |
+| 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | To do | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
 | 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
@@ -26,7 +26,7 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
 
-### Order 50 detail (in progress, ETA 2026-11-06)
+### Order 50 detail (DONE 2026-11-01, 5 days ahead of the 2026-11-06 ETA)
 
 - 50a DONE (2026-10-31): `src/world/Weather.ts` cycle. A visit starts clear for 2-4 min, then showers (1.5-3 min) and clear spells (3-7 min) alternate; a shower eases in over about 12 s and clears over about 16 s. Rain particles (thin streaks, 1400 high / 630 low) and soft snowfall are gated particle fields that are hidden (no update, no draw) when dry. A shower greys the sky, pulls the fog in and dims the sun and hemi light, with a flatter, cooler grade (scaled down at night; stars and moon hide behind cloud). Winter showers fall as snow. Caves are dry (rain fades with the cave blend). `?weather=clear|rain|snow|rainbow` pins it for tests.
 - 50b DONE (2026-10-31): rain soundscape layer: a soft leaf hiss (louder under trees) over a low drumming on open ground, plus fat-drop plinks; birds, crickets and bees go quiet in showers (snow hushes them by half); muted underground and while swimming.
@@ -35,7 +35,8 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 50e DONE (2026-10-31): theme-aware look: Halloween gets a violet drizzle and a violet overcast; winter gets a bright soft snow sky; other themes use the plain grey-blue rain.
 - Tests: new tests/weather.mjs 19/19 (iPad viewport: pins, overcast, snow in winter, ripples, Halloween tint, rainbow by day/not at night/after a shower, rain beds + plinks, dry cave, the live cycle); iPad touch 24/24.
 - 50f DONE (2026-11-01): 🌦 weather dock button next to 🌗 (64 px on touch): each tap cycles Live weather → Clear → Rain → Snow → Rainbow → Live (session only). A tapped shower eases in about 3x faster so it shows within a few seconds; rainbow slightly stronger (opacity 0.55). tests/weather.mjs 21/21 (real taps), iPad touch 24/24.
-- 50g TO DO: perf A/B (draw calls and frame time in rain vs clear on Low); close Order 50.
+- 50g DONE (2026-11-01): perf A/B (tests/perf.mjs, Low, software render, 2 rounds, noon): draw calls clear 607, rain 608, snow 604 (rain and snow fields are one draw each and hidden when dry); median frame time and sim time (1.02-1.14 ms) within noise.
+- Acceptance met 2026-11-01: gentle rain with particles, water ripples and a rain soundscape that comes and goes; winter snowfall; rainbow after rain by day; Halloween violet drizzle; dry caves; `?weather=` and the 🌦 button override; perf within budget; iPad touch suite passes.
 
 ### Order 49 detail (DONE 2026-10-30, 4 days ahead of the 2026-11-03 ETA)
 
@@ -72,6 +73,7 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 
 Nov 1
 - 50f: 🌦 weather dock button (Live/Clear/Rain/Snow/Rainbow)
+- 50g: weather perf A/B (rain adds 1 draw call), Order 50 closed
 
 Oct 31
 - 50a-e: weather cycle, rain + winter snowfall, overcast sky, rain soundscape, water ripples, rainbow after rain, Halloween violet drizzle
