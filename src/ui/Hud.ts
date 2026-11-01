@@ -6,6 +6,7 @@ import { BUILD_CATALOG, tabOf, type BuildTab } from '../build/catalog';
 import type { Quality } from '../render/Renderer';
 import type { TimeOfDay } from '../world/TimeOfDay';
 import type { AudioEngine } from '../audio/Audio';
+import type { Weather } from '../world/Weather';
 
 export class Hud {
   private fpsEl: HTMLElement;
@@ -118,6 +119,22 @@ export class Hud {
       if (s.id === 'live') time.resume(); else time.set(s.id, true);
       sync(); this.closePicker(); b.blur();
     });
+    sync();
+  }
+  /** Order 50f: 🌦 dock button: cycles Live weather → Clear → Rain → Snow → Rainbow → Live (session only; `?weather=` starts pinned) */
+  bindWeather(w: Weather) {
+    if (!this.dock) return;
+    const STEPS = [
+      { id: 'live', icon: '🌦', name: 'Live weather' }, { id: 'clear', icon: '🌤', name: 'Clear' },
+      { id: 'rain', icon: '🌧', name: 'Rain' }, { id: 'snow', icon: '🌨', name: 'Snow' }, { id: 'rainbow', icon: '🌈', name: 'Rainbow' },
+    ] as const;
+    const b = document.createElement('button');
+    b.className = 'dbtn weather-btn';
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) b.addEventListener(ev, (e) => e.stopPropagation());
+    this.dock.insertBefore(b, this.dock.firstChild);
+    let i = Math.max(0, STEPS.findIndex((s) => s.id === w.mode));
+    const sync = () => { const s = STEPS[i]; b.textContent = s.icon; b.title = `Weather: ${s.name}`; b.setAttribute('aria-label', `Weather: ${s.name}`); b.dataset.w = s.id; b.classList.toggle('on', s.id !== 'live'); };
+    b.addEventListener('click', (e) => { e.stopPropagation(); i = (i + 1) % STEPS.length; w.pin(STEPS[i].id); sync(); this.closePicker(); b.blur(); });
     sync();
   }
   closePicker() { this.picker?.classList.remove('open'); this.dock?.querySelector('.theme-btn')?.classList.remove('on'); }

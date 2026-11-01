@@ -13,7 +13,7 @@ export class Weather {
   /** 0..1 eased strength of the current shower */
   amount = 0;
   frozen = false;
-  source: 'cycle' | 'url' = 'cycle';
+  source: 'cycle' | 'url' | 'button' = 'cycle';
   /** theme makes showers fall as snow (winter) */
   snowy = false;
   /** what the current/last shower falls as (kept while it clears, so snow fades out as snow) */
@@ -36,6 +36,16 @@ export class Weather {
   private syncFall() { if (this.kind !== 'clear') this.fall = this.kind === 'snow' || this.snowy ? 'snow' : 'rain'; }
   /** pin a kind (freeze) or let the cycle run again */
   set(kind: WeatherKind, freeze = true, snap = false) { if (this.kind !== 'clear' && kind === 'clear') this.cleared(); this.kind = kind; this.frozen = freeze; if (snap) this.amount = kind === 'clear' ? 0 : 1; if (!freeze) this.source = 'cycle'; this.syncFall(); }
+  /** Order 50f: 🌦 dock button. Pin clear/rain/snow/rainbow (eases in ~3x faster so a tap shows quickly), or 'live' to hand back to the cycle */
+  pin(mode: WeatherKind | 'rainbow' | 'live') {
+    if (mode === 'live') { this.frozen = false; this.source = 'cycle'; this.left = this.kind === 'clear' ? 60 + this.rnd() * 60 : 60; if (this.bowLeft === Infinity) this.bowLeft = 20; return; }
+    if (this.bowLeft === Infinity) this.bowLeft = 0;
+    if (mode === 'rainbow') { this.set('clear', true); this.bowLeft = Infinity; }
+    else this.set(mode, true);
+    this.source = 'button';
+  }
+  /** which button step matches the current state */
+  get mode(): WeatherKind | 'rainbow' | 'live' { return !this.frozen ? 'live' : this.bowLeft === Infinity ? 'rainbow' : this.kind; }
   update(dt: number) {
     if (!this.frozen) {
       this.left -= dt;
@@ -51,10 +61,10 @@ export class Weather {
     // the rainbow shows once the shower has mostly thinned, then fades before its window ends
     this.bowLeft -= dt;
     const bowT = this.bowLeft > 8 && this.kind === 'clear' && this.amount < 0.55 ? 1 : 0;
-    this.bowK += Math.sign(bowT - this.bowK) * Math.min(Math.abs(bowT - this.bowK), dt / 8);
+    this.bowK += Math.sign(bowT - this.bowK) * Math.min(Math.abs(bowT - this.bowK), dt / (this.source === 'button' ? 3 : 8));
     const target = this.kind === 'clear' ? 0 : 1;
     // ~12 s to build up, ~16 s to clear
-    const rate = target > this.amount ? 1 / 12 : 1 / 16;
+    const rate = (target > this.amount ? 1 / 12 : 1 / 16) * (this.source === 'button' ? 3 : 1);
     this.amount += Math.sign(target - this.amount) * Math.min(Math.abs(target - this.amount), rate * dt);
   }
   /** a rain (not snow) shower just started clearing: open the rainbow window */
@@ -63,5 +73,5 @@ export class Weather {
   get isSnow() { return this.fall === 'snow'; }
   get rain() { return this.isSnow ? 0 : this.amount; }
   get snow() { return this.isSnow ? this.amount : 0; }
-  get debug() { return { kind: this.kind, amount: +this.amount.toFixed(3), rain: +this.rain.toFixed(3), snow: +this.snow.toFixed(3), frozen: this.frozen, source: this.source, snowy: this.snowy, left: Math.round(this.left), bowK: +this.bowK.toFixed(3), bowLeft: Math.round(Math.min(this.bowLeft, 9999)) }; }
+  get debug() { return { kind: this.kind, amount: +this.amount.toFixed(3), rain: +this.rain.toFixed(3), snow: +this.snow.toFixed(3), mode: this.mode, frozen: this.frozen, source: this.source, snowy: this.snowy, left: Math.round(this.left), bowK: +this.bowK.toFixed(3), bowLeft: Math.round(Math.min(this.bowLeft, 9999)) }; }
 }

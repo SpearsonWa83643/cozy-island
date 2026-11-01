@@ -297,6 +297,7 @@ export class Game {
 
     applyThemeCss();
     this.hud.bindDock(() => !!this.play.save.data.panelsOpen, (o) => { this.play.save.data.panelsOpen = o; this.play.save.touch(); });
+    this.hud.bindWeather(this.weather);
     this.hud.bindTime(this.time);
     const syncBuild = () => {
       const b = this.build; if (!b) return;

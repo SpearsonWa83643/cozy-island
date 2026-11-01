@@ -65,6 +65,20 @@ try {
   ok('visit starts clear for 2-4 min', cyc.k0 === 'clear' && cyc.a0 === 0 && cyc.left0 >= 115 && cyc.left0 <= 245 && cyc.src === 'cycle', JSON.stringify(cyc));
   ok('a shower eases in (~12 s) and clears softly (~16 s)', cyc.k1 === 'rain' && cyc.half > 0.35 && cyc.half < 0.65 && cyc.full === 1 && cyc.k2 === 'clear' && cyc.end < 0.01, JSON.stringify(cyc));
   ok('a rainbow appears after the shower clears (noon), then fades', cyc.bow > 0.9 && cyc.bowVis && cyc.bowEnd === 0 && !cyc.bowEndVis, JSON.stringify(cyc));
+  // Order 50f: the 🌦 dock button cycles Live → Clear → Rain → Snow → Rainbow → Live; a pinned shower shows within a few seconds
+  const btn = page.locator('.weather-btn'); const seen = [];
+  const stepS = (sec) => page.evaluate((n) => { for (let i = 0; i < n; i++) window.game.step(1 / 30); return window.game.weatherDebug; }, Math.round(sec * 30));
+  seen.push(await btn.getAttribute('data-w'));
+  await btn.tap(); seen.push(await btn.getAttribute('data-w'));
+  await btn.tap(); seen.push(await btn.getAttribute('data-w')); const rainD = await stepS(5);
+  await page.screenshot({ path: 'screenshots/98-ipad-weather-button.png' });
+  await btn.tap(); seen.push(await btn.getAttribute('data-w')); const snowD = await stepS(5);
+  await btn.tap(); seen.push(await btn.getAttribute('data-w')); const bowD = await stepS(8);
+  await btn.tap(); seen.push(await btn.getAttribute('data-w')); const liveD = await stepS(1);
+  const bb = await btn.boundingBox();
+  console.log(JSON.stringify({ seen, rainD, snowD, bowD, liveD, bb }));
+  ok('🌦 dock button cycles live/clear/rain/snow/rainbow/live', seen.join() === 'live,clear,rain,snow,rainbow,live' && bb && bb.width >= 56, seen.join());
+  ok('button rain shows in ~5 s, snow, then rainbow, then back to the cycle', rainD.rainVisible && rainD.rain > 0.9 && snowD.snowVisible && snowD.snow > 0.5 && bowD.bowVisible && bowD.bow > 0.9 && bowD.rain < 0.05 && liveD.mode === 'live' && !liveD.frozen, JSON.stringify([rainD.rain, snowD.snow, bowD.bow, liveD.mode]));
   ok('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } finally { await ctx?.close().catch(() => {}); await browser.close(); }
 const pass = results.filter(Boolean).length;

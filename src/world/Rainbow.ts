@@ -17,7 +17,7 @@ export class Rainbow {
     // soft edges, thicker colour in the middle, base of the arc fades into the haze
     const edge = smoothstep(float(0), float(0.22), t).mul(smoothstep(float(1), float(0.72), t));
     const base = smoothstep(float(0.0), float(0.28), positionLocal.y);
-    mat.opacityNode = edge.mul(base).mul(this.strength).mul(0.42);
+    mat.opacityNode = edge.mul(base).mul(this.strength).mul(0.55);
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.name = 'rainbow'; this.mesh.frustumCulled = false; this.mesh.visible = false; this.mesh.renderOrder = -1;
   }
