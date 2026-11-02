@@ -269,6 +269,8 @@ export class Game {
         return best;
       },
     });
+    // Order 51a: ?boat=1 hands you the rowboat for testing (51b: found at the dock)
+    if (new URLSearchParams(location.search).get('boat') === '1' && !sd().boat) { sd().boat = true; this.play.save.touch(); }
     // last picked mount (if still unlocked) is the one Call Mount / V brings
     { const m = mountById(sd().mountId); if (isMountUnlocked(m, sd())) this.mount.select(m.id); }
     for (const o of this.mount.groups) this.scene.add(o);

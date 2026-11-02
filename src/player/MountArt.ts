@@ -32,6 +32,8 @@ export interface MountRig {
   swim?: boolean;
   /** hot-air balloon (Order 47): drifts slowly and high, basket rests on the ground while it waits, Jump fires the burner */
   balloon?: boolean;
+  /** Order 51a: a boat: floats on top of the water, oars on the wing hinges, Jump is a strong oar stroke (no dive), can cross to the islets */
+  boat?: boolean;
   /** body-centre height above ground while waiting, and cruising height (defaults: 1.05 / 5.6) */
   waitAlt?: number; rideAlt?: number;
   /** speed multiplier for steering + tour (balloon drifts) */
@@ -490,4 +492,45 @@ function balloon(): MountRig {
   return finish(r, 1.25);
 }
 
-export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle, balloon };
+/** rowboat (Order 51a): planked wooden hull (origin = waterline), thwart seats, a bow ring, two oars on the wing hinges */
+function rowboat(): MountRig {
+  const k = new Kit(), r = empty('rowboat', k);
+  const { body, head, tail } = r;
+  r.seat.set(0, 0.12, -0.12); r.amp = 0.9; r.rate = 0.5; r.shadow = 0; r.fanTail = false; r.swim = true; r.boat = true;
+  r.turn = 0.7; r.accel = 0.6; r.speedK = 1.05;
+  const wood = k.m('#b07a48', 0.85), dark = k.m('#7a4e2c', 0.9), paint = k.m('#e8665a', 0.7), cream = k.m('#f4e6c8', 0.75), rope = k.m('#d9c08a', 0.9, false);
+  // hull: the lower half of a stretched sphere, a painted stripe and a wooden gunwale rim
+  const hullG = new THREE.SphereGeometry(0.5, 18, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+  body.add(k.mesh(hullG, wood, [0, 0.16, 0], [0.82, 0.62, 1.45]));
+  body.add(k.mesh(new THREE.TorusGeometry(0.5, 0.045, 6, 28), paint, [0, 0.12, 0], [0.82, 1.45, 1], [Math.PI / 2, 0, 0]));
+  body.add(k.mesh(new THREE.TorusGeometry(0.5, 0.04, 6, 28), dark, [0, 0.17, 0], [0.82, 1.45, 1], [Math.PI / 2, 0, 0]));
+  // floorboards, two thwarts and a little bow deck with a rope ring
+  body.add(k.mesh(new THREE.BoxGeometry(0.42, 0.03, 1.0), dark, [0, -0.08, 0]));
+  for (const z of [-0.12, 0.3]) body.add(k.mesh(new THREE.BoxGeometry(0.74, 0.04, 0.14), cream, [0, 0.08, z]));
+  body.add(k.mesh(new THREE.BoxGeometry(0.3, 0.03, 0.18), wood, [0, 0.15, 0.6]));
+  head.position.set(0, 0.2, 0.68);
+  head.add(k.mesh(new THREE.TorusGeometry(0.05, 0.014, 6, 12), rope, [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]));
+  tail.position.set(0, 0.12, -0.7);
+  tail.add(k.mesh(new THREE.BoxGeometry(0.34, 0.16, 0.04), wood, [0, 0, 0]));
+  // oars in rowlocks on the wing hinges: the generic flap sweeps them, animate dips the blades
+  const oars: THREE.Group[] = [];
+  for (const [root, s] of [[r.wingL, 1], [r.wingR, -1]] as [THREE.Group, number][]) {
+    root.position.set(s * 0.4, 0.18, 0.02);
+    const oar = new THREE.Group(); root.add(oar); oars.push(oar);
+    oar.add(k.mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.1, 6), wood, [s * 0.42, -0.1, 0], [1, 1, 1], [0, 0, s * 1.35]));
+    oar.add(k.mesh(new THREE.BoxGeometry(0.22, 0.02, 0.1), paint, [s * 0.92, -0.2, 0], [1, 1, 1], [0, 0, s * 0.22]));
+    root.add(k.mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6), dark, [0, 0.02, 0]));
+  }
+  r.animate = (t, _dt, ph, speed, flap) => {
+    // a rowing stroke: sweep back with blades in, lift and return; resting oars trail in the water
+    const row = ph === 'ride' && speed > 0.4 ? 1 : 0.15;
+    for (let i = 0; i < 2; i++) { const s = i ? -1 : 1, o = oars[i]; o.rotation.y = s * Math.sin(flap) * 0.55 * row; o.rotation.x = 0; o.rotation.z = -s * Math.max(0, Math.cos(flap)) * 0.18 * row; }
+    r.wingL.rotation.set(0, 0, 0); r.wingR.rotation.set(0, 0, 0);
+    // gentle bob and roll on the swell
+    body.rotation.z = Math.sin(t * 1.1) * 0.04; body.rotation.x = Math.sin(t * 0.8 + 1) * 0.025 - Math.min(0.05, speed * 0.006);
+    head.rotation.set(0, 0, 0); tail.rotation.set(0, 0, 0);
+  };
+  return finish(r, 1.5);
+}
+
+export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle, balloon, rowboat };

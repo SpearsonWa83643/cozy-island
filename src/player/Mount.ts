@@ -22,6 +22,8 @@ import { BUILDERS, type MountRig } from './MountArt';
  */
 export type MountPhase = 'off' | 'arrive' | 'wait' | 'hop' | 'ride' | 'leave';
 export type { MountId } from './MountDefs';
+/** rowboat rides this high above the waterline so the hull shows over the swell */
+const BOAT_FLOAT = 0.24;
 
 const RIDE_ALT = 5.6;      // metres above ground / sea while flying
 const WAIT_ALT = 1.05;     // hover height beside you while it waits
@@ -92,6 +94,8 @@ export class Mount implements System {
   private tour: { x: number; z: number }[] = []; private tourI = 0;
   /** swimming mount: seconds of dive left, eased dive depth 0..1, times it dived */
   private diveT = 0; dive = 0; dives = 0; blockedT = 0;
+  /** boat: big oar strokes taken (Jump) */
+  strokes = 0;
   def: MountDef = mountById('eagle');
   private rigs = new Map<MountId, MountRig>();
   private current!: MountRig;
@@ -155,6 +159,8 @@ export class Mount implements System {
   get swims() { return !!this.current.swim; }
   /** the selected mount is the hot-air balloon (Order 47) */
   get floats() { return !!this.current.balloon; }
+  /** the selected mount is a boat (Order 51a): no dive, rides on top of the water, may cross to the islets */
+  get boat() { return !!this.current.boat; }
   private get waitAlt() { return this.current.waitAlt ?? WAIT_ALT; }
   /** balloon: the pad it last floated over from */
   padFrom: { x: number; z: number } | null = null;
@@ -475,7 +481,7 @@ export class Mount implements System {
     let nx = this.gx + Math.sin(this.heading) * this.speed * dt, nz = this.gz + Math.cos(this.heading) * this.speed * dt;
     // soft leash: past the reef the wind turns you back toward the island
     // fliers may cross open sea to the archipelago islets (Order 42a); swimmers keep the reef leash
-    const land = nearestLand(nx, nz, LAND), leash = this.swims ? SWIM_MAX + 6 : FLY_LEASH;
+    const land = nearestLand(nx, nz, LAND), leash = this.swims && !this.boat ? SWIM_MAX + 6 : FLY_LEASH;
     if (land.off > leash) { const rx = nx - land.cx, rz = nz - land.cz, r = Math.hypot(rx, rz) || 1, push = Math.min(1, (land.off - leash) / 6) * 8 * dt; nx -= (rx / r) * push; nz -= (rz / r) * push; }
     if (this.swims) {
       // never up onto the beach: slide along the shallows, or stop and nose about
@@ -504,6 +510,13 @@ export class Mount implements System {
 
   /** sea turtle height: bobbing at the surface, or a dive over the reef on Jump */
   private swimHeight(dt: number, jump: boolean) {
+    if (this.boat) {
+      // a boat never dives: Jump is a strong oar stroke; it rides on top of the swell
+      if (jump) { this.speed = Math.min(SWIM_FAST * 1.25, this.speed + 3.5); this.strokes++; this.hooks.sfx('flap'); }
+      const by = WATER_LEVEL + BOAT_FLOAT + Math.sin(this.t * 1.3) * 0.05;
+      this.gy += (by - this.gy) * Math.min(1, dt * 3); this.dive = 0; this.diveT = 0;
+      return;
+    }
     if (jump && this.diveT <= 0) { this.diveT = DIVE_T; this.dives++; this.hooks.sfx('flap'); if (this.dives === 1) this.hooks.toast(`🫧 Under we go! Look at the reef — you'll pop back up in a moment`, 2400); }
     this.diveT = Math.max(0, this.diveT - dt);
     this.dive += ((this.diveT > 0 ? 1 : 0) - this.dive) * Math.min(1, dt * 1.6);
@@ -526,7 +539,7 @@ export class Mount implements System {
         this.waitT += dt;
         // hover beside you, turning to keep you in view
         const p = this.player.position;
-        const wy = this.swims ? SURF + Math.sin(this.t * 1.6) * 0.05 : this.groundAt(this.gx, this.gz) + this.waitAlt + (this.floats ? 0 : Math.sin(this.t * 2.1) * 0.08);
+        const wy = this.swims ? (this.boat ? WATER_LEVEL + BOAT_FLOAT : SURF) + Math.sin(this.t * 1.6) * 0.05 : this.groundAt(this.gx, this.gz) + this.waitAlt + (this.floats ? 0 : Math.sin(this.t * 2.1) * 0.08);
         this.gy += (wy - this.gy) * Math.min(1, dt * 3);
         // drift to stay close if you wander a little (a swimmer only through water)
         const dx = p.x - this.gx, dz = p.z - this.gz, d = Math.hypot(dx, dz);
@@ -548,7 +561,7 @@ export class Mount implements System {
           this.hooks.onRide();
           this.hooks.sfx('flap');
           if (this.floats && this.def.id === 'balloon' && this.rides >= 1 && !this.balloonToast) { this.balloonToast = true; this.hooks.toast(`${this.def.icon} Up, up and away! Steer with the stick · <b>Jump</b> fires the burner · rest the stick for a drift between the islands · <b>Land</b> to step out`, 4000); }
-          else if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
+          else if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.boat ? `${this.def.icon} All aboard! Row with the stick · <b>Jump</b> for a big stroke · rest the stick for a tour · tap <b>Land</b> to step off in the shallows` : this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
         }
         break;
       }
@@ -655,7 +668,7 @@ export class Mount implements System {
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
-      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, blocked: +this.blockedT.toFixed(2), balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
+      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, boat: this.boat, strokes: this.strokes, blocked: +this.blockedT.toFixed(2), balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
     };
   }
 }

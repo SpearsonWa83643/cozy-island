@@ -25,6 +25,8 @@ export interface SaveData {
   sakuraSeen?: boolean;
   /** placed a Balloon Pad: the hot-air balloon mount is unlocked (Order 47) */
   balloonPad?: boolean;
+  /** Order 51: the rowboat is yours (found at the dock) */
+  boat?: boolean;
   wreckChest?: boolean;
   shells: number;
   candy?: number;

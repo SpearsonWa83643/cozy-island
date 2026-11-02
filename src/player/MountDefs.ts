@@ -2,7 +2,7 @@
 // The bald eagle is free; the others unlock when their treasure turns up in a treasure chest.
 import type { SaveData } from '../game/Save';
 
-export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn' | 'dragonfly' | 'sea_turtle' | 'balloon';
+export type MountId = 'eagle' | 'pterodactyl' | 'cloud_puppy' | 'unicorn' | 'dragonfly' | 'sea_turtle' | 'balloon' | 'rowboat';
 
 // no emoji fits a pterodactyl or a cloud puppy, so they get little inline SVG icons (1em, inline in text)
 const svg = (inner: string) => `<svg class="mico" viewBox="0 0 40 40" aria-hidden="true">${inner}</svg>`;
@@ -47,6 +47,8 @@ export interface MountDef {
   blurb: string;
   /** unlocked by building something instead of a treasure (balloon: place a Balloon Pad) */
   build?: 'balloonpad';
+  /** Order 51: a boat found at a dock (save.boat) rather than a treasure or a build */
+  dock?: boolean;
 }
 
 export const MOUNTS: MountDef[] = [
@@ -81,6 +83,11 @@ export const MOUNTS: MountDef[] = [
     id: 'balloon', name: 'Hot-Air Balloon', short: 'balloon', icon: BALLOON_SVG, treasure: null, build: 'balloonpad',
     hint: 'Build a Balloon Pad (Build → Items)', blurb: 'A slow, dreamy drift between the islands!',
   },
+  // Order 51a: a little rowboat for crossing the sea to the islets (unlocked by save.boat; 51b puts it at a dock)
+  {
+    id: 'rowboat', name: 'Rowboat', short: 'rowboat', icon: '🛶', treasure: null, dock: true,
+    hint: 'Find the rowboat tied up at the dock', blurb: 'Row across the sea to every islet!',
+  },
 ];
 
 /** treasures that never come from dug-up chests: they have their own spot (sea_pearl: the Shipwreck Cove chest) */
@@ -100,6 +107,7 @@ export function mountForTreasure(tid: string): MountDef | undefined {
 }
 export function hasTreasure(d: SaveData, tid: string) { return !!d.treasures?.includes(tid); }
 export function isMountUnlocked(m: MountDef, d: SaveData): boolean {
+  if (m.dock) return !!d.boat;
   if (m.build) return !!d.balloonPad;
   return m.treasure === null || hasTreasure(d, m.treasure.id);
 }

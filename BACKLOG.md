@@ -12,7 +12,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 |---|---|---|---|---|
 | 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
-| 51 | Rowboat or sailboat for travelling between the islets | To do | 2026-11-10 | 2.5 |
+| 51 | Rowboat or sailboat for travelling between the islets | In progress (51a done) | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
 | 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
 
@@ -25,6 +25,10 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 51 Boat: a rowboat or sailboat found or built at a dock, boarded with a tap; steers with the iPad joystick, floats with gentle bob and wake, cannot beach on land; reaches every islet and docks at its landing; respects the sea edge; save restores it; iPad test sails main island to an islet and back.
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
+
+### Order 51 detail (in progress, ETA 2026-11-10)
+
+- 51a DONE (2026-11-02): Rowboat mount (🛶, `rowboat` in MountDefs, unlocked by `save.boat`; hidden from the mount picker until it's yours; `?boat=1` hands it over for tests). Planked wooden hull with a painted stripe, gunwale rim, thwart seats, a bow ring and two oars that row with the stroke. Floats on top of the water (waterline +0.24 m) with a gentle bob and roll; Jump is a big oar stroke (never a dive); stops in the shallows instead of beaching; crosses open sea past the sea turtle's reef leash (fly leash applies, so every islet is in reach). tests/boat.mjs 9/9 (iPad viewport, real tap on the Mount button).
 
 ### Order 50 detail (DONE 2026-11-01, 5 days ahead of the 2026-11-06 ETA)
 

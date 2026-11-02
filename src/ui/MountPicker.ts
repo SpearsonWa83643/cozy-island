@@ -23,7 +23,8 @@ export class MountPicker {
     el.className = 'mount-picker'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Pick a mount');
     el.innerHTML = `<div class="mp-card"><button class="mp-x" aria-label="Close">✕</button><h2>Pick a mount!</h2><div class="mp-grid"></div><div class="mp-msg" aria-live="polite"></div></div>`;
     const grid = el.querySelector('.mp-grid')!;
-    MOUNTS.forEach((m, i) => grid.appendChild(this.tile(m, i, d)));
+    // Order 51a: the rowboat tile only shows once it's yours (found at the dock), so the picker isn't a spoiler
+    MOUNTS.forEach((m, i) => { if (!m.dock || isMountUnlocked(m, d)) grid.appendChild(this.tile(m, i, d)); });
     for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'click', 'wheel']) el.addEventListener(ev, (x) => x.stopPropagation());
     el.addEventListener('click', (x) => { if (x.target === el && !this.fresh) this.close(); });
     el.querySelector('.mp-x')!.addEventListener('click', () => { if (!this.fresh) this.close(); });
