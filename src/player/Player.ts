@@ -152,9 +152,11 @@ export class Player implements System {
     this.grounded = false; this.airVy = 0; this.vy = 0;
   }
 
-  teleport(x: number, z: number, facing?: number) {
+  /** move to (x, z); `feetY` stands you on something that isn't terrain (a dock deck, Order 51b) */
+  teleport(x: number, z: number, facing?: number, feetY?: number) {
     const g = this.ground(x, z), deep = !this.inCave && WATER_LEVEL - g > SWIM_IN;
-    const y = (deep ? FLOAT_FEET : g + 0.05) + HALF_H + RADIUS;
+    const y = (feetY !== undefined ? feetY + 0.05 : deep ? FLOAT_FEET : g + 0.05) + HALF_H + RADIUS;
+    if (feetY !== undefined) this.swimming = false;
     this.body.setTranslation({ x, y, z }, true);
     this.body.setNextKinematicTranslation({ x, y, z });
     if (facing !== undefined) this.facing = facing;

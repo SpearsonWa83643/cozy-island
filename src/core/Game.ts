@@ -24,6 +24,7 @@ import { Reef } from '../world/Reef';
 import { Cave } from '../world/Cave';
 import { Lighthouse } from '../world/Lighthouse';
 import { Shipwreck } from '../world/Shipwreck';
+import { Docks, DECK_Y } from '../world/Docks';
 import { Islets, isletWaterTexture } from '../world/Islet';
 import { ISLETS } from '../world/config';
 import { Atmosphere } from '../world/Atmosphere';
@@ -79,6 +80,8 @@ export class Game {
   cave!: Cave;
   lighthouse!: Lighthouse;
   wreck!: Shipwreck;
+  /** Order 51b: jetties on the main island and every islet; the rowboat ties up at one */
+  docks!: Docks;
   /** archipelago islets (Order 42): generated + streamed in near the camera */
   islets!: Islets;
   /** height fog + aerial perspective (TSL fog node driven by `fog`) */
@@ -178,6 +181,8 @@ export class Game {
     this.scene.add(this.lighthouse.group);
     this.wreck = new Shipwreck(this.physics);
     this.scene.add(this.wreck.group);
+    this.docks = new Docks(this.physics, [this.lighthouse.pos, this.wreck.pos, this.cave.outsideSpot]);
+    this.scene.add(this.docks.group);
     await lap('cave');
     this.scene.add(this.flora.group);
     this.particles = new Particles();
@@ -200,7 +205,7 @@ export class Game {
 
     // --- Actors ---
     this.player = new Player(this.physics, this.input, new THREE.Vector3(SPAWN.x, 0, SPAWN.y));
-    this.player.solidNear = (x, z) => this.wreck.nearHull(x, z);
+    this.player.solidNear = (x, z) => this.wreck.nearHull(x, z) || this.docks.onDeck(x, z);
     this.scene.add(this.player.object);
     this.rig = new CameraRig(this.camera, this.input, this.player);
     this.fauna.blockers = (x, z) => this.build?.occupiedAt(x, z) ?? false;
@@ -268,7 +273,11 @@ export class Game {
         }
         return best;
       },
+      dockNear: (x, z) => { const d = this.docks.nearMoor(x, z, 6); return d ? { i: d.i, name: d.name, step: d.step, moor: d.moor, deckY: DECK_Y } : null; },
+      onDock: (i) => { this.docks.moorAt(i); sd().boatDock = i; this.play.save.touch(); },
     });
+    // Order 51b: the rowboat is tied up where you last moored it (the Home Dock at first)
+    this.docks.moorAt(sd().boatDock ?? 0);
     // Order 51a: ?boat=1 hands you the rowboat for testing (51b: found at the dock)
     if (new URLSearchParams(location.search).get('boat') === '1' && !sd().boat) { sd().boat = true; this.play.save.touch(); }
     // last picked mount (if still unlocked) is the one Call Mount / V brings
@@ -323,6 +332,8 @@ export class Game {
     this.cave.update(dt, t, this.player.position);
         this.lighthouse.update(dt);
         this.wreck.update(dt, t, this.player.position);
+        this.docks.away = this.mount.id === 'rowboat' && this.mount.phase !== 'off';
+        this.docks.update(dt, t, this.camera.position);
         this.dress.update(dt, t);
       },
     }, this.play);

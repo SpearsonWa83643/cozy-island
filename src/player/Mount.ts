@@ -68,6 +68,10 @@ export interface MountHooks {
   openPicker?: () => boolean;
   /** extra scenic-tour landmarks (cave mouth, pumpkin patch…), read when a tour starts */
   tourStops?: () => { x: number; z: number }[];
+  /** Order 51b: a dock whose mooring is near (x, z): Land there ties the boat up and steps you onto the deck */
+  dockNear?: (x: number, z: number) => { i: number; name: string; step: { x: number; z: number }; moor: { x: number; z: number; h: number }; deckY: number } | null;
+  /** the rowboat was tied up at dock i */
+  onDock?: (i: number) => void;
 }
 
 export class Mount implements System {
@@ -281,9 +285,39 @@ export class Mount implements System {
     return true;
   }
 
+  /**
+   * Order 51b: the rowboat waiting at a dock's mooring, ready to board (Take / Row at a dock). It skips the
+   * swim-over and sits tied up beside the deck until you hop in.
+   */
+  moorAt(x: number, z: number, h: number) {
+    if (this.phase !== 'off' || this.hooks.blocked()) return false;
+    this.select('rowboat');
+    this.gx = x; this.gz = z; this.gy = WATER_LEVEL + BOAT_FLOAT; this.heading = h; this.speed = 0;
+    this.phase = 'wait'; this.waitT = 0; this.moored = true;
+    this.setAlpha(1); this.object.visible = true; this.shadow.visible = false;
+    this.glideAmt = 0; this.glide = 0; this.dive = 0; this.diveT = 0;
+    return true;
+  }
+  /** the boat is tied up at a dock (waiting there, not drifting after you) */
+  moored = false;
+  /** times the rowboat was tied up at a dock */
+  dockings = 0;
+
   /** set the rider down under the eagle and send it home */
   land() {
     if (this.phase !== 'ride') return false;
+    // Order 51b: in the rowboat by a dock: tie it up and step onto the deck
+    const dk = this.boat ? this.hooks.dockNear?.(this.gx, this.gz) : null;
+    if (dk) {
+      this.player.mounted = false; this.player.unseat();
+      this.player.teleport(dk.step.x, dk.step.z, dk.moor.h + Math.PI, dk.deckY);
+      this.target = null; this.autopilot = false; this.idleT = 0; this.landings++; this.dockings++; this.rig.mountBoost = 0;
+      this.phase = 'off'; this.moored = false; this.object.visible = this.shadow.visible = false; this.speed = 0;
+      this.hooks.sfx('land');
+      this.hooks.onDock?.(dk.i);
+      this.hooks.toast(`⚓ Tied up at <b>${dk.name}</b>. Tap the rowboat when you want to row again`, 2600);
+      return true;
+    }
     this.dropRider();
     this.hooks.sfx('land');
     this.startLeave();
@@ -543,25 +577,26 @@ export class Mount implements System {
         this.gy += (wy - this.gy) * Math.min(1, dt * 3);
         // drift to stay close if you wander a little (a swimmer only through water)
         const dx = p.x - this.gx, dz = p.z - this.gz, d = Math.hypot(dx, dz);
-        if (d > 3.2 && !this.floats) {
+        if (d > 3.2 && !this.floats && !this.moored) {
           const k = Math.min(1, dt * 1.5) * (d - 2.2) / d, nx = this.gx + dx * k, nz = this.gz + dz * k;
           if (!this.swims || this.depthAt(nx, nz) > SHALLOW) { this.gx = nx; this.gz = nz; }
           this.turnTo(Math.atan2(dx, dz), dt, 3);
         }
         this.bank += (0 - this.bank) * Math.min(1, dt * 3);
-        if (this.waitT > WAIT_MAX || d > (this.swims ? 22 : this.floats ? 24 : 18) || this.player.inCave) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and ${this.swims ? 'swam' : this.floats ? 'drifted' : 'flew'} off. Call it again any time!`, 2000); this.startLeave(); }
+        if (this.moored && (d > 14 || this.player.inCave)) { this.phase = 'off'; this.moored = false; this.object.visible = this.shadow.visible = false; break; }
+        if (!this.moored && (this.waitT > WAIT_MAX || d > (this.swims ? 22 : this.floats ? 24 : 18) || this.player.inCave)) { this.hooks.toast(`${this.def.icon} Your ${this.def.short} got bored and ${this.swims ? 'swam' : this.floats ? 'drifted' : 'flew'} off. Call it again any time!`, 2000); this.startLeave(); }
         break;
       }
       case 'hop': {
         this.hopT = Math.min(1, this.hopT + dt / HOP_T);
         this.gy += ((this.swims ? SURF - 0.06 : this.groundAt(this.gx, this.gz) + this.waitAlt - (this.floats ? 0 : 0.15)) - this.gy) * Math.min(1, dt * 6);
         if (this.hopT >= 1) {
-          this.phase = 'ride'; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
+          this.phase = 'ride'; this.moored = false; this.rides++; this.speed = 0; this.boost = 1.5; this.target = null;
           this.autopilot = false; this.idleT = 0; this.toured = false; this.diveT = 0;
           this.hooks.onRide();
           this.hooks.sfx('flap');
           if (this.floats && this.def.id === 'balloon' && this.rides >= 1 && !this.balloonToast) { this.balloonToast = true; this.hooks.toast(`${this.def.icon} Up, up and away! Steer with the stick · <b>Jump</b> fires the burner · rest the stick for a drift between the islands · <b>Land</b> to step out`, 4000); }
-          else if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.boat ? `${this.def.icon} All aboard! Row with the stick · <b>Jump</b> for a big stroke · rest the stick for a tour · tap <b>Land</b> to step off in the shallows` : this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
+          else if (this.rides === 1 || (this.swims && this.dives === 0 && this.rides < 3)) this.hooks.toast(this.boat ? `${this.def.icon} All aboard! Row with the stick · <b>Jump</b> for a big stroke · rest the stick for a tour · tap <b>Land</b> by a dock to tie up` : this.swims ? `${this.def.icon} All aboard! Steer with the stick · <b>Jump</b> to dive under · tap <b>Land</b> to slip off` : `${this.def.icon} Wheee! Steer with the stick · <b>Jump</b> to flap higher · tap <b>Land</b> to hop off`, 3600);
         }
         break;
       }
@@ -668,7 +703,7 @@ export class Mount implements System {
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
-      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, boat: this.boat, strokes: this.strokes, blocked: +this.blockedT.toFixed(2), balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
+      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, boat: this.boat, strokes: this.strokes, blocked: +this.blockedT.toFixed(2), moored: this.moored, dockings: this.dockings, balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
     };
   }
 }

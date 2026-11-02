@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { DECK_Y, type Dock } from '../world/Docks';
 import type { Game } from '../core/Game';
 import type { System } from '../core/System';
 import { Save } from './Save';
@@ -24,7 +25,7 @@ import { showWhatsNew } from '../ui/whatsnewNote';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
 import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
-type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset';
+type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset' | 'board';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -244,6 +245,18 @@ export class Gameplay implements System {
     afterEntry(() => setTimeout(() => showWhatsNew(this.g.audio), 400));
   }
 
+  /** Order 51b: step into the rowboat tied up at a dock (the first time it becomes yours) */
+  private boardBoat(dk: Dock) {
+    const m = this.mount, d = this.save.data;
+    if (!m || m.phase !== 'off') return;
+    if (!d.boat) {
+      d.boat = true; this.g.audio.levelUp(); this.panels.refreshBadges();
+      this.juice.toast('🛶 <b>A rowboat!</b> It\'s yours now. Row with the stick to visit the other islands · tap <b>Land</b> by any dock to tie it up', 4200);
+    }
+    d.mountId = 'rowboat'; this.save.touch();
+    if (m.moorAt(dk.moor.x, dk.moor.z, dk.moor.h)) { this.g.docks.away = true; this.walk.cancel(false); m.mount(); }
+  }
+
   bindMount(m: Mount) {
     this.mount = m;
   }
@@ -406,6 +419,9 @@ export class Gameplay implements System {
       const ci = this.forage.nearest(p, 1.5);
       return ci ? { kind: 'pick', icon: FOODS[ci.id].icon, label: `Collect ${FOODS[ci.id].name}`, key: `pick:${ci.id}`, pos: new THREE.Vector3(ci.x, ci.y + 0.45, ci.z), run: () => this.pick(ci) } : null;
     }
+    // Order 51b: the rowboat tied up at this dock: take it (first time) or row off again
+    const dk = this.mount?.phase === 'off' ? this.g.docks?.boatHere(p.x, p.z) : null;
+    if (dk) return { kind: 'board', icon: '🛶', label: this.save.data.boat ? 'Row Boat' : 'Take Rowboat', key: 'board:boat', pos: new THREE.Vector3(dk.moor.x, DECK_Y + 0.5, dk.moor.z), run: () => this.boardBoat(dk) };
     const tr = this.treasure, st = tr.state;
     if (tr.busy) return null;
     if (st === 'dug' && p.distanceTo(tr.chestPos) < 2.2) return { kind: 'open', icon: '🎁', label: 'Open', key: 'open:chest', pos: tr.chestPos.clone().add(new THREE.Vector3(0, 1.0, 0)), run: () => this.openChest() };
@@ -458,6 +474,7 @@ export class Gameplay implements System {
     if (st === 'bottle') cands.push({ key: 'take:bottle', pos: () => tr.bottlePos, y: tr.bottlePos.y + 0.2, reach: 1.1 });
     if (st === 'dug') cands.push({ key: 'open:chest', pos: () => tr.chestPos, y: tr.chestPos.y + 0.4, reach: 1.4 });
     if (st === 'active' && Math.hypot(tr.spot.x - pt.x, tr.spot.z - pt.z) < 2.5) cands.push({ key: 'dig:spot', pos: () => tr.spot, y: tr.spot.y + 0.1, reach: 0.9 });
+    { const dk = g.docks && !g.docks.away && this.mount?.phase === 'off' ? g.docks.list[g.docks.boatAt] : null; if (dk) cands.push({ key: 'board:boat', pos: () => dk.step, y: DECK_Y, reach: 0.9 }); }
     if (g.wreck && !g.wreck.opened) cands.push({ key: 'open:wreck', pos: () => g.wreck.chest, y: g.wreck.chest.y + 0.2, reach: 1.2 });
     for (const b of g.reef.bottles) if (b.active) cands.push({ key: 'take:seabottle', pos: () => b, y: 0.1, reach: 1.1 });
     const an = g.fauna.nearestFeedable(pt.x, pt.z, 2.2);

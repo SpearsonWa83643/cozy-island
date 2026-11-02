@@ -27,6 +27,8 @@ export interface SaveData {
   balloonPad?: boolean;
   /** Order 51: the rowboat is yours (found at the dock) */
   boat?: boolean;
+  /** Order 51b: dock the rowboat is tied up at (0 = Home Dock, k + 1 = islet k) */
+  boatDock?: number;
   wreckChest?: boolean;
   shells: number;
   candy?: number;
