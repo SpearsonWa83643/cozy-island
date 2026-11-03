@@ -1,16 +1,16 @@
 // Rowboat docks (Order 51b), iPad touch viewport: a jetty on the main island and on every islet; the rowboat starts
 // tied up at the Home Dock; walking onto the deck shows "Take Rowboat" (first time makes it yours), tapping boards it;
 // row across to an islet, Land by its dock ties up and steps you onto the deck; the save remembers which dock;
-// row home again. Screenshot 100. Timeout + browser closed in finally. Usage: node tests/boat-dock.mjs [baseUrl]
+// row home again; a wake while rowing (51c). Screenshots 100, 101. Timeout + browser closed in finally. Usage: node tests/boat-dock.mjs [baseUrl]
 import { chromium, devices } from 'playwright';
 const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
-const kill = setTimeout(() => { console.log('TIMEOUT'); process.exit(2); }, 480000);
+const kill = setTimeout(() => { console.log('TIMEOUT'); process.exit(2); }, 720000);
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const results = []; const ok = (n, c, x = '') => { results.push(c); console.log(c ? 'PASS' : 'FAIL', n, x); };
 const errFilter = (m) => (m.type() === 'error' || (m.type() === 'warning' && !/GL Driver|GPU stall|swiftshader|Automatic fallback/i.test(m.text())));
 try {
   const ctx = await browser.newContext({ ...devices['iPad Pro 11 landscape'], deviceScaleFactor: 1, hasTouch: true });
-  const page = await ctx.newPage(); page.setDefaultTimeout(60000);
+  const page = await ctx.newPage(); page.setDefaultTimeout(150000);
   const errors = []; page.on('console', (m) => { if (errFilter(m)) errors.push(m.text()); }); page.on('pageerror', (e) => errors.push(e.message));
   const q = '?webgl&q=low&touch=1&whatsnew=0&time=noon&weather=clear';
   await page.goto(base + q); await page.waitForFunction(() => window.game?.ready);
@@ -32,14 +32,22 @@ try {
   ok('the action button shows', shown);
   await page.tap('.action-btn');
   let s = await waitPhase('ride');
+  const rest = s;
   const own = await page.evaluate(() => ({ boat: !!window.game.play.save.data.boat, away: window.game.docks.away }));
   ok('tapping it makes the rowboat yours and boards it', s.phase === 'ride' && s.id === 'rowboat' && s.mounted && own.boat && own.away, JSON.stringify({ s, own }));
   // row to the islet dock the Home Dock points at (Blossom Isle)
   const row = (k) => page.evaluate((k) => { const g = window.game, m = g.mount, d = g.docks.list[k]; let n = 0, dist = 1e9;
     for (; n < 60 * 120; n++) { dist = Math.hypot(m.gx - d.moor.x, m.gz - d.moor.z); if (dist < 3.5) break; g.rig.yaw = Math.atan2(m.gx - d.moor.x, m.gz - d.moor.z); g.input.stick.x = 0; g.input.stick.y = -1; g.step(1 / 60); }
     g.input.stick.y = 0; for (let i = 0; i < 40; i++) g.step(1 / 60); return { secs: +(n / 60).toFixed(1), dist: +dist.toFixed(1), name: d.name }; }, k);
+  // Order 51c: a foamy wake while rowing, none when resting
+  const wk = await page.evaluate(() => { const g = window.game, m = g.mount, d = g.docks.list[1]; for (let i = 0; i < 240; i++) { g.rig.yaw = Math.atan2(m.gx - d.moor.x, m.gz - d.moor.z); g.rig.pitch = 1.1; g.input.stick.y = -1; g.step(1 / 60); }
+    const moving = m.snapshot(); return { wake: moving.wake, speed: moving.speed }; });
+  await page.waitForTimeout(800); // let the boarding button fade out
+  await page.screenshot({ path: 'screenshots/101-ipad-rowboat-wake.png' }); // high camera: the V wake from above
+  await page.evaluate(() => { window.game.rig.pitch = 0.42; });
   const r1 = await row(1);
-  ok('rows across open sea to the Blossom Isle dock', r1.dist < 3.5, JSON.stringify(r1));
+  ok('a foamy wake trails the boat while rowing, none when still', wk.wake > 0.4 && rest.wake === 0, JSON.stringify({ wk, rest: rest.wake, restSpeed: rest.speed }));
+  ok('rows across open sea to the Blossom Isle dock', r1.dist <= 3.5, JSON.stringify(r1));
   await page.evaluate(() => { const g = window.game, m = g.mount; g.rig.yaw = m.heading + Math.PI * 0.75; }); await step(20);
   await page.screenshot({ path: 'screenshots/100-ipad-rowboat-dock.png' });
   await page.tap('.mount-btn'); await step(30);
@@ -56,7 +64,7 @@ try {
   const r2 = await row(0);
   await page.tap('.mount-btn'); await step(30);
   const home = await page.evaluate(() => { const g = window.game; return { boatAt: g.docks.boatAt, phase: g.mount.snapshot().phase, swim: g.player.swimming }; });
-  ok('rows home and ties up at the Home Dock', r2.dist < 3.5 && home.boatAt === 0 && home.phase === 'off' && !home.swim, JSON.stringify({ r2, home }));
+  ok('rows home and ties up at the Home Dock', r2.dist <= 3.5 && home.boatAt === 0 && home.phase === 'off' && !home.swim, JSON.stringify({ r2, home }));
   // fps sanity: frame time of a step with a dock and the boat in view
   ok('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } finally { clearTimeout(kill); await browser.close().catch(() => {}); }

@@ -12,7 +12,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 |---|---|---|---|---|
 | 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
-| 51 | Rowboat or sailboat for travelling between the islets | In progress (51a-51b done) | 2026-11-10 | 2.5 |
+| 51 | Rowboat or sailboat for travelling between the islets | In progress (51a-51c done) | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | To do | 2026-11-16 | 3.5 |
 | 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
 
@@ -30,6 +30,7 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 
 - 51a DONE (2026-11-02): Rowboat mount (🛶, `rowboat` in MountDefs, unlocked by `save.boat`; hidden from the mount picker until it's yours; `?boat=1` hands it over for tests). Planked wooden hull with a painted stripe, gunwale rim, thwart seats, a bow ring and two oars that row with the stroke. Floats on top of the water (waterline +0.24 m) with a gentle bob and roll; Jump is a big oar stroke (never a dive); stops in the shallows instead of beaching; crosses open sea past the sea turtle's reef leash (fly leash applies, so every islet is in reach). tests/boat.mjs 9/9 (iPad viewport, real tap on the Mount button).
 - 51b DONE (2026-11-02): docks (`src/world/Docks.ts`). One wooden jetty (6-18 m, planks, stringers, posts with bollards, a lantern and a rope coil; one baked mesh plus one deck collider each) on the main island (Home Dock, facing Blossom Isle) and on every islet (facing home), sited on the shortest run from dry ground to 1.5 m of water, away from Lighthouse Point, the wreck and the cave. The rowboat starts tied up at the Home Dock with a bob; walking onto the deck shows 🛶 Take Rowboat (first time: it becomes yours) / Row Boat, and tap-to-walk works on it. Tapping boards it from the mooring. Land by any dock's mooring ties it up there and steps you onto the deck; the save remembers which dock (`boatDock`), and a boat sent off elsewhere goes back to its last dock. Toast hint updated. New tests/boat-dock.mjs 10/10 (iPad viewport: real taps on the action and Land buttons; rows Home Dock to Blossom Isle in about 17 s, ties up, reloads, rows home); tests/boat.mjs 9/9.
+- 51c DONE (2026-11-03): rowboat wake. A foamy V wake trails from the stern (both arms in one hand-built mesh, one draw) plus a small bow foam patch sharing its material; froth texture scrolls back with speed, soft alpha fade at the sides and far end; fades in with rowing speed (max opacity 0.8 at full speed) and out when resting or docked; sits just above the waterline so it reads from a high camera too, counter-rotates the hull roll, casts no shadow. tests/boat-dock.mjs 11/11 (new wake check: 0.8 while rowing, 0 at rest; screenshot 101 from a high camera), tests/boat.mjs 9/9.
 
 ### Order 50 detail (DONE 2026-11-01, 5 days ahead of the 2026-11-06 ETA)
 

@@ -703,7 +703,7 @@ export class Mount implements System {
       phase: this.phase, riding: this.riding, carrying: this.carrying, button: this.buttonState,
       pos: [this.gx, this.gy, this.gz].map((n) => +n.toFixed(2)), alt: +this.alt.toFixed(2), speed: +this.speed.toFixed(2),
       heading: +this.heading.toFixed(2), autopilot: this.autopilot, tours: this.tours, idle: +this.idleT.toFixed(2), rides: this.rides, landings: this.landings, calls: this.calls, target: this.target,
-      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, boat: this.boat, strokes: this.strokes, blocked: +this.blockedT.toFixed(2), moored: this.moored, dockings: this.dockings, balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
+      mounted: this.player.mounted, visible: this.object.visible, swim: this.swims, dive: +this.dive.toFixed(2), dives: this.dives, boat: this.boat, strokes: this.strokes, blocked: +this.blockedT.toFixed(2), moored: this.moored, dockings: this.dockings, wake: this.current.wake?.() ?? 0, balloon: this.floats, heat: +(this.current.heat ?? 0).toFixed(2), padFrom: this.padFrom,
     };
   }
 }

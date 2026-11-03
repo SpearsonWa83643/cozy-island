@@ -41,6 +41,8 @@ export interface MountRig {
   /** burner heat 0..~6, set by Mount each frame (flame size) */
   heat?: number;
   animate?: (t: number, dt: number, phase: RigPhase, speed: number, flap: number) => void;
+  /** Order 51c: current wake strength (0 = none), for tests */
+  wake?: () => number;
 }
 
 const SCALE = 1.55;
@@ -492,6 +494,32 @@ function balloon(): MountRig {
   return finish(r, 1.25);
 }
 
+/**
+ * boat wake textures: `froth` tiles along the streak and scrolls back while rowing; `fade` (alpha map, static) is
+ * bright at the stern, fading behind and soft at the sides. Shared canvas textures, made once.
+ */
+let _wake: { froth: THREE.CanvasTexture; fade: THREE.CanvasTexture } | null = null;
+function wakeTex() {
+  if (_wake) return _wake;
+  const W = 32, H = 128;
+  const make = (f: (u: number, v: number) => number) => {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d')!, img = g.createImageData(W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const a = Math.round(255 * Math.max(0, Math.min(1, f(x / (W - 1), y / H)))), i = (y * W + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = a; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0); return new THREE.CanvasTexture(c);
+  };
+  const TAU = Math.PI * 2;
+  const froth = make((u, v) => 0.86 + 0.14 * Math.sin(v * TAU * 6 + Math.sin(u * 9) * 2) * Math.sin(u * 23 + Math.sin(v * TAU * 2) * 3));
+  froth.wrapT = THREE.RepeatWrapping; froth.colorSpace = THREE.SRGBColorSpace;
+  // canvas row 0 is the far end of the streak (flipY), the last row sits at the stern
+  const fade = make((u, v) => Math.sin(Math.PI * u) ** 1.5 * (0.2 + 0.8 * v) * Math.min(1, v * 5));
+  _wake = { froth, fade };
+  return _wake;
+}
+
 /** rowboat (Order 51a): planked wooden hull (origin = waterline), thwart seats, a bow ring, two oars on the wing hinges */
 function rowboat(): MountRig {
   const k = new Kit(), r = empty('rowboat', k);
@@ -521,7 +549,29 @@ function rowboat(): MountRig {
     oar.add(k.mesh(new THREE.BoxGeometry(0.22, 0.02, 0.1), paint, [s * 0.92, -0.2, 0], [1, 1, 1], [0, 0, s * 0.22]));
     root.add(k.mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6), dark, [0, 0.02, 0]));
   }
-  r.animate = (t, _dt, ph, speed, flap) => {
+  // Order 51c: a foamy V wake trailing from the stern (own material, so call/leave fades don't touch it); one draw each
+  const wakeMat = new THREE.MeshBasicNodeMaterial({ map: wakeTex().froth, alphaMap: wakeTex().fade, transparent: true, depthWrite: false, opacity: 0, color: 0xffffff });
+  wakeMat.polygonOffset = true; wakeMat.polygonOffsetFactor = -2;
+  // both V arms in one hand-built geometry (one draw): uv u across the arm, v = 0 at the stern, 1 at the far end
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+  for (const sd of [1, -1]) {
+    const a = sd * 0.3, dx = Math.sin(a), dz = -Math.cos(a), px = -dz, pz = dx, L = 2.6, hw = 0.21, x0 = sd * 0.2, b = pos.length / 3;
+    for (const [t, v] of [[0, 0], [L, 1]]) for (const [w, u] of [[-hw, 0], [hw, 1]]) { pos.push(x0 + dx * t + px * w, 0, dz * t + pz * w); uv.push(u, v); }
+    idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2, b, b + 2, b + 1, b + 1, b + 2, b + 3);
+  }
+  const wakeG = new THREE.BufferGeometry(); wakeG.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wakeG.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); wakeG.setIndex(idx);
+  const wake = new THREE.Mesh(wakeG, wakeMat); wake.position.set(0, -0.08, -0.55); wake.renderOrder = 2; body.add(wake); // just above the waterline (was under it: hidden from above)
+  const bowG = new THREE.PlaneGeometry(0.5, 0.9); bowG.rotateX(-Math.PI / 2);
+  const bow = new THREE.Mesh(bowG, wakeMat); bow.position.set(0, -0.13, 0.55); bow.renderOrder = 2; body.add(bow);
+  wake.visible = bow.visible = false;
+  r.wake = () => (wake.visible ? +wakeMat.opacity.toFixed(2) : 0);
+  r.animate = (t, dt, ph, speed, flap) => {
+    // wake: fades in with speed and scrolls back along the streaks
+    const wa = ph === 'ride' ? Math.min(0.8, Math.max(0, speed - 0.4) * 0.16) : 0;
+    wakeMat.opacity += (wa - wakeMat.opacity) * Math.min(1, dt * 3);
+    wake.visible = bow.visible = wakeMat.opacity > 0.02;
+    if (wake.visible && wakeMat.map) wakeMat.map.offset.y = (wakeMat.map.offset.y + dt * speed * 0.35) % 1;
+    wake.rotation.x = -body.rotation.x; wake.rotation.z = -body.rotation.z;
     // a rowing stroke: sweep back with blades in, lift and return; resting oars trail in the water
     const row = ph === 'ride' && speed > 0.4 ? 1 : 0.15;
     for (let i = 0; i < 2; i++) { const s = i ? -1 : 1, o = oars[i]; o.rotation.y = s * Math.sin(flap) * 0.55 * row; o.rotation.x = 0; o.rotation.z = -s * Math.max(0, Math.cos(flap)) * 0.18 * row; }
@@ -530,7 +580,9 @@ function rowboat(): MountRig {
     body.rotation.z = Math.sin(t * 1.1) * 0.04; body.rotation.x = Math.sin(t * 0.8 + 1) * 0.025 - Math.min(0.05, speed * 0.006);
     head.rotation.set(0, 0, 0); tail.rotation.set(0, 0, 0);
   };
-  return finish(r, 1.5);
+  finish(r, 1.5);
+  wake.castShadow = bow.castShadow = false; // foam casts no shadow
+  return r;
 }
 
 export const BUILDERS: Record<MountId, () => MountRig> = { eagle, pterodactyl, cloud_puppy: cloudPuppy, unicorn, dragonfly, sea_turtle: seaTurtle, balloon, rowboat };
