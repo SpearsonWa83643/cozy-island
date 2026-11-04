@@ -516,7 +516,7 @@ export class Mount implements System {
     // soft leash: past the reef the wind turns you back toward the island
     // fliers may cross open sea to the archipelago islets (Order 42a); swimmers keep the reef leash
     const land = nearestLand(nx, nz, LAND), leash = this.swims && !this.boat ? SWIM_MAX + 6 : FLY_LEASH;
-    if (land.off > leash) { const rx = nx - land.cx, rz = nz - land.cz, r = Math.hypot(rx, rz) || 1, push = Math.min(1, (land.off - leash) / 6) * 8 * dt; nx -= (rx / r) * push; nz -= (rz / r) * push; }
+    if (land.off > leash) { const rx = nx - land.cx, rz = nz - land.cz, r = Math.hypot(rx, rz) || 1, push = Math.min(1, (land.off - leash) / 6) * (this.boat ? Math.max(8, this.speed + 1.5) : 8) * dt; /* a boat (8.8 m/s) out-rowed the 8 m/s wind: firm edge (51d) */ nx -= (rx / r) * push; nz -= (rz / r) * push; }
     if (this.swims) {
       // never up onto the beach: slide along the shallows, or stop and nose about
       const ok = (x: number, z: number) => this.depthAt(x, z) > SHALLOW;
