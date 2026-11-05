@@ -32,6 +32,8 @@ export interface SaveData {
   wreckChest?: boolean;
   /** Order 52a: fish caught (count + best size in cm) by fish id */
   fish?: Record<string, { n: number; best: number }>;
+  /** Order 52c: journal page completion rewards already claimed */
+  journalReward?: Partial<Record<'fish' | 'creatures' | 'treasures', boolean>>;
   shells: number;
   candy?: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)

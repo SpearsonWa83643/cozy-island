@@ -569,4 +569,8 @@ body.journal-open .touch-ui, body.journal-open .game-bar, body.journal-open .act
 body.journal-open .fish-btn, body.journal-open .hud.dock { pointer-events: none; opacity: .15; }
 body.touch .journal-tab { min-height: 54px; font-size: 16px; }
 body.touch .journal-close { width: 52px; height: 52px; font-size: 20px; }
+.journal-done { margin: 4px 0 10px; padding: 10px 12px; border-radius: 14px; font: 800 14px system-ui, sans-serif;
+  background: #e8f7df; color: #2f6b2a; box-shadow: 0 2px 0 #c5e4b2; }
+.journal-done.ready { background: #fff3c4; color: #7a5a10; box-shadow: 0 2px 0 #e6d48a; }
+.journal-done.claimed { background: #e8f7df; }
 @media (prefers-reduced-motion: reduce) { .journal-card { transition: none; } }

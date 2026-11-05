@@ -102,6 +102,8 @@ export const WEARABLES: WearDef[] = [
   W('cherrysprout', 'sprout', 'Cherry Sprout', 2, '🍒'), W('starsprout', 'sprout', 'Star Sprout', 3, '⭐'), W('goldsprout', 'sprout', 'Golden Sprout', 4, '✨'),
   W('glowsprout', 'sprout', 'Glowcap Sprout', 2, '🍄'),
   W('kelpsprout', 'sprout', 'Kelp Sprout', 1, '🌱'), W('pearlsprout', 'sprout', 'Pearl Sprout', 3, '🫧'),
+  // Order 52c: journal page completion rewards (not in chests)
+  W('angler', 'hat', "Angler's Cap", 3, '🎣'), W('buddybadge', 'neck', 'Buddy Badge', 3, '💝'), W('collector', 'sprout', 'Collector Sprout', 4, '📖'),
 ];
 export const WEAR_BY_ID = new Map(WEARABLES.map((w) => [w.id, w]));
 export const DEFAULT_OWNED = ['backpack', 'sunny', 'leaf'];
@@ -126,6 +128,8 @@ export const HALLOWEEN_SET: WearDef[] = [
 WEARABLES.push(...HALLOWEEN_SET);
 for (const w of HALLOWEEN_SET) WEAR_BY_ID.set(w.id, w);
 export const CAVE_WEAR = ['minerhelmet', 'crystalcrown', 'batwings', 'crystalneck', 'glowsprout'];
+/** Order 52c: cosmetics unlocked by finishing a journal page (fish / friends / treasures) */
+export const JOURNAL_WEAR = ['angler', 'buddybadge', 'collector'];
 
 /** mount treasures: found in treasure chests (see player/MountDefs nextMountTreasure); each unlocks a mount */
 export { MOUNT_TREASURES } from '../player/MountDefs';

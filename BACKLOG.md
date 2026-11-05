@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 10:25 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-05 (CT), 10:22 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -13,7 +13,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | 49 | Day/night cycle with stars; frog chorus at night (no longer tied to themes); lighthouse beam sweeps at night | DONE 2026-10-30 (4 days ahead of ETA) | 2026-11-03 | 2 |
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | DONE 2026-11-04 (6 days ahead of ETA) | 2026-11-10 | 2.5 |
-| 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | in progress (52a+52b DONE 2026-11-05) | 2026-11-16 | 3.5 |
+| 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | DONE 2026-11-05 (11 days ahead of ETA) | 2026-11-16 | 3.5 |
 | 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
 
 Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The claimable home islet was not picked and is not on the backlog.
@@ -26,13 +26,14 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
 
-### Order 52 detail (in progress; ETA 2026-11-16)
+### Order 52 detail (DONE 2026-11-05, 11 days ahead of the 2026-11-16 ETA)
 
 - 52a DONE (2026-11-05): fishing from shore, dock, the marsh pond or the rowboat. `src/game/FishDefs.ts` (16 fish across pond / shore / open sea; day, night and rain gates; common/uncommon/rare with reel-zone widths) and `src/game/Fishing.ts` (🎣 Fish button in the touch grid / desktop Q; cast → wait → bite Hook! → reel meter with two tries; rod, line and bobber are three small meshes, hidden when idle). Water kind from the bobber spot (pond radius, deep when >18 m offshore); a moving boat rests the oars (`Mount.stopTour`) and casts once it slows. Catches save as `save.fish[id] = { n, best }` (cm). Mount call and the scenic tour stay blocked while fishing. New tests/fishing.mjs 15/15 (iPad viewport: inland hide, Home Dock catch, miss / early reel / walk-off cancel, pond mix, day vs night picks, deep-water catch from the rowboat, save across reload; screenshot 103).
 - 52b DONE (2026-11-05): collection journal screen (`src/ui/Journal.ts`). 📖 Journal in the game bar (desktop `J`); full-screen parchment with Fish / Friends / Treasures tabs. Fish page lists all 16 `FISH` defs grouped by water (silhouettes until caught; count + best cm from `save.fish`). Friends page lists every species in `TASTES` (known from `save.pets`, count + best name/level). Treasures page lists every mount treasure (pterodactyl egg through sea pearl) from `save.treasures`. iPad-friendly open/close (tap button / ✕ / backdrop); tap tabs to browse. Completion rewards deferred to 52c. New tests/journal.mjs 13/13 (iPad viewport: open, silhouettes, seeded fish/pets/treasures, tab browse, close, reload; screenshot 104).
-- 52c remaining: completion rewards (cosmetic or decor unlocks) on finishing a journal page.
+- 52c DONE (2026-11-05): page completion rewards. Finishing every entry on a journal page grants a one-time cosmetic (`save.journalReward` flags): Fish → Angler's Cap 🎣 (`angler`), Friends → Buddy Badge 💝 (`buddybadge`), Treasures → Collector Sprout 📖 (`collector`). Claimed via `Gameplay.checkJournalRewards()` after a catch, befriend, mount-treasure close, or opening the journal; reward card when free, toast if another card is up. Journal pages show a completion banner (ready / claimed). New wearables are journal-only (not in chests). tests/journal-rewards.mjs 9/9 (iPad viewport: seed-complete each page, claim once, no double grant, banner, screenshot 105).
+- Acceptance met 2026-11-05 (iPad tests): cast and catch logged; journal pages with silhouettes/counts; completion cosmetics on finishing a page; progress saved.
 
-Session log: 2026-11-05 — 52a shipped (`f0c34ce`); 52b journal UI shipped (this commit).
+Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c page rewards shipped (this commit). Order 52 closed.
 
 ### Order 51 detail (DONE 2026-11-04, 6 days ahead of the 2026-11-10 ETA)
 
@@ -90,6 +91,7 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 
 Nov 5
 - 52b: collection journal (Fish / Friends / Treasures pages, silhouettes until found); tests/journal.mjs
+- 52c: page completion cosmetics (angler / buddybadge / collector); tests/journal-rewards.mjs
 - 52a: fishing from shore, dock, pond and rowboat (cast/Hook/Reel mini-game, water+time fish mix, save counts); tests/fishing.mjs 15/15
 
 Nov 4
@@ -143,6 +145,7 @@ Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s t
 
 ## Session log
 
+- 2026-11-05 (CT), 10:22 AM: Order 52c page completion rewards — Angler's Cap / Buddy Badge / Collector Sprout on finishing Fish / Friends / Treasures; `save.journalReward`; reward card + journal banner. tests/journal-rewards.mjs 9/9 (iPad). Order 52 closed (11 days ahead). Vite 5180 left running.
 - 2026-11-05 (CT), 10:25 AM: Order 52b collection journal (`src/ui/Journal.ts`) — 📖 game-bar button / `J`, Fish / Friends / Treasures pages with silhouettes until found; fish counts + best size from `save.fish`, creatures from `save.pets`, treasures from `save.treasures`. tests/journal.mjs 13/13 (iPad). 52c rewards still open. Vite 5180 left running.
 - 2026-11-05 (CT), 10:10 AM: finished Order 52a from yesterday's uncommitted WIP. Fishing ships (cast/Hook/Reel from shore, dock, pond and rowboat; 16 fish by water/time/rarity; save counts; tests/fishing.mjs 15/15). Order 52 stays in progress (52b journal, 52c rewards remaining). Vite 5180 left running.
 - 2026-10-29 (CT), 11:10 AM: Walker answered the three Order 48 questions (keep names/types, stop at 4 islets, petals only on Blossom Isle); moved to Resolved. Shipped petals-only-on-Blossom (terrain tint + season petal particles), new tests/islet-petals.mjs 30/30 (spring + summer), archipelago 14/14. Added Walker's next backlog, Orders 49-53 (picked 10:54 AM CT); the daily session starts Order 49 on 2026-10-30.

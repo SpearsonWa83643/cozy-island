@@ -1,6 +1,6 @@
 /**
- * Collection journal (Order 52b): pages for fish caught, creatures befriended and treasures found.
- * Silhouettes until unlocked; counts (and best size for fish) from Save. Completion rewards are 52c.
+ * Collection journal (Order 52b/52c): pages for fish, creatures and treasures.
+ * Silhouettes until unlocked; page completion grants cosmetics (52c).
  */
 import { FISH, WATER_NAME, TIME_HINT, type FishDef } from '../game/FishDefs';
 import { TASTES, type Species } from '../game/Items';
@@ -19,7 +19,53 @@ export interface JournalApi {
 const SPECIES = Object.keys(TASTES) as Species[];
 const TREASURES: MountTreasure[] = MOUNTS.filter((m) => m.treasure).map((m) => m.treasure!);
 
+/** Order 52c: one cosmetic per finished journal page */
+export const JOURNAL_REWARDS: Record<JournalPage, { wear: string; title: string; blurb: string }> = {
+  fish: { wear: 'angler', title: 'Fish page complete!', blurb: 'Every fish is in your journal.' },
+  creatures: { wear: 'buddybadge', title: 'Friends page complete!', blurb: 'Every animal species befriended.' },
+  treasures: { wear: 'collector', title: 'Treasures page complete!', blurb: 'Every mount treasure found.' },
+};
+
+export function pageKnown(page: JournalPage, d: SaveData): { known: number; total: number } {
+  if (page === 'fish') {
+    const known = FISH.filter((f) => (d.fish?.[f.id]?.n ?? 0) > 0).length;
+    return { known, total: FISH.length };
+  }
+  if (page === 'creatures') {
+    const known = SPECIES.filter((sp) => Object.values(d.pets ?? {}).some((p) => p.sp === sp)).length;
+    return { known, total: SPECIES.length };
+  }
+  const known = TREASURES.filter((t) => d.treasures?.includes(t.id)).length;
+  return { known, total: TREASURES.length };
+}
+
+export function pageComplete(page: JournalPage, d: SaveData): boolean {
+  const { known, total } = pageKnown(page, d);
+  return total > 0 && known >= total;
+}
+
+export function pageClaimed(page: JournalPage, d: SaveData): boolean {
+  return !!(d.journalReward?.[page]);
+}
+
+/** first unfinished claim, if any */
+export function nextJournalReward(d: SaveData): JournalPage | null {
+  for (const page of ['fish', 'creatures', 'treasures'] as JournalPage[]) {
+    if (pageComplete(page, d) && !pageClaimed(page, d)) return page;
+  }
+  return null;
+}
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+function banner(page: JournalPage, d: SaveData): string {
+  if (!pageComplete(page, d)) return '';
+  const r = JOURNAL_REWARDS[page];
+  if (pageClaimed(page, d)) {
+    return `<div class="journal-done claimed" data-page="${page}">✅ ${esc(r.title)} · reward claimed</div>`;
+  }
+  return `<div class="journal-done ready" data-page="${page}">🎁 ${esc(r.title)} · collecting reward…</div>`;
+}
 
 export class Journal {
   open = false;
@@ -92,6 +138,9 @@ export class Journal {
     this.render();
   }
 
+  /** re-paint if open (after a catch / reward claim) */
+  refresh() { if (this.open) this.render(); }
+
   /** test / debug snapshot */
   snapshot() {
     const d = this.api.save();
@@ -104,6 +153,12 @@ export class Journal {
       fish: { known: fish.filter((x) => x.known).length, total: fish.length, entries: fish },
       creatures: { known: creatures.filter((x) => x.known).length, total: creatures.length, entries: creatures },
       treasures: { known: treasures.filter((x) => x.known).length, total: treasures.length, entries: treasures },
+      rewards: {
+        fish: { complete: pageComplete('fish', d), claimed: pageClaimed('fish', d) },
+        creatures: { complete: pageComplete('creatures', d), claimed: pageClaimed('creatures', d) },
+        treasures: { complete: pageComplete('treasures', d), claimed: pageClaimed('treasures', d) },
+        next: nextJournalReward(d),
+      },
     };
   }
 
@@ -130,7 +185,7 @@ export class Journal {
       { water: 'deep', title: WATER_NAME.deep, list: [] },
     ];
     for (const e of entries) groups.find((g) => g.water === e.water)!.list.push(e);
-    this.body.innerHTML = groups.map((g) => {
+    this.body.innerHTML = banner('fish', d) + groups.map((g) => {
       const k = g.list.filter((e) => e.known).length;
       return `<h3>${esc(g.title)} <small>${k}/${g.list.length}</small></h3>
         <div class="journal-grid">${g.list.map(cardFish).join('')}</div>`;
@@ -142,7 +197,7 @@ export class Journal {
     const entries = SPECIES.map((sp) => entryCreature(sp, d));
     const known = entries.filter((e) => e.known).length;
     this.meta.innerHTML = `<span>${known}/${SPECIES.length}</span>`;
-    this.body.innerHTML = `<div class="hint">Animals you have befriended. Silhouettes wait until you win one over with a favourite snack.</div>
+    this.body.innerHTML = banner('creatures', d) + `<div class="hint">Animals you have befriended. Silhouettes wait until you win one over with a favourite snack.</div>
       <div class="journal-grid">${entries.map(cardCreature).join('')}</div>`;
   }
 
@@ -151,7 +206,7 @@ export class Journal {
     const entries = TREASURES.map((t) => entryTreasure(t, d));
     const known = entries.filter((e) => e.known).length;
     this.meta.innerHTML = `<span>${known}/${TREASURES.length}</span>`;
-    this.body.innerHTML = `<div class="hint">Special finds that unlock mounts. Dig treasure maps, and check Shipwreck Cove for the Sea Pearl.</div>
+    this.body.innerHTML = banner('treasures', d) + `<div class="hint">Special finds that unlock mounts. Dig treasure maps, and check Shipwreck Cove for the Sea Pearl.</div>
       <div class="journal-grid">${entries.map(cardTreasure).join('')}</div>`;
   }
 }

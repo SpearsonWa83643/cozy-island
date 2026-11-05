@@ -18,6 +18,7 @@ import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
 import type { MapOverlay } from '../ui/MapOverlay';
 import type { Journal } from '../ui/Journal';
+import { JOURNAL_REWARDS, nextJournalReward, type JournalPage } from '../ui/Journal';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
@@ -315,11 +316,14 @@ export class Gameplay implements System {
     void this.ensureMap().then((m) => { this.g.islets?.list.forEach((it, k) => { if (it?.flora) m.isletPins[k] = { x: it.flora.landing.x, z: it.flora.landing.z }; }); m.toggle(info); });
   }
 
-  /** Order 52b: collection journal (fish / friends / treasures) */
+  /** Order 52b/52c: collection journal (fish / friends / treasures + page rewards) */
   private toggleJournal() {
     this.panels.toggle(null);
     this.map?.hide();
-    void this.ensureJournal().then((j) => j.toggle());
+    void this.ensureJournal().then((j) => {
+      j.toggle();
+      if (j.open) this.checkJournalRewards();
+    });
   }
 
   private ensureJournal(): Promise<Journal> {
@@ -335,6 +339,54 @@ export class Gameplay implements System {
       return j;
     });
     return this.journalP;
+  }
+
+  /**
+   * Order 52c: if a journal page is newly complete, claim its cosmetic once and show a reward card.
+   * Claims at most one page per call so multiple completes still feel special.
+   */
+  checkJournalRewards(): JournalPage | null {
+    const d = this.save.data;
+    const page = nextJournalReward(d);
+    if (!page) return null;
+    const def = JOURNAL_REWARDS[page];
+    const w = WEAR_BY_ID.get(def.wear);
+    d.journalReward = { ...(d.journalReward ?? {}), [page]: true };
+    let dupShells = 0;
+    if (w) {
+      if (!d.owned[w.id]) d.owned[w.id] = 1;
+      else { d.owned[w.id]++; dupShells = RARITY[w.rarity].shells; d.shells += dupShells; }
+      this.lastReward = w.id;
+    }
+    this.save.touch();
+    this.panels.refreshBadges();
+    this.journal?.refresh();
+    const pos = this.g.player.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+    const busy = !!this.pendingReward;
+    if (w) {
+      this.juice.pop(pos, w.icon, 'emote big', 1.8, 60);
+      this.g.audio.chest(w.rarity);
+      this.g.player.cheer();
+      const rr = RARITY[w.rarity];
+      const extra = dupShells
+        ? `📖 ${def.title} Already owned — <b>+${dupShells} 🐚</b>`
+        : `📖 ${def.title} ${def.blurb}`;
+      if (!busy) {
+        window.clearTimeout(this.rewardTimer);
+        this.pendingReward = () => {
+          this.pendingReward = null;
+          const card = this.juice.reward(w.icon, w.name, rr.name, rr.color, extra,
+            () => { this.panels.refreshBadges(); this.journal?.refresh(); });
+          card.classList.add('r' + w.rarity, 'journal-reward');
+        };
+        this.rewardTimer = window.setTimeout(() => this.pendingReward?.(), 500);
+      } else {
+        this.juice.toast(`📖 ${def.title} · <b style="color:${rr.color}">${w.name}</b>${dupShells ? ` · +${dupShells} 🐚` : ''} ✨`, 3200);
+      }
+    } else {
+      this.juice.toast(`📖 ${def.title}`, 2800);
+    }
+    return page;
   }
 
   private ensureMap(): Promise<MapOverlay> {
@@ -648,6 +700,7 @@ export class Gameplay implements System {
     else if (res === 'more') this.juice.toast(`${t.icon} ${t.name} liked that! One more…${fav ? '' : ` <small>(favourite: ${t.fav.map((f) => FOODS[f].icon).join(' ')})</small>`}`);
     else this.juice.toast(`${t.icon} ${t.name} is full and happy`);
     this.save.touch(); this.panels.refreshBadges();
+    if (res === 'friend') this.checkJournalRewards();
   }
 
   /** Shipwreck Cove chest: the Sea Pearl (sea turtle mount) and the Captain Hat; later another sea wearable / shells */
@@ -825,7 +878,7 @@ export class Gameplay implements System {
     this.pendingReward = () => {
       this.pendingReward = null;
       const card = this.juice.reward(t.icon, t.name, 'New mount!', '#ff7eb6',
-        `<b>${m.icon} ${m.name}</b> unlocked! ${t.blurb}`, () => { this.panels.refreshBadges(); this.juice.toast(`${m.icon} Tap <b>Call Mount</b> in the water to ride your ${m.short} · <b>Jump</b> to dive`, 3200); },
+        `<b>${m.icon} ${m.name}</b> unlocked! ${t.blurb}`, () => { this.panels.refreshBadges(); this.juice.toast(`${m.icon} Tap <b>Call Mount</b> in the water to ride your ${m.short} · <b>Jump</b> to dive`, 3200); this.checkJournalRewards(); },
         { action: 'Ride it!', onAction: () => { setTimeout(() => this.mount?.call(m.id), 250); } });
       card.classList.add('r4', 'mount-reward');
     };
@@ -853,6 +906,7 @@ export class Gameplay implements System {
         this.save.touch();
         this.panels.refreshBadges();
         this.panels.setMapPulse(true, true);
+        this.checkJournalRewards();
       };
       const card = this.juice.reward(t.icon, t.name, 'New mount!', '#ff7eb6',
         `<b>${m.icon} ${m.name}</b> unlocked! ${t.blurb}`, () => { after(); this.juice.toast(`🗺️ A new map was tucked inside the chest! Tap <b>Call Mount</b> to pick your ${m.short}.`, 3200); },

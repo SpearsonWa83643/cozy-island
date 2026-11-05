@@ -150,6 +150,7 @@ export class Fishing {
     g.play.juice.pop(p, `<span class="fish-ico" style="filter:hue-rotate(${f.hue}deg)">${f.icon}</span>`, 'emote', 1.8, 50);
     g.play.toast(`🎣 You caught a <b>${f.name}</b> ${f.icon} — ${size} cm${isNew ? ' <b>NEW!</b> <small>(journal)</small>' : best ? ' <b>Best yet!</b>' : ''}`, 3000);
     g.audio.pop(1.8); setTimeout(() => g.audio.pop(2.2), 120);
+    g.play.checkJournalRewards();
     this.stop();
   }
 
