@@ -75,7 +75,7 @@ export class Fishing {
   private boatRide() { const m = this.g.mount; return m.id === 'rowboat' && m.phase === 'ride'; }
   private blocked() {
     const g = this.g, m = g.mount;
-    if (g.build?.active || g.cave.inside || g.play.previewing || g.play.friend?.open || g.player.swimming) return true;
+    if (g.build?.active || g.cave.inside || g.play.previewing || g.play.friend?.open || g.play.journal?.open || g.player.swimming) return true;
     if (m.phase !== 'off' && !this.boatRide()) return true; // flying / swimming mounts: no
     return false;
   }

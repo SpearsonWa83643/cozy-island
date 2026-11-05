@@ -254,7 +254,7 @@ export class Game {
       ui: () => this.audio.ui(), deny: () => this.audio.ui(),
     });
     this.mount = new Mount(this.player, this.input, this.rig, {
-      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving || this.mountPicker.open || (!!this.fishing && (this.fishing.state !== 'idle' || this.fishing.settle)),
+      blocked: () => !!this.play.friend?.open || !!this.play.journal?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving || this.mountPicker.open || (!!this.fishing && (this.fishing.state !== 'idle' || this.fishing.settle)),
       mustLand: () => !!this.build?.active || this.cave.inside,
       toast: (h, ms) => this.play.toast(h, ms),
       sfx: (k) => this.audio.mount(k),

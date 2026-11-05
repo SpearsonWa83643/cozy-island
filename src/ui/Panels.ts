@@ -11,6 +11,8 @@ export interface PanelApi {
   dismiss: (i: number) => void;
   sheet: (kind: 'bag' | 'wardrobe' | null) => void;
   map: () => void;
+  /** Order 52b: collection journal (fish / friends / treasures) */
+  journal: () => void;
   ui: () => void;
   /** trade all of one sea treasure for shells */
   trade: (id: FoodId) => void;
@@ -21,7 +23,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 /** Top buttons (Map / Bag / Wardrobe), the contextual action button and the two sheets. */
 export class Panels {
   bar: HTMLDivElement;
-  mapBtn: HTMLButtonElement; bagBtn: HTMLButtonElement; wardBtn: HTMLButtonElement;
+  mapBtn: HTMLButtonElement; bagBtn: HTMLButtonElement; wardBtn: HTMLButtonElement; journalBtn: HTMLButtonElement;
   action: HTMLButtonElement;
   open: 'bag' | 'wardrobe' | null = null;
   private bag: HTMLDivElement; private ward: HTMLDivElement;
@@ -33,11 +35,13 @@ export class Panels {
     this.bar.className = 'game-bar';
     this.bar.innerHTML = `
       <button class="gbtn map" aria-label="Map"><span class="gi">🗺️</span><span class="gl">Map${touch ? '' : ' <kbd>M</kbd>'}</span><span class="badge dot"></span></button>
+      <button class="gbtn journal" aria-label="Journal"><span class="gi">📖</span><span class="gl">Journal${touch ? '' : ' <kbd>J</kbd>'}</span><span class="badge count"></span></button>
       <button class="gbtn bag" aria-label="Bag"><span class="gi">🎒</span><span class="gl">Bag${touch ? '' : ' <kbd>I</kbd>'}</span><span class="badge count"></span></button>
       <button class="gbtn ward" aria-label="Wardrobe"><span class="gi">👕</span><span class="gl">Wardrobe${touch ? '' : ' <kbd>O</kbd>'}</span><span class="badge count"></span></button>`;
     parent.appendChild(this.bar);
-    this.mapBtn = this.bar.querySelector('.map')!; this.bagBtn = this.bar.querySelector('.bag')!; this.wardBtn = this.bar.querySelector('.ward')!;
+    this.mapBtn = this.bar.querySelector('.map')!; this.bagBtn = this.bar.querySelector('.bag')!; this.wardBtn = this.bar.querySelector('.ward')!; this.journalBtn = this.bar.querySelector('.journal')!;
     this.mapBtn.addEventListener('click', () => { api.ui(); api.map(); });
+    this.journalBtn.addEventListener('click', () => { this.toggle(null); api.ui(); api.journal(); });
     this.bagBtn.addEventListener('click', () => this.toggle('bag'));
     this.wardBtn.addEventListener('click', () => this.toggle('wardrobe'));
 

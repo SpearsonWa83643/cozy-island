@@ -17,6 +17,7 @@ import { DYES, FOODS, RARITY, SEA_WEAR, TASTES, WEAR_BY_ID, type FoodId, type Sl
 import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
 import type { MapOverlay } from '../ui/MapOverlay';
+import type { Journal } from '../ui/Journal';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
@@ -48,6 +49,8 @@ export class Gameplay implements System {
   private ray = new THREE.Raycaster();
   map: MapOverlay | null = null;
   private mapP: Promise<MapOverlay> | null = null;
+  journal: Journal | null = null;
+  private journalP: Promise<Journal> | null = null;
   juice: Juice;
   panels: Panels;
   react: TapReact;
@@ -119,6 +122,7 @@ export class Gameplay implements System {
       dismiss: (i) => { const f = this.g.fauna.friends()[i]; if (f) { this.g.fauna.dismiss(f); this.juice.pop(new THREE.Vector3(f.a.x, f.a.y + 0.9, f.a.z), '👋', 'emote', 1.6, 40); } },
       sheet: (k) => { this.setPreview(k === 'wardrobe'); this.save.touch(); if (!k) this.panels.refreshBadges(); },
       map: () => this.toggleMap(),
+      journal: () => this.toggleJournal(),
       ui: () => this.g.audio.ui(),
       trade: (id) => { const n = d.food[id] ?? 0, f = FOODS[id]; if (!n || !f.trade) return; const got = n * (f.trade ?? 1); d.food[id] = 0; d.shells += got; this.g.audio.pop(1.6); this.juice.toast(`Traded ${n} ${f.icon} for <b>+${got} 🐚</b>`); this.save.touch(); this.panels.refreshBadges(); },
     }, g.isTouch);
@@ -148,7 +152,7 @@ export class Gameplay implements System {
     });
     // contextual action from a tap/click near the target
     g.input.onClick.push((e, drag) => {
-      if (drag || g.build?.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend?.open) { this.lastTap = drag ? 'drag' : 'blocked'; return; }
+      if (drag || g.build?.active || e.button !== 0 || this.previewOn || this.lockMove > 0 || this.friend?.open || this.journal?.open) { this.lastTap = drag ? 'drag' : 'blocked'; return; }
       g.audio.unlock();
       this.lastTap = 'other';
       // mount: tap the waiting eagle to hop on, or tap the ground while riding to glide there
@@ -200,9 +204,13 @@ export class Gameplay implements System {
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
       const k = e.key.toLowerCase();
-      if (this.friend?.open) return;
-      if (k === 'escape') { this.map?.hide(); this.panels.toggle(null); }
+      if (this.friend?.open || this.journal?.open) {
+        if (k === 'escape' && this.journal?.open) this.journal.hide();
+        return;
+      }
+      if (k === 'escape') { this.map?.hide(); this.journal?.hide(); this.panels.toggle(null); }
       if (k === 'm') { g.audio.unlock(); this.toggleMap(); }
+      if (k === 'j') { g.audio.unlock(); this.toggleJournal(); }
       if (k === 'g') this.setGuide(!this.guide.enabled);
       if (k === 'i') this.panels.toggle('bag');
       if (k === 'o') this.panels.toggle('wardrobe');
@@ -305,6 +313,28 @@ export class Gameplay implements System {
     this.g.audio.paper();
     const info = { state: d.map.state, n: d.map.n, x: d.map.x, z: d.map.z, hint: d.map.hint, bottle: { x: this.treasure.bottlePos.x, z: this.treasure.bottlePos.z } };
     void this.ensureMap().then((m) => { this.g.islets?.list.forEach((it, k) => { if (it?.flora) m.isletPins[k] = { x: it.flora.landing.x, z: it.flora.landing.z }; }); m.toggle(info); });
+  }
+
+  /** Order 52b: collection journal (fish / friends / treasures) */
+  private toggleJournal() {
+    this.panels.toggle(null);
+    this.map?.hide();
+    void this.ensureJournal().then((j) => j.toggle());
+  }
+
+  private ensureJournal(): Promise<Journal> {
+    if (this.journal) return Promise.resolve(this.journal);
+    if (this.journalP) return this.journalP;
+    this.journalP = import('../ui/Journal').then(({ Journal }) => {
+      const j = new Journal(document.body, {
+        save: () => this.save.data,
+        ui: () => this.g.audio.ui(),
+        paper: () => this.g.audio.paper(),
+      });
+      this.journal = j;
+      return j;
+    });
+    return this.journalP;
   }
 
   private ensureMap(): Promise<MapOverlay> {
