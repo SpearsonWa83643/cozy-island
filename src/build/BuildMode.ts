@@ -283,6 +283,27 @@ export class BuildMode implements System {
   /** placed pieces (tap reactions, tests) */
   get pieces() { return this.placed; }
 
+  /**
+   * Order 53a: a built cottage under the player — any roof whose 2×2 footprint
+   * contains (x, z). Returns the roof centre (cx, cz) and floor height.
+   */
+  cottageAt(x: number, z: number) {
+    for (const p of this.placed) {
+      if (p.def.id !== 'roof') continue;
+      const cx = p.obj.position.x, cz = p.obj.position.z;
+      if (Math.abs(x - cx) < 0.95 && Math.abs(z - cz) < 0.95)
+        return { roof: p, cx, cz, roofY: p.obj.position.y };
+    }
+    return null;
+  }
+
+  /** hide or show a cottage roof (enter/exit interior) */
+  setRoofHidden(roof: { obj: THREE.Object3D }, hidden: boolean) {
+    const p = this.placed.find((x) => x.obj === roof.obj);
+    if (!p || p.def.id !== 'roof') return;
+    p.obj.visible = !hidden;
+  }
+
   /** true if a placed piece occupies the cell at (x, z) (used by wandering animals) */
   occupiedAt(x: number, z: number) {
     for (const p of this.placed) if (Math.abs(p.obj.position.x - x) < 0.65 && Math.abs(p.obj.position.z - z) < 0.65) return true;

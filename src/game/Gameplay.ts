@@ -77,9 +77,26 @@ export class Gameplay implements System {
   private pendingReward: (() => void) | null = null;
   private rewardTimer = 0;
   mount: Mount | null = null;
+  /** Order 53a: current cottage interior (roof hidden, camera clamped) — session only, not saved */
+  private inCottage: { cx: number; cz: number } | null = null;
+  private cottageRoof: { obj: THREE.Object3D } | null = null;
+  private cottageWelcome = false;
+  private cottageCamDist = 9;
   /** wardrobe / friend overlays that should block Call Mount */
   get previewing() { return this.previewOn; }
   get lockMoving() { return this.lockMove > 0; }
+  /** Order 53a test hook: cottage enter/exit state */
+  get interior() {
+    const c = this.inCottage;
+    return {
+      inside: !!c,
+      cx: c?.cx ?? null,
+      cz: c?.cz ?? null,
+      roofHidden: !!(this.cottageRoof && !this.cottageRoof.obj.visible),
+      camCottage: !!this.g.rig.cottage,
+      camDist: +this.g.rig.distance.toFixed(2),
+    };
+  }
   /** show a pending reward card immediately (tests) */
   showRewardNow() { clearTimeout(this.rewardTimer); this.pendingReward?.(); }
 
@@ -664,6 +681,32 @@ export class Gameplay implements System {
     this.save.touch(); this.panels.refreshBadges();
   }
 
+  // ---------------- cottage interior (Order 53a) ----------------
+  private enterCottage(cot: { roof: { obj: THREE.Object3D }; cx: number; cz: number }) {
+    const g = this.g;
+    if (this.inCottage && this.inCottage.cx === cot.cx && this.inCottage.cz === cot.cz) return;
+    if (this.cottageRoof && this.cottageRoof.obj !== cot.roof.obj) g.build?.setRoofHidden(this.cottageRoof, false);
+    this.inCottage = { cx: cot.cx, cz: cot.cz };
+    this.cottageRoof = cot.roof;
+    this.cottageCamDist = g.rig.distance;
+    g.build?.setRoofHidden(cot.roof, true);
+    const floorY = g.heightAt(cot.cx, cot.cz);
+    g.rig.cottage = { cx: cot.cx, cz: cot.cz, floorY, half: 1.05 };
+    if (!this.cottageWelcome) {
+      this.cottageWelcome = true;
+      this.juice.toast('🏠 <b>Welcome home</b> — the roof lifts so you can see inside', 2800);
+    }
+  }
+  private exitCottage() {
+    if (!this.inCottage) return;
+    const g = this.g;
+    if (this.cottageRoof) g.build?.setRoofHidden(this.cottageRoof, false);
+    this.inCottage = null;
+    this.cottageRoof = null;
+    g.rig.cottage = null;
+    g.rig.distance = Math.max(g.rig.distance, Math.min(14, this.cottageCamDist));
+  }
+
   // ---------------- cave ----------------
   private caveCool = 0;
   private fadeEl: HTMLElement | null = null;
@@ -976,6 +1019,12 @@ export class Gameplay implements System {
         else { const ep = c.exitPt; if (Math.hypot(p.x - ep.x, p.z - ep.z) < 1.3) this.caveTransition(false); }
       }
     }
+    // Order 53a: walk into a built cottage → hide roof + pull camera in; walk out → restore
+    if (!g.cave.inside && !g.player.mounted && g.build) {
+      const cot = g.build.cottageAt(p.x, p.z);
+      if (cot) this.enterCottage(cot);
+      else if (this.inCottage) this.exitCottage();
+    } else if (this.inCottage) this.exitCottage();
     // Shipwreck Cove: restore the looted chest, and welcome on the first swim-by
     { const wk = g.wreck; if (d.wreckChest && !wk.opened && hasTreasure(d, 'sea_pearl')) wk.setOpened(true); // older saves: the chest shuts again until the pearl is found
       if (!d.wreckSeen && !g.cave.inside && Math.hypot(p.x - wk.pos.x, p.z - wk.pos.z) < 7) { d.wreckSeen = true; this.save.touch(); g.audio.levelUp(); this.juice.toast('⚓ <b>Shipwreck Cove</b> — an old ship broke in two on the reef. Swim through the gap and look for the captain\'s chest!', 4200); } }

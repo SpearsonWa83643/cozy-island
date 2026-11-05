@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 10:22 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-05 (CT), 10:40 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -14,7 +14,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | DONE 2026-11-04 (6 days ahead of ETA) | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | DONE 2026-11-05 (11 days ahead of ETA) | 2026-11-16 | 3.5 |
-| 53 | Cottage interiors and decorating: furniture inside the house you build | To do | 2026-11-21 | 3.5 |
+| 53 | Cottage interiors and decorating: furniture inside the house you build | In progress (53a DONE) | 2026-11-21 | 3.5 |
 
 Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The claimable home islet was not picked and is not on the backlog.
 
@@ -25,6 +25,14 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 51 Boat: a rowboat or sailboat found or built at a dock, boarded with a tap; steers with the iPad joystick, floats with gentle bob and wake, cannot beach on land; reaches every islet and docks at its landing; respects the sea edge; save restores it; iPad test sails main island to an islet and back.
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
+
+### Order 53 detail (In progress — ETA 2026-11-21)
+
+- 53a DONE (2026-11-05): enter / exit a built cottage. Walking into a roofed 2×2 House-kit footprint (`BuildMode.cottageAt`) hides the roof, pulls the orbit camera in (`CameraRig.cottage` clamps to the room, eases distance toward ~3.8) and shows a one-time welcome toast; walking back out restores the roof and frees the camera. Nothing new is saved (session feel only). Reuses Order 44 cottage kit. New tests/interior.mjs (iPad viewport: place cottage via placeAt, open door, walk in → roof hidden + camCottage, walk out → restored, teleport-in also enters; screenshot 106).
+- 53b (next): furniture catalog + place / rotate / move / remove on a grid inside (bed, table, chairs, rug, lamp, shelves, plants); snap to floor/walls; cannot block the door.
+- 53c: save furniture with the house, undo, full acceptance (iPad furnish + reload).
+
+Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c (`ff8b372`); 53a enter/exit shipped (this commit).
 
 ### Order 52 detail (DONE 2026-11-05, 11 days ahead of the 2026-11-16 ETA)
 

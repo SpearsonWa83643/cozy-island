@@ -10,6 +10,8 @@ export interface CaveBounds { clampCamera(target: THREE.Vector3, pos: THREE.Vect
 export class CameraRig implements System {
   /** set while underground */
   cave: CaveBounds | null = null;
+  /** Order 53a: set while inside a built cottage (pulls camera in, clamps to the room) */
+  cottage: { cx: number; cz: number; floorY: number; half?: number } | null = null;
   yaw = 0.6;
   pitch = 0.42;
   distance = 9;
@@ -39,9 +41,16 @@ export class CameraRig implements System {
     if (this.pitch <= 0.05 || this.pitch >= 1.35) this.pendPitch = 0;
     if (i.keys.has('z')) this.yaw += dt * 1.8;
     if (i.keys.has('c')) this.yaw -= dt * 1.8;
-    const dMin = this.mountBoost > 0.5 ? 7 : 3.5;
-    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, dMin, 28);
-    if (this.mountBoost > 0.5 && this.distance < 10) this.distance += (10 - this.distance) * Math.min(1, dt * 1.5);
+    const dMin = this.cottage ? 2.6 : this.mountBoost > 0.5 ? 7 : 3.5;
+    const dMax = this.cottage ? 5.2 : 28;
+    this.distance = THREE.MathUtils.clamp(this.distance * (1 + i.wheel * 0.1) / i.pinch, dMin, dMax);
+    if (this.mountBoost > 0.5 && this.distance < 10 && !this.cottage) this.distance += (10 - this.distance) * Math.min(1, dt * 1.5);
+    // Order 53a: ease toward a cozy interior framing (close, slightly pitched down into the room)
+    if (this.cottage) {
+      this.distance += (3.8 - this.distance) * Math.min(1, dt * 3.2);
+      const wantP = Math.max(0.48, Math.min(this.pitch, 0.95));
+      this.pitch += (wantP - this.pitch) * Math.min(1, dt * 2.4);
+    }
     const p = this.player.position.add(new THREE.Vector3(0, 1.1 + this.mountBoost, 0));
     this.target.lerp(p, Math.min(1, dt * 8));
     this.apply();
@@ -60,6 +69,15 @@ export class CameraRig implements System {
       const lim = Math.min(this.distance, 4.6), d = pos.clone().sub(this.target).setLength(lim);
       pos.copy(this.target).add(d);
       this.cave.clampCamera(this.target, pos);
+    } else if (this.cottage) {
+      // inside a cottage: keep the camera in the room volume (roof is hidden)
+      const half = this.cottage.half ?? 1.05;
+      const lim = Math.min(this.distance, 4.4), d = pos.clone().sub(this.target).setLength(lim);
+      pos.copy(this.target).add(d);
+      pos.x = THREE.MathUtils.clamp(pos.x, this.cottage.cx - half, this.cottage.cx + half);
+      pos.z = THREE.MathUtils.clamp(pos.z, this.cottage.cz - half, this.cottage.cz + half);
+      const lo = this.cottage.floorY + 0.55, hi = this.cottage.floorY + 2.55;
+      pos.y = THREE.MathUtils.clamp(pos.y, lo, hi);
     } else {
       const minY = Math.max(heightAt(pos.x, pos.z) + 0.4, 0.75); // stays above the swell
       if (pos.y < minY) pos.y = minY;
