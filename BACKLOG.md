@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 10:40 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-05 (CT), 11:00 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -14,7 +14,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | DONE 2026-11-04 (6 days ahead of ETA) | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | DONE 2026-11-05 (11 days ahead of ETA) | 2026-11-16 | 3.5 |
-| 53 | Cottage interiors and decorating: furniture inside the house you build | In progress (53a DONE) | 2026-11-21 | 3.5 |
+| 53 | Cottage interiors and decorating: furniture inside the house you build | In progress (53a–b DONE) | 2026-11-21 | 3.5 |
 
 Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The claimable home islet was not picked and is not on the backlog.
 
@@ -28,11 +28,11 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 
 ### Order 53 detail (In progress — ETA 2026-11-21)
 
-- 53a DONE (2026-11-05): enter / exit a built cottage. Walking into a roofed 2×2 House-kit footprint (`BuildMode.cottageAt`) hides the roof, pulls the orbit camera in (`CameraRig.cottage` clamps to the room, eases distance toward ~3.8) and shows a one-time welcome toast; walking back out restores the roof and frees the camera. Nothing new is saved (session feel only). Reuses Order 44 cottage kit. New tests/interior.mjs (iPad viewport: place cottage via placeAt, open door, walk in → roof hidden + camCottage, walk out → restored, teleport-in also enters; screenshot 106).
-- 53b (next): furniture catalog + place / rotate / move / remove on a grid inside (bed, table, chairs, rug, lamp, shelves, plants); snap to floor/walls; cannot block the door.
-- 53c: save furniture with the house, undo, full acceptance (iPad furnish + reload).
+- 53a DONE (2026-11-05): enter / exit a built cottage. Walking into a roofed 2×2 House-kit footprint (`BuildMode.cottageAt`) hides the roof, pulls the orbit camera in (`CameraRig.cottage` clamps to the room, eases distance toward ~3.8) and shows a one-time welcome toast; walking back out restores the roof and frees the camera. Nothing new is saved (session feel only). Reuses Order 44 cottage kit. New tests/interior.mjs (iPad viewport: place cottage via placeAt, open door, walk in → roof hidden + camCottage, walk out → restored, teleport-in also enters; screenshot 106). Commit `6ff8a5d`.
+- 53b DONE (2026-11-05): Furnish tab + furniture catalog (bed, table, chair, rug, floor lamp, shelves, plant — append-only after balloonpad so saved indices stay stable). Floor pieces snap to cell centres inside a roofed cottage; shelves snap to the nearest wall facing inward. Placement rejects outside the cottage and on the door-threshold cell (axis-correct inward from the door). Tap placed furniture to pick it up and re-place (move); rotate / remove reuse the existing Build Mode controls. `removePiece` works outside Build Mode so tests and move-by-pickup are reliable. New tests/furniture.mjs 18/18 (iPad viewport; screenshot 107).
+- 53c (next): save furniture with the house, undo, full acceptance (iPad furnish + reload).
 
-Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c (`ff8b372`); 53a enter/exit shipped (this commit).
+Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c (`ff8b372`); 53a (`6ff8a5d`); 53b furniture catalog shipped (this commit).
 
 ### Order 52 detail (DONE 2026-11-05, 11 days ahead of the 2026-11-16 ETA)
 
@@ -98,6 +98,8 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 ## Done (from git log)
 
 Nov 5
+- 53b: Furnish tab + cottage furniture (floor/wall snap, door block, move/rotate/remove); tests/furniture.mjs 18/18
+- 53a: enter/exit built cottage (roof hide, camera pull-in); tests/interior.mjs
 - 52b: collection journal (Fish / Friends / Treasures pages, silhouettes until found); tests/journal.mjs
 - 52c: page completion cosmetics (angler / buddybadge / collector); tests/journal-rewards.mjs
 - 52a: fishing from shore, dock, pond and rowboat (cast/Hook/Reel mini-game, water+time fish mix, save counts); tests/fishing.mjs 15/15

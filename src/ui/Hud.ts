@@ -62,7 +62,7 @@ export class Hud {
       this.slots.push(s);
     });
     // Order 44: Items / House tabs above the piece bar (tap a tab to jump to its first piece)
-    this.tabsEl = el(`<div class="hud build-tabs off"><button class="btab" data-tab="items">🧺 Items</button><button class="btab" data-tab="house">🏠 House</button></div>`);
+    this.tabsEl = el(`<div class="hud build-tabs off"><button class="btab" data-tab="items">🧺 Items</button><button class="btab" data-tab="house">🏠 House</button><button class="btab" data-tab="furn">🛋️ Furnish</button></div>`);
     const stop = (e: Event) => e.stopPropagation();
     for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup'] as const) this.tabsEl.addEventListener(ev, stop);
     for (const b of this.tabsEl.querySelectorAll<HTMLButtonElement>('.btab')) b.addEventListener('click', (e) => {

@@ -23,8 +23,8 @@ export interface Buildable {
   boxes?: [number, number, number, number, number, number][];
   /** bridge: spans water, ends rest on land at +/- span along its length */
   span?: number;
-  /** cottage kit: 'edge' pieces sit on a cell edge (auto-facing), 'corner' pieces centre on a cell corner (2x2 roof) */
-  snap?: 'edge' | 'corner';
+  /** cottage kit: 'edge' / 'corner'; furniture: 'floor' grid cell, 'wall' against an interior wall */
+  snap?: 'edge' | 'corner' | 'floor' | 'wall';
 }
 
 const treeRnd = mulberry32(99);
@@ -62,6 +62,14 @@ export const BUILDABLES: Buildable[] = [
   { id: 'roof', label: 'Roof', icon: '🛖', make: makeRoof, box: [1.25, 0.08, 1.25, 2.1], stackable: false, height: 1, snap: 'corner' },
   // Order 47: placing one unlocks the hot-air balloon mount (it floats over from its pad)
   { id: 'balloonpad', label: 'Balloon Pad', icon: '🎈', make: makeBalloonPad, box: [0.95, 0.08, 0.95, 0.08], stackable: false, height: 0.16 },
+  // Order 53b: cottage furniture (Furnish tab). Floor pieces snap to cell centres inside a roofed cottage; shelves to walls.
+  { id: 'bed', label: 'Bed', icon: '🛏️', make: makeBed, box: [0.48, 0.28, 0.72, 0.28], stackable: false, height: 0.55, snap: 'floor' },
+  { id: 'table', label: 'Table', icon: '🪵', make: makeTable, box: [0.42, 0.32, 0.42, 0.32], stackable: false, height: 0.7, snap: 'floor' },
+  { id: 'chair', label: 'Chair', icon: '🪑', make: makeChair, box: [0.22, 0.35, 0.22, 0.35], stackable: false, height: 0.75, snap: 'floor' },
+  { id: 'rug', label: 'Rug', icon: '🧶', make: makeRug, box: [0.55, 0.02, 0.55, 0.02], stackable: false, height: 0.04, snap: 'floor' },
+  { id: 'furnlamp', label: 'Floor Lamp', icon: '🕯️', make: makeFurnLamp, box: [0.14, 0.55, 0.14, 0.55], stackable: false, height: 1.15, snap: 'floor' },
+  { id: 'shelves', label: 'Shelves', icon: '📚', make: makeShelves, box: [0.45, 0.35, 0.12, 1.15], stackable: false, height: 0.8, snap: 'wall' },
+  { id: 'plant', label: 'Plant', icon: '🪴', make: makePlant, box: [0.18, 0.35, 0.18, 0.35], stackable: false, height: 0.75, snap: 'floor' },
 ];
 /** round plank deck with a coral ring, a mooring post and a little striped windsock */
 function makeBalloonPad() {
@@ -138,6 +146,80 @@ function makeRoof() {
   const gable = new THREE.ExtrudeGeometry(tri, { depth: 0.1, bevelEnabled: false });
   for (const x of [-1.05, 0.95]) { const m = new THREE.Mesh(gable, P); m.rotation.y = Math.PI / 2; m.position.set(x, WALL_H, 0); m.castShadow = true; g.add(m); }
   const ch = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.7, 0.28), mat('#9c8f84')); ch.position.set(0.6, WALL_H + rise * 0.55 + 0.2, 0.55); ch.castShadow = true; g.add(ch);
+  return g;
+}
+/** Order 53b furniture — sized for a cozy 2x2 cottage cell */
+function makeBed() {
+  const g = new THREE.Group();
+  const wood = timber(), cloth = mat('#f2e8d8', { rough: 0.85 }), quilt = mat('#7eb8e8', { rough: 0.8 });
+  boxIn(g, 0.96, 0.18, 1.4, 0, 0.18, wood); // frame
+  boxIn(g, 0.9, 0.12, 1.2, 0, 0.34, cloth); // mattress
+  boxIn(g, 0.9, 0.08, 0.7, 0, 0.42, quilt); // quilt
+  boxIn(g, 0.9, 0.35, 0.08, 0, 0.4, wood, -0.66); // headboard
+  const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 0.22), mat('#fff8ee', { rough: 0.9 }));
+  pillow.position.set(0, 0.48, -0.45); pillow.castShadow = true; g.add(pillow);
+  return g;
+}
+function makeTable() {
+  const g = new THREE.Group();
+  const wood = timber();
+  boxIn(g, 0.84, 0.06, 0.84, 0, 0.62, wood); // top
+  for (const [x, z] of [[-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.6, 0.07), wood); leg.position.set(x, 0.3, z); leg.castShadow = true; g.add(leg);
+  }
+  return g;
+}
+function makeChair() {
+  const g = new THREE.Group();
+  const wood = timber(), seat = mat('#e8d4b8', { rough: 0.85 });
+  boxIn(g, 0.42, 0.06, 0.42, 0, 0.38, seat);
+  boxIn(g, 0.42, 0.45, 0.06, 0, 0.62, wood, -0.18); // back
+  for (const [x, z] of [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.05), wood); leg.position.set(x, 0.18, z); leg.castShadow = true; g.add(leg);
+  }
+  return g;
+}
+function makeRug() {
+  const g = new THREE.Group();
+  const rug = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.03, 1.05), mat('#c45a6a', { rough: 0.95 }));
+  rug.position.y = 0.02; rug.receiveShadow = true; g.add(rug);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.032, 0.85), mat('#f0d9a0', { rough: 0.9 }));
+  trim.position.y = 0.025; g.add(trim);
+  return g;
+}
+function makeFurnLamp() {
+  const g = new THREE.Group();
+  const iron = mat('#5a4a3a', { rough: 0.55 });
+  boxIn(g, 0.28, 0.06, 0.28, 0, 0.03, iron);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.85, 8), iron); pole.position.y = 0.48; pole.castShadow = true; g.add(pole);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.22, 12, 1, true), mat('#ffe6b0', { rough: 0.7, emissive: '#ffd27a', ei: 0.55 }));
+  shade.position.y = 1.0; g.add(shade);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), mat('#fff6d0', { emissive: '#ffd27a', ei: 1.4 }));
+  bulb.position.y = 0.95; g.add(bulb);
+  return g;
+}
+function makeShelves() {
+  const g = new THREE.Group();
+  const wood = timber();
+  boxIn(g, 0.9, 0.7, 0.08, 0, 0.35, wood); // backboard
+  for (const y of [0.12, 0.38, 0.64]) boxIn(g, 0.88, 0.05, 0.22, 0, y, wood, 0.08);
+  // a couple of book blobs
+  for (const [x, y, c] of [[-0.25, 0.48, '#6b8fd6'], [0.05, 0.48, '#d67b6b'], [0.28, 0.22, '#6dbd7a']] as [number, number, string][]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.08), mat(c, { rough: 0.8 })); b.position.set(x, y, 0.12); g.add(b);
+  }
+  return g;
+}
+function makePlant() {
+  const g = new THREE.Group();
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.28, 10), mat('#d4845a', { rough: 0.85 }));
+  pot.position.y = 0.14; pot.castShadow = true; g.add(pot);
+  const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.04, 10), mat('#5a4030', { rough: 0.95 }));
+  soil.position.y = 0.28; g.add(soil);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2, leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), mat(i % 2 ? '#5fbf5a' : '#3fa34a', { rough: 0.75 }));
+    leaf.scale.set(1, 0.55, 1); leaf.position.set(Math.cos(a) * 0.1, 0.42 + (i % 2) * 0.08, Math.sin(a) * 0.1); g.add(leaf);
+  }
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), mat('#4caf50', { rough: 0.7 })); top.position.y = 0.55; g.add(top);
   return g;
 }
 /** bridge deck height along its length (local z in [-1.5, 1.5]) */
@@ -256,7 +338,20 @@ export class BuildMode implements System {
           if (hp && hp.obj.position.distanceTo(this.playerPos()) > 4.5 && this.onFarRemove(hp.obj.position.clone(), () => this.removePiece(hp))) return;
           this.removeHovered();
         }
-        else { this.refreshTarget(); this.place(); }
+        else {
+          this.refreshTarget();
+          // Order 53b: tap placed furniture to pick it up (move), then re-place
+          const hp = this.hoverPlaced;
+          if (hp && (hp.def.snap === 'floor' || hp.def.snap === 'wall')) {
+            const type = BUILDABLES.indexOf(hp.def), rot = hp.obj.rotation.y;
+            this.removePiece(hp);
+            this.select(type);
+            this.rotation = rot;
+            this.onChange();
+            return;
+          }
+          this.place();
+        }
       } else if (e.button === 2) this.removeHovered();
     });
   }
@@ -393,7 +488,7 @@ export class BuildMode implements System {
     return true;
   }
 
-  /** cottage kit snapping: walls/doors/windows to the nearest cell edge (facing along it), roofs to the nearest cell corner */
+  /** cottage kit + furniture snapping */
   private snapTarget(def: Buildable, p: THREE.Vector3) {
     if (def.snap === 'edge') {
       const cx = Math.round(p.x), cz = Math.round(p.z), fx = p.x - cx, fz = p.z - cz;
@@ -403,11 +498,42 @@ export class BuildMode implements System {
       if (Math.abs(fx) > Math.abs(fz)) { x = cx + Math.sign(fx || 1) * 0.5; this.targetRot = Math.PI / 2 + flip; }
       else { z = cz + Math.sign(fz || 1) * 0.5; this.targetRot = flip; }
       this.target.set(x, this.edgeBase(x, z, this.targetRot), z);
+    } else if (def.snap === 'floor') {
+      const x = Math.floor(p.x) + 0.5, z = Math.floor(p.z) + 0.5;
+      this.targetRot = (Math.round(this.rotation / (Math.PI / 2)) % 4) * (Math.PI / 2);
+      this.target.set(x, heightAt(x, z), z);
+    } else if (def.snap === 'wall') {
+      // snap to the nearest cottage wall, facing inward, shelves sit about chest height
+      const cot = this.cottageAt(p.x, p.z) ?? this.nearestCottage(p.x, p.z);
+      const walls = cot ? this.placed.filter((q) => q.def.snap === 'edge' && Math.abs(q.obj.position.x - cot.cx) <= 1.05 && Math.abs(q.obj.position.z - cot.cz) <= 1.05) : [];
+      let best: Placed | null = null, bd = Infinity;
+      for (const w of walls) { const d = Math.hypot(w.obj.position.x - p.x, w.obj.position.z - p.z); if (d < bd) { bd = d; best = w; } }
+      if (best && cot) {
+        const wx = best.obj.position.x, wz = best.obj.position.z;
+        const inwardX = Math.sign(cot.cx - wx) || 0, inwardZ = Math.sign(cot.cz - wz) || 0;
+        const x = wx + inwardX * 0.22, z = wz + inwardZ * 0.22;
+        this.targetRot = Math.atan2(inwardX, inwardZ);
+        this.target.set(x, heightAt(cot.cx, cot.cz) + 0.85, z);
+      } else {
+        const x = Math.floor(p.x) + 0.5, z = Math.floor(p.z) + 0.5;
+        this.targetRot = this.rotation; this.target.set(x, heightAt(x, z) + 0.85, z);
+      }
     } else {
+      // corner (roof)
       const x = Math.floor(p.x) + 0.5, z = Math.floor(p.z) + 0.5;
       this.targetRot = Math.round(this.rotation / (Math.PI / 2)) % 2 === 1 ? Math.PI / 2 : 0;
       this.target.set(x, this.roofBase(x, z), z);
     }
+  }
+  /** nearest roofed cottage centre (for wall-snap when the ray grazes outside) */
+  private nearestCottage(x: number, z: number) {
+    let best: ReturnType<BuildMode['cottageAt']> = null, bd = Infinity;
+    for (const p of this.placed) {
+      if (p.def.id !== 'roof') continue;
+      const d = Math.hypot(p.obj.position.x - x, p.obj.position.z - z);
+      if (d < bd && d < 3) { bd = d; best = { roof: p, cx: p.obj.position.x, cz: p.obj.position.z, roofY: p.obj.position.y }; }
+    }
+    return best;
   }
   /** an edge piece sits on the lowest ground along its edge (its panel is sunk to cover slopes) */
   private edgeBase(x: number, z: number, rot: number) {
@@ -448,6 +574,11 @@ export class BuildMode implements System {
       const [a, b] = this.spanEnds(t.x, t.z, def.span, this.rotation);
       // banks may be the wet pond rim (just under the water line): the deck still sits above the water
       if (a < -0.1 || b < -0.1 || Math.abs(a - b) > 0.35) return false;
+    } else if (def.snap === 'floor' || def.snap === 'wall') {
+      // Order 53b: furniture only inside a roofed cottage, never on the door threshold
+      if (heightAt(t.x, t.z) < 0.1) return false;
+      if (!this.cottageAt(t.x, t.z)) return false;
+      if (this.blocksDoor(t.x, t.z)) return false;
     } else if (def.snap) {
       if (heightAt(t.x, t.z) < 0.1) return false;
     } else if (heightAt(t.x, t.z) < 0.15) return false; // no building in the sea
@@ -457,6 +588,22 @@ export class BuildMode implements System {
     // occupied cell at same level?
     return !this.placed.some((p) => Math.abs(p.obj.position.x - t.x) < 0.01 && Math.abs(p.obj.position.z - t.z) < 0.01
       && Math.abs(p.obj.position.y - t.y) < 0.5);
+  }
+
+  /** Order 53b: furniture may not sit on the cell just inside a door (keeps the doorway clear) */
+  private blocksDoor(x: number, z: number) {
+    for (const p of this.placed) {
+      if (p.def.id !== 'door') continue;
+      const dx = p.obj.position.x, dz = p.obj.position.z;
+      const cot = this.cottageAt(dx, dz) ?? this.nearestCottage(dx, dz);
+      if (!cot) continue;
+      // door sits on one edge of the 2×2; inward is only along that axis (not a diagonal)
+      const onNS = Math.abs(Math.abs(dz - cot.cz) - 1) < 0.15;
+      const tx = onNS ? dx : dx + Math.sign(cot.cx - dx) * 0.5;
+      const tz = onNS ? dz + Math.sign(cot.cz - dz) * 0.5 : dz;
+      if (Math.hypot(x - tx, z - tz) < 0.55) return true;
+    }
+    return false;
   }
 
   place(): boolean {
@@ -469,8 +616,14 @@ export class BuildMode implements System {
 
   placeAt(x: number, z: number, type: number, rot = 0, y?: number): boolean {
     const def = BUILDABLES[type];
+    // Order 53b: furniture only inside a roofed cottage, never on the door threshold
+    if ((def.snap === 'floor' || def.snap === 'wall') && (!this.cottageAt(x, z) || this.blocksDoor(x, z))) return false;
     const obj = def.make();
-    const yy = y ?? (def.snap === 'edge' ? this.edgeBase(x, z, rot) : def.snap === 'corner' ? this.roofBase(x, z) : def.span ? this.spanBase(x, z, def.span, rot)
+    const yy = y ?? (def.snap === 'edge' ? this.edgeBase(x, z, rot)
+      : def.snap === 'corner' ? this.roofBase(x, z)
+      : def.snap === 'floor' ? heightAt(x, z)
+      : def.snap === 'wall' ? heightAt(x, z) + 0.85
+      : def.span ? this.spanBase(x, z, def.span, rot)
       : Math.min(heightAt(x - 0.4, z - 0.4), heightAt(x + 0.4, z + 0.4), heightAt(x + 0.4, z - 0.4), heightAt(x - 0.4, z + 0.4)));
     obj.position.set(x, yy, z);
     obj.rotation.y = rot;
@@ -519,7 +672,16 @@ export class BuildMode implements System {
 
   /** hook: return true to take over a far remove (walk there first) */
   onFarRemove: (pos: THREE.Vector3, done: () => void) => boolean = () => false;
-  removePiece(p: Placed) { if (!this.placed.includes(p)) return; this.hoverPlaced = p; this.removeHovered(true); }
+  /** remove a placed piece (works outside Build Mode so tests / move-by-pickup can call it) */
+  removePiece(p: Placed) {
+    if (!this.placed.includes(p)) return;
+    this.group.remove(p.obj);
+    for (const c of p.colliders) this.physics.remove(c);
+    this.placed = this.placed.filter((x) => x !== p);
+    if (this.hoverPlaced === p) this.hoverPlaced = null;
+    this.onRemove();
+    this.onChange();
+  }
   removeHovered(keep = false) {
     if (!this.active) return;
     if (!keep) this.computeTarget();
