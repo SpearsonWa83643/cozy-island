@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 11:15 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-05 (CT), 10:50 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -157,6 +157,7 @@ Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s t
 
 ## Session log
 
+- 2026-11-05 (CT), 10:50 AM: daily session wrap-up. Shipped Orders 52 and 53 (fishing + journal + rewards; cottage enter/furnish/save). Commits f0c34ce…002564d. Live bundle pending Cloudflare (local index-D3iwFXeL.js; Pages still on prior hash briefly). Open backlog empty — priority ping The Boss for next features; polish on schedule. Vite 5180 left running. Screenshots 103–108.
 - 2026-11-05 (CT), 10:22 AM: Order 52c page completion rewards — Angler's Cap / Buddy Badge / Collector Sprout on finishing Fish / Friends / Treasures; `save.journalReward`; reward card + journal banner. tests/journal-rewards.mjs 9/9 (iPad). Order 52 closed (11 days ahead). Vite 5180 left running.
 - 2026-11-05 (CT), 10:25 AM: Order 52b collection journal (`src/ui/Journal.ts`) — 📖 game-bar button / `J`, Fish / Friends / Treasures pages with silhouettes until found; fish counts + best size from `save.fish`, creatures from `save.pets`, treasures from `save.treasures`. tests/journal.mjs 13/13 (iPad). 52c rewards still open. Vite 5180 left running.
 - 2026-11-05 (CT), 10:10 AM: finished Order 52a from yesterday's uncommitted WIP. Fishing ships (cast/Hook/Reel from shore, dock, pond and rowboat; 16 fish by water/time/rarity; save counts; tests/fishing.mjs 15/15). Order 52 stays in progress (52b journal, 52c rewards remaining). Vite 5180 left running.
