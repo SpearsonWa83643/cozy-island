@@ -30,6 +30,8 @@ export interface SaveData {
   /** Order 51b: dock the rowboat is tied up at (0 = Home Dock, k + 1 = islet k) */
   boatDock?: number;
   wreckChest?: boolean;
+  /** Order 52a: fish caught (count + best size in cm) by fish id */
+  fish?: Record<string, { n: number; best: number }>;
   shells: number;
   candy?: number;
   owned: Record<string, number>;       // wearable id -> copies ever found (>=1 owned)

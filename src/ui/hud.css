@@ -509,3 +509,24 @@ body.touch .mp-k { display: none; }
 .mp-tile.wiggle { animation: mp-wiggle .4s ease; }
 @keyframes mp-wiggle { 20% { transform: rotate(-4deg); } 40% { transform: rotate(4deg); } 60% { transform: rotate(-3deg); } 80% { transform: rotate(2deg); } }
 @media (prefers-reduced-motion: reduce) { .mp-msg.pop, .mp-tile.wiggle { animation: none; } .mp-card { transition: none; } }
+/* Order 52a: fishing button + reel meter */
+.tbtn.fish.hide, .fish-btn.hide { display: none; }
+.touch-ui.building .tbtn.fish { display: none; }
+.tbtn.fish.on { background: #ffd166; }
+.tbtn.fish.bite { background: #ff9f43; color: #fff; animation: fish-bite .35s ease-in-out infinite alternate; }
+@keyframes fish-bite { from { transform: scale(1); } to { transform: scale(1.12); } }
+.fish-btn.desktop { position: fixed; right: max(16px, env(safe-area-inset-right)); top: calc(max(14px, env(safe-area-inset-top)) + 150px); pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 0; border-radius: 22px; font: inherit; font-weight: 800; color: #4a3b2f; background: #fff8ee; box-shadow: 0 4px 0 rgba(160,120,80,.35); }
+.fish-btn.desktop.on { background: #ffd166; } .fish-btn.desktop.bite { background: #ff9f43; color: #fff; }
+.fish-btn.desktop span { font-size: 14px; }
+.fish-meter { position: fixed; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 150px); transform: translateX(-50%); width: min(340px, 70vw); padding: 10px 14px 8px;
+  border-radius: 18px; background: rgba(255,248,238,.94); box-shadow: 0 6px 18px rgba(80,50,20,.22); color: #4a3b2f; font-weight: 700; text-align: center; pointer-events: auto; touch-action: none; z-index: 30; transition: opacity .2s; }
+.fish-meter.off { opacity: 0; pointer-events: none; }
+.fish-meter .fm-title { font-size: 13px; margin-bottom: 6px; }
+.fish-meter .fm-bar { position: relative; height: 22px; border-radius: 11px; background: #cfe3f0; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,.12); }
+.fish-meter .fm-zone { position: absolute; top: 0; bottom: 0; background: #7cc95b; border-radius: 11px; }
+.fish-meter .fm-mark { position: absolute; top: -2px; bottom: -2px; width: 6px; margin-left: -3px; border-radius: 3px; background: #4a3b2f; }
+.fish-meter .fm-tries { font-size: 11px; margin-top: 4px; opacity: .75; }
+.fish-meter.miss { animation: fish-miss .4s; }
+@keyframes fish-miss { 25% { transform: translateX(calc(-50% - 8px)); } 50% { transform: translateX(calc(-50% + 8px)); } 75% { transform: translateX(calc(-50% - 4px)); } }
+.fish-ico { display: inline-block; }

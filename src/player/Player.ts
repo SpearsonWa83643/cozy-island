@@ -152,6 +152,8 @@ export class Player implements System {
     this.grounded = false; this.airVy = 0; this.vy = 0;
   }
 
+  /** turn to face a yaw without moving (fishing casts, Order 52a) */
+  face(yaw: number) { this.facing = yaw; }
   /** move to (x, z); `feetY` stands you on something that isn't terrain (a dock deck, Order 51b) */
   teleport(x: number, z: number, facing?: number, feetY?: number) {
     const g = this.ground(x, z), deep = !this.inCave && WATER_LEVEL - g > SWIM_IN;

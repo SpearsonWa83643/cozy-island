@@ -93,6 +93,8 @@ export class Mount implements System {
   private t = 0;
   /** scenic tour: after AUTO_IDLE s with no flight input the mount loops past the landmarks on its own */
   autopilot = false;
+  /** stop the scenic tour and let the boat glide to rest (fishing, Order 52a) */
+  stopTour() { this.autopilot = false; this.idleT = 0; }
   tours = 0;
   private idleT = 0; private autoK = 0; private camHold = 0; private toured = false;
   private tour: { x: number; z: number }[] = []; private tourI = 0;

@@ -33,6 +33,7 @@ import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { Mount } from '../player/Mount';
+import { Fishing } from '../game/Fishing';
 import type { BuildMode } from '../build/BuildMode';
 import { MountPicker } from '../ui/MountPicker';
 import { isMountUnlocked, mountById, unlockedMounts } from '../player/MountDefs';
@@ -69,6 +70,7 @@ export class Game {
   player!: Player;
   rig!: CameraRig;
   mount!: Mount;
+  fishing!: Fishing;
   build: BuildMode | null = null;
   private buildP: Promise<BuildMode> | null = null;
   private buildWait: ((b: BuildMode) => void)[] = [];
@@ -252,7 +254,7 @@ export class Game {
       ui: () => this.audio.ui(), deny: () => this.audio.ui(),
     });
     this.mount = new Mount(this.player, this.input, this.rig, {
-      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving || this.mountPicker.open,
+      blocked: () => !!this.play.friend?.open || !!this.build?.active || this.play.previewing || this.play.lockMoving || this.mountPicker.open || (!!this.fishing && (this.fishing.state !== 'idle' || this.fishing.settle)),
       mustLand: () => !!this.build?.active || this.cave.inside,
       toast: (h, ms) => this.play.toast(h, ms),
       sfx: (k) => this.audio.mount(k),
@@ -323,6 +325,8 @@ export class Game {
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
+    // Order 52a: fishing from the beach, a dock, the pond or the rowboat
+    this.fishing = new Fishing(this); this.scene.add(this.fishing.group);
     this.systems.push(this.player, this.rig, this.mount, { update: (dt, t) => this.build?.update(dt) }, {
       update: (dt, t) => {
         this.flora.update(dt);
@@ -336,7 +340,7 @@ export class Game {
         this.docks.update(dt, t, this.camera.position);
         this.dress.update(dt, t);
       },
-    }, this.play);
+    }, this.play, this.fishing);
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
