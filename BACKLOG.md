@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 11:00 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-05 (CT), 11:15 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -14,7 +14,7 @@ Anything that needs Walker (decisions, approvals) goes to The Boss as a short no
 | 50 | Weather: gentle rain, winter snow, rainbows after rain, theme-aware | DONE 2026-11-01 (5 days ahead of ETA) | 2026-11-06 | 2 |
 | 51 | Rowboat or sailboat for travelling between the islets | DONE 2026-11-04 (6 days ahead of ETA) | 2026-11-10 | 2.5 |
 | 52 | Fishing, plus a collection journal (fish, creatures, treasures) with completion rewards | DONE 2026-11-05 (11 days ahead of ETA) | 2026-11-16 | 3.5 |
-| 53 | Cottage interiors and decorating: furniture inside the house you build | In progress (53a–b DONE) | 2026-11-21 | 3.5 |
+| 53 | Cottage interiors and decorating: furniture inside the house you build | DONE 2026-11-05 (16 days ahead of ETA) | 2026-11-21 | 3.5 |
 
 Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The claimable home islet was not picked and is not on the backlog.
 
@@ -26,13 +26,14 @@ Next backlog picked by Walker 2026-10-29 10:54 AM CT (relayed by The Boss). The 
 - 52 Fishing + journal: cast from shore, dock or boat with a simple timing mini-game on touch; several fish per biome/water type/time of day; a journal screen with pages for fish, creatures befriended and treasures found (silhouettes until found, counts); completion rewards (e.g. cosmetic or decor unlocks) on finishing a page; progress saved; iPad test catches a fish and sees it logged.
 - 53 Interiors: enter a built cottage (camera moves inside, roof hides); place, rotate, move and remove furniture and decor on a grid inside (bed, table, chairs, rug, lamp, shelves, plants at least); furniture snaps to floor and walls, cannot block the door; saved with the house; undo works; iPad test furnishes a room and reloads.
 
-### Order 53 detail (In progress — ETA 2026-11-21)
+### Order 53 detail (DONE 2026-11-05, 16 days ahead of the 2026-11-21 ETA)
 
 - 53a DONE (2026-11-05): enter / exit a built cottage. Walking into a roofed 2×2 House-kit footprint (`BuildMode.cottageAt`) hides the roof, pulls the orbit camera in (`CameraRig.cottage` clamps to the room, eases distance toward ~3.8) and shows a one-time welcome toast; walking back out restores the roof and frees the camera. Nothing new is saved (session feel only). Reuses Order 44 cottage kit. New tests/interior.mjs (iPad viewport: place cottage via placeAt, open door, walk in → roof hidden + camCottage, walk out → restored, teleport-in also enters; screenshot 106). Commit `6ff8a5d`.
-- 53b DONE (2026-11-05): Furnish tab + furniture catalog (bed, table, chair, rug, floor lamp, shelves, plant — append-only after balloonpad so saved indices stay stable). Floor pieces snap to cell centres inside a roofed cottage; shelves snap to the nearest wall facing inward. Placement rejects outside the cottage and on the door-threshold cell (axis-correct inward from the door). Tap placed furniture to pick it up and re-place (move); rotate / remove reuse the existing Build Mode controls. `removePiece` works outside Build Mode so tests and move-by-pickup are reliable. New tests/furniture.mjs 18/18 (iPad viewport; screenshot 107).
-- 53c (next): save furniture with the house, undo, full acceptance (iPad furnish + reload).
+- 53b DONE (2026-11-05): Furnish tab + furniture catalog (bed, table, chair, rug, floor lamp, shelves, plant — append-only after balloonpad so saved indices stay stable). Floor pieces snap to cell centres inside a roofed cottage; shelves snap to the nearest wall facing inward. Placement rejects outside the cottage and on the door-threshold cell (axis-correct inward from the door). Tap placed furniture to pick it up and re-place (move); rotate / remove reuse the existing Build Mode controls. `removePiece` works outside Build Mode so tests and move-by-pickup are reliable. New tests/furniture.mjs 18/18 (iPad viewport; screenshot 107). Commit `d7b34b4`.
+- 53c DONE (2026-11-05): furniture saves with the house via the existing `builds` serialize path (type indices ≥ 25); restore uses `placeAt(..., fromSave=true)` so load order cannot strand furniture before its roof. `placeAndRecord` records Undo history for scripted/ghost places; Undo takes back the last furniture piece. New tests/furniture-save.mjs 11/11 (iPad viewport: furnish, undo, flush, reload → layout match, enter restored cottage; screenshot 108).
+- Acceptance met 2026-11-05 (iPad tests): enter cottage with roof hide + camera pull-in; place/rotate/move/remove furniture on floor/wall grid; door threshold blocked; furniture saved with the house; undo works; furnish + reload.
 
-Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c (`ff8b372`); 53a (`6ff8a5d`); 53b furniture catalog shipped (this commit).
+Session log: 2026-11-05 — 52a (`f0c34ce`); 52b (`3e26365`); 52c (`ff8b372`); 53a (`6ff8a5d`); 53b (`d7b34b4`); 53c save/undo/reload shipped (this commit). Order 53 closed.
 
 ### Order 52 detail (DONE 2026-11-05, 11 days ahead of the 2026-11-16 ETA)
 
@@ -98,6 +99,7 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 ## Done (from git log)
 
 Nov 5
+- 53c: furniture save/undo/reload acceptance; tests/furniture-save.mjs 11/11; Order 53 closed
 - 53b: Furnish tab + cottage furniture (floor/wall snap, door block, move/rotate/remove); tests/furniture.mjs 18/18
 - 53a: enter/exit built cottage (roof hide, camera pull-in); tests/interior.mjs
 - 52b: collection journal (Fish / Friends / Treasures pages, silhouettes until found); tests/journal.mjs

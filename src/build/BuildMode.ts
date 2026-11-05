@@ -610,14 +610,28 @@ export class BuildMode implements System {
     if (!this.active || !this.ghostValid) return false;
     const def = BUILDABLES[this.selected];
     const ok = this.placeAt(this.target.x, this.target.z, this.selected, def.snap ? this.targetRot : this.rotation, this.target.y);
-    if (ok) { this.history.push(this.placed[this.placed.length - 1]); if (this.history.length > 50) this.history.shift(); this.onPlace(this.selected); this.onChange(); }
+    if (ok) this.recordUndo(this.selected);
     return ok;
   }
 
-  placeAt(x: number, z: number, type: number, rot = 0, y?: number): boolean {
+  /** place + record for Undo (scripted furnish / tests); same history as a ghost tap */
+  placeAndRecord(x: number, z: number, type: number, rot = 0, y?: number) {
+    const ok = this.placeAt(x, z, type, rot, y);
+    if (ok) this.recordUndo(type);
+    return ok;
+  }
+  private recordUndo(type: number) {
+    this.history.push(this.placed[this.placed.length - 1]);
+    if (this.history.length > 50) this.history.shift();
+    this.onPlace(type);
+    this.onChange();
+  }
+
+  placeAt(x: number, z: number, type: number, rot = 0, y?: number, fromSave = false): boolean {
     const def = BUILDABLES[type];
-    // Order 53b: furniture only inside a roofed cottage, never on the door threshold
-    if ((def.snap === 'floor' || def.snap === 'wall') && (!this.cottageAt(x, z) || this.blocksDoor(x, z))) return false;
+    // Order 53b: furniture only inside a roofed cottage, never on the door threshold.
+    // Skip soft rules when restoring a saved piece so load order can't strand furniture before its roof.
+    if (!fromSave && (def.snap === 'floor' || def.snap === 'wall') && (!this.cottageAt(x, z) || this.blocksDoor(x, z))) return false;
     const obj = def.make();
     const yy = y ?? (def.snap === 'edge' ? this.edgeBase(x, z, rot)
       : def.snap === 'corner' ? this.roofBase(x, z)

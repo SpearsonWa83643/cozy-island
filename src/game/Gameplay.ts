@@ -235,7 +235,7 @@ export class Gameplay implements System {
     });
     // restore placed builds once BuildMode chunk is ready
     g.whenBuild((b) => {
-      for (const pb of d.builds) if (pb.t >= 0) b.placeAt(pb.x, pb.z, pb.t, pb.r, pb.y);
+      for (const pb of d.builds) if (pb.t >= 0) b.placeAt(pb.x, pb.z, pb.t, pb.r, pb.y, true);
       const prevChange = b.onChange;
       b.onChange = () => { prevChange(); d.builds = b.serialize(); this.save.touch(); };
       b.onFarRemove = (pos, done) => { this.walk.go({ pos: () => pos, reach: 3.2, key: '', arrive: done }); return true; };
