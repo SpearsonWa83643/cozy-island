@@ -33,7 +33,7 @@ import { ATMOS, BIOME_COUNT, BIOME_NAMES, Biome } from '../world/Biomes';
 import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { Mount } from '../player/Mount';
-import { Fishing } from '../game/Fishing';
+import type { Fishing } from '../game/Fishing';
 import type { BuildMode } from '../build/BuildMode';
 import { MountPicker } from '../ui/MountPicker';
 import { isMountUnlocked, mountById, unlockedMounts } from '../player/MountDefs';
@@ -70,7 +70,8 @@ export class Game {
   player!: Player;
   rig!: CameraRig;
   mount!: Mount;
-  fishing!: Fishing;
+  fishing: Fishing | null = null;
+  private fishingP: Promise<Fishing> | null = null;
   build: BuildMode | null = null;
   private buildP: Promise<BuildMode> | null = null;
   private buildWait: ((b: BuildMode) => void)[] = [];
@@ -325,8 +326,7 @@ export class Game {
     const q = params.get('q');
     this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
 
-    // Order 52a: fishing from the beach, a dock, the pond or the rowboat
-    this.fishing = new Fishing(this); this.scene.add(this.fishing.group);
+    // Order 52a: fishing lazy-loaded (ensureFishing) so the initial index chunk stays smaller
     this.systems.push(this.player, this.rig, this.mount, { update: (dt, t) => this.build?.update(dt) }, {
       update: (dt, t) => {
         this.flora.update(dt);
@@ -340,7 +340,7 @@ export class Game {
         this.docks.update(dt, t, this.camera.position);
         this.dress.update(dt, t);
       },
-    }, this.play, this.fishing);
+    }, this.play, { update: (dt, t) => this.fishing?.update(dt, t) });
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
@@ -352,7 +352,7 @@ export class Game {
     this.rig.target.copy(this.player.position).add(new THREE.Vector3(0, 1.1, 0));
     this.rig.apply();
     // Phase 0: feature chunks download while shaders warm up behind the loading screen
-    const lazy = Promise.all([this.ensureBuild(), this.play.prefetchLazy()]);
+    const lazy = Promise.all([this.ensureBuild(), this.ensureFishing(), this.play.prefetchLazy()]);
     await this.warmUp(loader);
     await lap('compile');
     await lazy;
@@ -471,6 +471,19 @@ export class Game {
   whenBuild(fn: (b: BuildMode) => void) {
     if (this.build) fn(this.build);
     else this.buildWait.push(fn);
+  }
+
+  /** Load Fishing chunk on demand (prefetched with BuildMode before ready). */
+  ensureFishing(): Promise<Fishing> {
+    if (this.fishing) return Promise.resolve(this.fishing);
+    if (this.fishingP) return this.fishingP;
+    this.fishingP = import('../game/Fishing').then(({ Fishing }) => {
+      const f = new Fishing(this);
+      this.scene.add(f.group);
+      this.fishing = f;
+      return f;
+    });
+    return this.fishingP;
   }
 
   setQuality(q: Quality) {
