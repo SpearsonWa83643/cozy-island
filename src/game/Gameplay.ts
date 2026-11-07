@@ -465,7 +465,7 @@ export class Gameplay implements System {
 
   /** Prefetch feature chunks (called from Game.start before ready). */
   prefetchLazy() {
-    return Promise.all([this.ensureMap(), this.ensureFriend(), this.ensurePuzzles()]);
+    return Promise.all([this.ensureMap(), this.ensureFriend(), this.ensurePuzzles(), this.ensureJournal()]);
   }
 
   setGuide(on: boolean) {
