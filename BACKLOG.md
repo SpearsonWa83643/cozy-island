@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-05 (CT), 10:50 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-07 (CT), 10:20 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -97,6 +97,9 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
   3. Pink petals: "Pink petals only on Blossom Isle". Shipped 2026-10-29: generated islets lose the petal-pink ground drifts, and the season's drifting petals hide within 30 m of a generated islet (main island and Blossom Isle unchanged). tests/islet-petals.mjs 30/30.
 
 ## Done (from git log)
+
+Nov 7
+- Polish: lazy-load Fishing chunk (f7482f5); prefetch Journal in warm-up (d0f0f48); fishing 15/15, journal 13/13, iPad touch 24/24
 
 Nov 5
 - 53c: furniture save/undo/reload acceptance; tests/furniture-save.mjs 11/11; Order 53 closed
