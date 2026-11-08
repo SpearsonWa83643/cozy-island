@@ -18,7 +18,7 @@ import { Fauna, type FollowCtx, type FriendRef } from '../world/Fauna';
 import type { SeaBottle } from '../world/Reef';
 import type { MapOverlay } from '../ui/MapOverlay';
 import type { Journal } from '../ui/Journal';
-import { JOURNAL_REWARDS, nextJournalReward, type JournalPage } from '../ui/Journal';
+import { JOURNAL_REWARDS, nextJournalReward, type JournalPage } from '../ui/journalRewards';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
@@ -463,7 +463,7 @@ export class Gameplay implements System {
     return this.puzzlesP;
   }
 
-  /** Prefetch feature chunks (called from Game.start before ready). */
+  /** Prefetch feature chunks during warm-up (does not gate first-playable). */
   prefetchLazy() {
     return Promise.all([this.ensureMap(), this.ensureFriend(), this.ensurePuzzles(), this.ensureJournal()]);
   }

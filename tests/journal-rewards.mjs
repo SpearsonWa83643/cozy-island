@@ -47,6 +47,7 @@ try {
   // claim fish page reward
   const claimed = await page.evaluate(() => {
     const pageId = window.game.play.checkJournalRewards();
+    window.game.play.showRewardNow();
     const d = window.game.play.save.data;
     return {
       pageId,
@@ -58,8 +59,8 @@ try {
   ok('completing Fish page claims the Angler\'s Cap once', claimed.pageId === 'fish' && claimed.flag && claimed.owned && claimed.next === null,
     JSON.stringify(claimed));
 
-  // reward card should appear
-  await page.waitForSelector('.reward.show, .reward.journal-reward, .reward', { timeout: 4000 }).catch(() => null);
+  // reward card should appear (.show is added on rAF after juice.reward)
+  await page.waitForSelector('.reward.show', { timeout: 4000 }).catch(() => null);
   const rewardVisible = await page.locator('.reward.show').count();
   ok('journal reward card pops for the Angler\'s Cap', rewardVisible >= 1, `cards=${rewardVisible}`);
   if (rewardVisible) {
@@ -88,6 +89,7 @@ try {
     delete d.owned.buddybadge;
     window.game.play.save.touch();
     const pageId = window.game.play.checkJournalRewards();
+    window.game.play.showRewardNow();
     return { pageId, n: species.length, owned: !!d.owned.buddybadge, flag: !!d.journalReward?.creatures };
   });
   ok('completing Friends page grants Buddy Badge', friendsClaim.pageId === 'creatures' && friendsClaim.n === 8 && friendsClaim.owned && friendsClaim.flag,
@@ -105,6 +107,7 @@ try {
     delete d.owned.collector;
     window.game.play.save.touch();
     const pageId = window.game.play.checkJournalRewards();
+    window.game.play.showRewardNow();
     return { pageId, n: ids.length, owned: !!d.owned.collector, flag: !!d.journalReward?.treasures };
   });
   ok('completing Treasures page grants Collector Sprout', treasureClaim.pageId === 'treasures' && treasureClaim.n === 5 && treasureClaim.owned && treasureClaim.flag,
