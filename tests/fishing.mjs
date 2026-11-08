@@ -15,7 +15,9 @@ try {
   const errors = []; page.on('console', (m) => { if (errFilter(m)) errors.push(m.text()); }); page.on('pageerror', (e) => errors.push(e.message));
   const q = '?webgl&q=low&touch=1&whatsnew=0&time=noon&weather=clear&boat=1';
   await page.goto(base + q); await page.waitForFunction(() => window.game?.ready);
+  await page.waitForFunction(() => window.game?.fishing);
   await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForFunction(() => window.game?.ready);
+  await page.waitForFunction(() => window.game?.fishing);
   await page.evaluate(() => document.getElementById('whatsnew')?.querySelector('.w-ok')?.click());
   const fs = () => page.evaluate(() => window.game.fishing.snapshot());
   const step = (n) => page.evaluate((n) => { for (let i = 0; i < n; i++) window.game.step(1 / 60); }, n);

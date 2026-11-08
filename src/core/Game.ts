@@ -351,11 +351,16 @@ export class Game {
     this.step(1 / 60);
     this.rig.target.copy(this.player.position).add(new THREE.Vector3(0, 1.1, 0));
     this.rig.apply();
-    // Phase 0: feature chunks download while shaders warm up behind the loading screen
-    const lazy = Promise.all([this.ensureBuild(), this.ensureFishing(), this.play.prefetchLazy()]);
+    // Feature chunks download while shaders warm up. Only BuildMode is awaited
+    // before ready: saved cottages must be placed so settle() compiles them.
+    // Fishing, map, friend, puzzles and journal prefetch in the background and
+    // no longer gate first-playable (they construct as the chunks arrive).
+    const buildReady = this.ensureBuild();
+    void this.ensureFishing();
+    void this.play.prefetchLazy();
     await this.warmUp(loader);
     await lap('compile');
-    await lazy;
+    await buildReady;
     if (!params.has('nosettle')) await this.settle();
     await lap('settle');
     loader.set(1, undefined, 'Ready!');
@@ -473,7 +478,7 @@ export class Game {
     else this.buildWait.push(fn);
   }
 
-  /** Load Fishing chunk on demand (prefetched with BuildMode before ready). */
+  /** Load Fishing chunk on demand (prefetched in the background; does not gate ready). */
   ensureFishing(): Promise<Fishing> {
     if (this.fishing) return Promise.resolve(this.fishing);
     if (this.fishingP) return this.fishingP;

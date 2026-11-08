@@ -17,6 +17,7 @@ const page = await ctx.newPage(); page.setDefaultTimeout(120000);
 const errors = []; page.on('console', (m) => { if (errFilter(m)) errors.push(m.text()); }); page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(base + '?webgl&q=high'); await page.waitForFunction(() => window.game?.ready);
 await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForFunction(() => window.game?.ready);
+await page.waitForFunction(() => window.game?.play?.puzzles);
 
 const feet = await page.evaluate(() => {
   const g = window.game, P = g.play.puzzles;
