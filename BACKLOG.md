@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-07 (CT), 10:20 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-08 (CT), 10:33 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -98,6 +98,9 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 
 ## Done (from git log)
 
+Nov 8
+- Polish: keep Journal overlay off the initial bundle (75381ef); don't await Fishing/UI chunks before first-playable (11f2e72); fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24
+
 Nov 7
 - Polish: lazy-load Fishing chunk (f7482f5); prefetch Journal in warm-up (d0f0f48); fishing 15/15, journal 13/13, iPad touch 24/24
 
@@ -159,6 +162,8 @@ Oct 23 (overnight run)
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
 
 ## Session log
+
+- 2026-11-08 (CT), 10:33 AM: daily session wrap-up. Polish: split journalRewards so the Journal overlay is no longer a sync index dependency (75381ef); Fishing, map, friend, puzzles and journal prefetch in the background and no longer gate ready — only BuildMode is awaited so saved cottages compile in settle() (11f2e72). Index file Vite gzip unchanged at 141.80 kB (417.41 kB raw); Journal overlay (6.56 kB / 2.21 kB gzip) left the initial graph (replaced by journalRewards 0.97 / 0.51 kB). Tests: fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24. Live https://cozy-island-be6.pages.dev bundle index-D5r89SbB.js (matches local). Backlog still empty (no new Orders). Vite 5180 left running. Screenshots 103–105.
 
 - 2026-11-05 (CT), 10:50 AM: daily session wrap-up. Shipped Orders 52 and 53 (fishing + journal + rewards; cottage enter/furnish/save). Commits f0c34ce…002564d. Live bundle pending Cloudflare (local index-D3iwFXeL.js; Pages still on prior hash briefly). Open backlog empty — priority ping The Boss for next features; polish on schedule. Vite 5180 left running. Screenshots 103–108.
 - 2026-11-05 (CT), 10:22 AM: Order 52c page completion rewards — Angler's Cap / Buddy Badge / Collector Sprout on finishing Fish / Friends / Treasures; `save.journalReward`; reward card + journal banner. tests/journal-rewards.mjs 9/9 (iPad). Order 52 closed (11 days ahead). Vite 5180 left running.
