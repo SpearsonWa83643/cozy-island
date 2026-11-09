@@ -163,6 +163,7 @@ Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s t
 
 ## Session log
 
+- 2026-11-09 (CT): polish — What's New card is now a lazy chunk (`whatsnewNote`, 7.84 kB / 3.67 kB gzip), fetched only after the entry screen. Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. tests/whatsnew.mjs 13/13, iPad touch 24/24.
 - 2026-11-08 (CT), 10:33 AM: daily session wrap-up. Polish: split journalRewards so the Journal overlay is no longer a sync index dependency (75381ef); Fishing, map, friend, puzzles and journal prefetch in the background and no longer gate ready — only BuildMode is awaited so saved cottages compile in settle() (11f2e72). Index file Vite gzip unchanged at 141.80 kB (417.41 kB raw); Journal overlay (6.56 kB / 2.21 kB gzip) left the initial graph (replaced by journalRewards 0.97 / 0.51 kB). Tests: fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24. Live https://cozy-island-be6.pages.dev bundle index-D5r89SbB.js (matches local). Backlog still empty (no new Orders). Vite 5180 left running. Screenshots 103–105.
 
 - 2026-11-05 (CT), 10:50 AM: daily session wrap-up. Shipped Orders 52 and 53 (fishing + journal + rewards; cottage enter/furnish/save). Commits f0c34ce…002564d. Live bundle pending Cloudflare (local index-D3iwFXeL.js; Pages still on prior hash briefly). Open backlog empty — priority ping The Boss for next features; polish on schedule. Vite 5180 left running. Screenshots 103–108.

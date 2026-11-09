@@ -23,7 +23,6 @@ import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
-import { showWhatsNew } from '../ui/whatsnewNote';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
 import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
@@ -268,7 +267,10 @@ export class Gameplay implements System {
       toast: (h, ms) => this.juice.toast(h, ms),
       onChange: (p) => this.g.hud.setPlayerName(p.name),
     }));
-    afterEntry(() => setTimeout(() => showWhatsNew(this.g.audio), 400));
+    // What's New card is a lazy chunk (polish 2026-11-09): fetched only after the entry screen, off the index
+    afterEntry(() => setTimeout(() => {
+      void import('../ui/whatsnewNote').then(({ showWhatsNew }) => showWhatsNew(this.g.audio)).catch(() => { /* offline: skip the card */ });
+    }, 400));
   }
 
   /** Order 51b: step into the rowboat tied up at a dock (the first time it becomes yours) */
