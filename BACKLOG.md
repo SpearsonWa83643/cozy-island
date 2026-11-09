@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-08 (CT), 10:33 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-09 (CT), 10:32 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -162,6 +162,8 @@ Oct 23 (overnight run)
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
 
 ## Session log
+
+- 2026-11-09 (CT), 10:32 AM: daily session wrap-up. Polish only: What's New card lazy-loaded (d6f2223); Rapier JS + WASM preloaded from index.html (87c2105). Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. Throttled cold load (25 Mbps / 40 ms, median of 5, from navigation): physics 1876 → 1712 ms, world built before compile 2676 → 2490 ms. Tests: whatsnew 13/13, pwa 6/6, iPad touch 24/24 (final run on the shipped build). Live https://cozy-island-be6.pages.dev bundle index-CYrtStUF.js with the Rapier preloads (matches local). Backlog still empty (no new Orders). Vite 5180 left running.
 
 - 2026-11-09 (CT): polish — index.html now preloads Rapier (modulepreload for the rapier JS glue + `preload as=fetch` for the 1.2 MB gzip WASM, injected by a small build plugin in vite.config.ts), so the biggest download starts with the index chunk instead of after it runs. Cold load, iPad viewport, 25 Mbps / 40 ms throttle, 5 runs median, from navigation: physics ready 1876 → 1712 ms, pre-compile world built (dress) 2676 → 2490 ms (−186 ms). WASM fetched once, no unused-preload warnings. iPad touch 24/24, pwa 6/6.
 - 2026-11-09 (CT): polish — What's New card is now a lazy chunk (`whatsnewNote`, 7.84 kB / 3.67 kB gzip), fetched only after the entry screen. Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. tests/whatsnew.mjs 13/13, iPad touch 24/24.
