@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-09 (CT), 10:32 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-09. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -98,7 +98,11 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 
 ## Done (from git log)
 
+Nov 9
+- Player refinement shipped (Walker approved): smile, eye highlights, fringe and side locks, sleeves, cream cuffs and hem, shoe sole and sock. Index `index-B98f0FP6.js`, 140.54 kB gzip (main was 139.03). iPad touch 24/24, mount iPad 40/40, swim 17/17.
+
 Nov 8
+- Player polish (Walker): refined the existing character in place (smile, eye highlights, fringe and side locks, short sleeves, cream cuffs and hem, shoe sole and sock). Same proportions, palette, dyes, wearables, and movement. Character draws 11 → 9, triangles 2700 → 4420 with the default outfit. `npm run build` ok. iPad touch 24/24, mount iPad 40/40, swim 17/17.
 - Polish: keep Journal overlay off the initial bundle (75381ef); don't await Fishing/UI chunks before first-playable (11f2e72); fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24
 
 Nov 7
@@ -163,10 +167,13 @@ Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s t
 
 ## Session log
 
+- 2026-11-09: Walker approved the player refinement. Merged to main. Index `index-B98f0FP6.js`, 414.84 kB / 140.54 kB gzip (main 139.03 kB gzip). Production-build tests: iPad touch 24/24, mount iPad 40/40, swim 17/17.
+
 - 2026-11-09 (CT), 10:32 AM: daily session wrap-up. Polish only: What's New card lazy-loaded (d6f2223); Rapier JS + WASM preloaded from index.html (87c2105). Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. Throttled cold load (25 Mbps / 40 ms, median of 5, from navigation): physics 1876 → 1712 ms, world built before compile 2676 → 2490 ms. Tests: whatsnew 13/13, pwa 6/6, iPad touch 24/24 (final run on the shipped build). Live https://cozy-island-be6.pages.dev bundle index-CYrtStUF.js with the Rapier preloads (matches local). Backlog still empty (no new Orders). Vite 5180 left running.
 
 - 2026-11-09 (CT): polish — index.html now preloads Rapier (modulepreload for the rapier JS glue + `preload as=fetch` for the 1.2 MB gzip WASM, injected by a small build plugin in vite.config.ts), so the biggest download starts with the index chunk instead of after it runs. Cold load, iPad viewport, 25 Mbps / 40 ms throttle, 5 runs median, from navigation: physics ready 1876 → 1712 ms, pre-compile world built (dress) 2676 → 2490 ms (−186 ms). WASM fetched once, no unused-preload warnings. iPad touch 24/24, pwa 6/6.
 - 2026-11-09 (CT): polish — What's New card is now a lazy chunk (`whatsnewNote`, 7.84 kB / 3.67 kB gzip), fetched only after the entry screen. Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. tests/whatsnew.mjs 13/13, iPad touch 24/24.
+- 2026-11-08 (CT), 11:40 AM: Walker asked to refine the player character (keep the cozy feel, add restrained detail; no new features, no paid assets). Shipped in `src/player/Player.ts` only. Same capsule proportions, skin `#ffd9b8`, hair `#7a4a2e`, coral dye, and wearable sockets. Added a small smile and eye catchlights, a short fringe and cheek locks (on the hair mesh, so covering hats still hide them), short sleeves that share the shirt dye texture, cream cuffs and a hem band, and a lighter sole plus a folded sock on the same shoes. Hands stay on the body, so walk, swim, ride, and soak animations are unchanged. A separate collar was tried and removed: on this no-neck shape it read as teeth. Default outfit (backpack, sunny tee, leaf) measured in Playwright: draws 11 → 9, triangles 2700 → 4420. `npm run build` ok (index 422.51 kB / 143.33 kB gzip, was 417.41 / 141.80). Tests: iPad touch 24/24, mount iPad 40/40 (eagle through every rig, including riding), swim 17/17 (desktop + iPad joystick, head stays above water). Headless iPad Low at the reef reported median 16.2 ms/frame in SwiftShader (not a physical M4). Not merged; coordinator verifies before release.
 - 2026-11-08 (CT), 10:33 AM: daily session wrap-up. Polish: split journalRewards so the Journal overlay is no longer a sync index dependency (75381ef); Fishing, map, friend, puzzles and journal prefetch in the background and no longer gate ready — only BuildMode is awaited so saved cottages compile in settle() (11f2e72). Index file Vite gzip unchanged at 141.80 kB (417.41 kB raw); Journal overlay (6.56 kB / 2.21 kB gzip) left the initial graph (replaced by journalRewards 0.97 / 0.51 kB). Tests: fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24. Live https://cozy-island-be6.pages.dev bundle index-D5r89SbB.js (matches local). Backlog still empty (no new Orders). Vite 5180 left running. Screenshots 103–105.
 
 - 2026-11-05 (CT), 10:50 AM: daily session wrap-up. Shipped Orders 52 and 53 (fishing + journal + rewards; cottage enter/furnish/save). Commits f0c34ce…002564d. Live bundle pending Cloudflare (local index-D3iwFXeL.js; Pages still on prior hash briefly). Open backlog empty — priority ping The Boss for next features; polish on schedule. Vite 5180 left running. Screenshots 103–108.

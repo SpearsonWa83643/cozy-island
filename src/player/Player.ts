@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type RAPIER from '@dimforge/rapier3d';
 import type { Physics } from '../core/Physics';
 import type { Input } from '../core/Input';
@@ -6,6 +7,7 @@ import type { System } from '../core/System';
 import { heightAt, WATER_LEVEL } from '../world/Terrain';
 import { SWIM_SOFT, SWIM_MAX, nearestLand } from '../world/Shore';
 const LAND = { off: 0, cx: 0, cz: 0, islet: -1 };
+import { Baker } from '../world/Baker';
 import { mat } from '../world/Models';
 import { Outfit, type Sockets } from './Wearables';
 
@@ -17,36 +19,116 @@ const FLOAT_FEET = WATER_LEVEL - 0.8;
 const SWIM_IN = 0.95, SWIM_OUT = 0.82; // ground depth thresholds (hysteresis)
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+const sph = (r: number, w = 10, h = 8) => new THREE.SphereGeometry(r, w, h);
+
+/** One shoe: the same dark oval, with a lighter sole, a folded sock and a small strap. */
+function makeFoot(material: THREE.Material) {
+  const b = new Baker();
+  b.ao = false;
+  b.add(sph(0.12, 12, 8), '#3a2f2a', [0, 0, 0], [0, 0, 0], [1, 0.6, 1.4]);
+  b.add(sph(0.1, 8, 6), '#6a5144', [0, -0.048, 0.02], [0, 0, 0], [1.02, 0.26, 1.28]);
+  b.add(sph(0.055, 8, 6), '#f3eee4', [0, 0.02, 0.1], [0, 0, 0], [1.15, 0.42, 0.48]);
+  b.add(new THREE.BoxGeometry(0.08, 0.012, 0.018), '#2c241f', [0, 0.028, 0.12]);
+  const mesh = new THREE.Mesh(b.build(), material);
+  mesh.name = 'foot';
+  const g = new THREE.Group();
+  g.add(mesh);
+  return g;
+}
+
+/**
+ * Same cozy capsule proportions and palette, with a few readable bits of clothing and a face.
+ * Shirt sleeves share the dye texture. Cuffs and the hem stay a warm cream so seams read on every dye.
+ * Extra parts are merged so the character is fewer draw calls than the plain capsule.
+ */
 function makeCharacter() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
   const shirt = new THREE.MeshStandardNodeMaterial({ color: '#ffffff', roughness: 0.7 });
-  const skin = mat('#ffd9b8', { flat: false, rough: 0.6 });
-  const dark = mat('#3a2f2a', { flat: false, rough: 0.4 });
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.35, 6, 14), shirt);
-  torso.position.y = 0.55;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 20, 16), skin);
-  head.position.y = 1.18;
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.345, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), mat('#7a4a2e', { flat: false }));
-  hair.position.y = 1.2; hair.rotation.x = -0.25;
-  const eyeGeo = new THREE.SphereGeometry(0.045, 10, 8);
-  const eyeL = new THREE.Mesh(eyeGeo, dark); eyeL.position.set(-0.11, 1.2, 0.3);
-  const eyeR = eyeL.clone(); eyeR.position.x = 0.11;
-  const blushGeo = new THREE.SphereGeometry(0.05, 10, 8);
-  const blushM = mat('#ff9aa8', { flat: false });
-  const bl = new THREE.Mesh(blushGeo, blushM); bl.scale.set(1, 0.5, 0.3); bl.position.set(-0.19, 1.1, 0.27);
-  const br = bl.clone(); br.position.x = 0.19;
-  // wearable sockets
+  const skinMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.6 });
+  const eyeMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.4 });
+  const clothMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.74 });
+  const footMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.55 });
+
+  const torsoGeo = new THREE.CapsuleGeometry(0.3, 0.35, 6, 14);
+  torsoGeo.translate(0, 0.55, 0);
+  const sleeve = (s: number) => {
+    const g = sph(0.118, 10, 8);
+    g.scale(0.92, 0.8, 0.86);
+    g.translate(s * 0.3, 0.64, 0.02);
+    return g;
+  };
+  const shirtGeo = mergeGeometries([torsoGeo, sleeve(-1), sleeve(1)]);
+  if (!shirtGeo) throw new Error('shirt merge failed');
+  const torso = new THREE.Mesh(shirtGeo, shirt);
+  torso.name = 'shirt';
+
+  const skinB = new Baker();
+  skinB.ao = false;
+  skinB.add(sph(0.33, 20, 16), '#ffd9b8', [0, 1.18, 0]);
+  for (const s of [-1, 1]) {
+    skinB.add(sph(0.05, 10, 8), '#ff9aa8', [s * 0.19, 1.1, 0.27], [0, 0, 0], [1, 0.5, 0.3]);
+    skinB.add(sph(0.055, 8, 6), '#ffd9b8', [s * 0.355, 0.525, 0.065], [0, 0, 0], [0.95, 0.88, 0.9]);
+  }
+  skinB.add(new THREE.TorusGeometry(0.046, 0.009, 5, 12, Math.PI * 0.9), '#e08b7c', [0, 1.072, 0.302], [0.2, 0, Math.PI]);
+  const skin = new THREE.Mesh(skinB.build(), skinMat);
+  skin.name = 'skin';
+
+  const eyeB = new Baker();
+  eyeB.ao = false;
+  for (const s of [-1, 1]) {
+    eyeB.add(sph(0.045, 10, 8), '#3a2f2a', [s * 0.11, 1.2, 0.3]);
+    eyeB.add(sph(0.014, 6, 5), '#fffdf8', [s * 0.124, 1.216, 0.337]);
+  }
+  const eyes = new THREE.Mesh(eyeB.build(), eyeMat);
+  eyes.name = 'eyes';
+
+  // Same bowl cut. Fringe and cheek locks are on this mesh so covering hats still hide them.
+  const cap = new THREE.SphereGeometry(0.345, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+  cap.applyMatrix4(new THREE.Matrix4().makeRotationX(-0.25));
+  cap.translate(0, 1.2, 0);
+  const fringe = (x: number, y: number, z: number, sx: number) => {
+    const g = sph(0.048, 8, 6);
+    g.scale(sx, 0.62, 0.7);
+    g.translate(x, y, z);
+    return g;
+  };
+  const lock = (s: number) => {
+    const g = sph(0.075, 8, 6);
+    g.scale(0.7, 1.15, 0.62);
+    g.translate(s * 0.31, 1.1, 0.16);
+    return g;
+  };
+  const hairGeo = mergeGeometries([
+    cap,
+    fringe(0, 1.255, 0.34, 1.45),
+    fringe(-0.09, 1.275, 0.33, 1.05),
+    fringe(0.09, 1.275, 0.33, 1.05),
+    lock(-1), lock(1),
+  ]);
+  if (!hairGeo) throw new Error('hair merge failed');
+  const hair = new THREE.Mesh(hairGeo, mat('#7a4a2e', { flat: false }));
+  hair.name = 'hair';
+
+  // No separate collar: the head sits on the shirt, and a light band there reads as teeth.
+  // Hem and cuffs carry the layered-clothing read instead.
+  const trimB = new Baker();
+  trimB.ao = false;
+  trimB.add(new THREE.TorusGeometry(0.27, 0.018, 5, 16), '#e7d3bf', [0, 0.19, 0], [Math.PI / 2, 0, 0]);
+  for (const s of [-1, 1]) trimB.add(sph(0.046, 8, 6), '#f4eee6', [s * 0.342, 0.575, 0.05], [0, 0, 0], [1.2, 0.42, 0.95]);
+  const trim = new THREE.Mesh(trimB.build(), clothMat);
+  trim.name = 'trim';
+
   const sock = () => new THREE.Group();
   const hatS = sock(), faceS = sock(), sproutS = sock(), neckS = sock(), backS = sock();
   for (const s of [hatS, faceS, sproutS]) s.position.y = 1.18;
   neckS.position.y = 0.9; backS.position.set(0, 0.62, -0.3);
-  // feet
-  const footGeo = new THREE.SphereGeometry(0.12, 12, 8);
-  const footL = new THREE.Mesh(footGeo, dark); footL.scale.set(1, 0.6, 1.4); footL.position.set(-0.14, 0.08, 0.04);
-  const footR = footL.clone(); footR.position.x = 0.14;
-  body.add(torso, head, hair, eyeL, eyeR, bl, br, hatS, faceS, sproutS, neckS, backS);
+  const footL = makeFoot(footMat);
+  footL.position.set(-0.14, 0.08, 0.04);
+  const footR = footL.clone();
+  footR.position.x = 0.14;
+  body.add(torso, skin, eyes, hair, trim, hatS, faceS, sproutS, neckS, backS);
   root.add(footL, footR);
   root.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
   const sockets: Sockets = { hat: hatS, face: faceS, neck: neckS, back: backS, sprout: sproutS, torso, hair };
