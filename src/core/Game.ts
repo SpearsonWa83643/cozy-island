@@ -367,6 +367,29 @@ export class Game {
     loader.hide();
     this.ready = true;
     this.renderer.renderer.setAnimationLoop(() => this.frame());
+    void this.warmCave();
+  }
+
+  /** true once the hidden cave interior's pipelines are compiled (tests/cave-warm.mjs) */
+  caveWarm = false;
+  /**
+   * Polish (Nov 10): the cave interior is hidden at load, so warmUp()/settle() skip it and the
+   * first trip underground used to stall on ~a dozen pipeline compiles. Compile it in the
+   * background shortly after first play. The interior is only made visible for the synchronous
+   * projection inside compileAsync, so it never shows up in a rendered frame.
+   */
+  private async warmCave() {
+    await new Promise((r) => setTimeout(r, 1500));
+    const c = this.cave, r = this.renderer.renderer;
+    try {
+      if (!c.inside) {
+        c.interior.visible = true;
+        const p = r.compileAsync(c.interior, this.camera, this.scene);
+        c.interior.visible = c.inside;
+        await p;
+      }
+    } catch { /* compile is an optimisation only */ }
+    this.caveWarm = true;
   }
 
   /**
