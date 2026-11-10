@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-09 (CT), 10:32 AM. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-09. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -98,6 +98,9 @@ Earlier small calls (default in place, confirm when convenient): purple Hallowee
 
 ## Done (from git log)
 
+Nov 9
+- Player refinement shipped (Walker approved): smile, eye highlights, fringe and side locks, sleeves, cream cuffs and hem, shoe sole and sock. Index `index-B98f0FP6.js`, 140.54 kB gzip (main was 139.03). iPad touch 24/24, mount iPad 40/40, swim 17/17.
+
 Nov 8
 - Player polish (Walker): refined the existing character in place (smile, eye highlights, fringe and side locks, short sleeves, cream cuffs and hem, shoe sole and sock). Same proportions, palette, dyes, wearables, and movement. Character draws 11 → 9, triangles 2700 → 4420 with the default outfit. `npm run build` ok. iPad touch 24/24, mount iPad 40/40, swim 17/17.
 - Polish: keep Journal overlay off the initial bundle (75381ef); don't await Fishing/UI chunks before first-playable (11f2e72); fishing 15/15, journal 13/13, journal-rewards 9/9, iPad touch 24/24
@@ -163,6 +166,8 @@ Oct 23 (overnight run)
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
 
 ## Session log
+
+- 2026-11-09: Walker approved the player refinement. Merged to main. Index `index-B98f0FP6.js`, 414.84 kB / 140.54 kB gzip (main 139.03 kB gzip). Production-build tests: iPad touch 24/24, mount iPad 40/40, swim 17/17.
 
 - 2026-11-09 (CT), 10:32 AM: daily session wrap-up. Polish only: What's New card lazy-loaded (d6f2223); Rapier JS + WASM preloaded from index.html (87c2105). Index 417.41 → 409.73 kB raw, 141.80 → 139.03 kB gzip. Throttled cold load (25 Mbps / 40 ms, median of 5, from navigation): physics 1876 → 1712 ms, world built before compile 2676 → 2490 ms. Tests: whatsnew 13/13, pwa 6/6, iPad touch 24/24 (final run on the shipped build). Live https://cozy-island-be6.pages.dev bundle index-CYrtStUF.js with the Rapier preloads (matches local). Backlog still empty (no new Orders). Vite 5180 left running.
 
