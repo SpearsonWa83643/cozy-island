@@ -370,24 +370,36 @@ export class Game {
     void this.warmCave();
   }
 
-  /** true once the hidden cave interior's pipelines are compiled (tests/cave-warm.mjs) */
+  /** true once hidden scenery (cave interior, rainbow, night beam…) is precompiled (tests/cave-warm.mjs) */
   caveWarm = false;
+  /** how many hidden objects the background warm-up revealed for compiling */
+  hiddenWarmed = 0;
   /**
-   * Polish (Nov 10): the cave interior is hidden at load, so warmUp()/settle() skip it and the
-   * first trip underground used to stall on ~a dozen pipeline compiles. Compile it in the
-   * background shortly after first play. The interior is only made visible for the synchronous
-   * projection inside compileAsync, so it never shows up in a rendered frame.
+   * Polish (Nov 10): anything hidden at load (the cave interior, the rainbow, the lighthouse's
+   * night beams, streamed-out islet tiles…) is skipped by warmUp()/settle(), so its first
+   * appearance used to stall on pipeline compiles (the cave's first frame took ~2.8 s on the
+   * software test GPU). Compile them in the background shortly after first play. They are only
+   * made visible for the synchronous projection inside compileAsync and restored before it
+   * yields, so none of them ever shows up in a rendered frame. Lights are never toggled: that
+   * would change the lighting setup and the compiled pipelines would not match.
    */
   private async warmCave() {
     await new Promise((r) => setTimeout(r, 1500));
-    const c = this.cave, r = this.renderer.renderer;
+    const r = this.renderer.renderer, hidden: THREE.Object3D[] = [];
     try {
-      if (!c.inside) {
-        c.interior.visible = true;
-        const p = r.compileAsync(c.interior, this.camera, this.scene);
-        c.interior.visible = c.inside;
-        await p;
-      }
+      // placeholders with no geometry yet (filled in later) are kept out: compiling them only warns
+      const empty: THREE.Object3D[] = [];
+      this.scene.traverse((o) => {
+        const geo = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+        if (geo && !geo.getAttribute('position')) { if (o.visible) empty.push(o); }
+        else if (!o.visible && !(o as THREE.Light).isLight) hidden.push(o);
+      });
+      for (const o of hidden) o.visible = true;
+      for (const o of empty) o.visible = false;
+      let p: Promise<unknown>;
+      try { p = r.compileAsync(this.scene, this.camera); } finally { for (const o of hidden) o.visible = false; for (const o of empty) o.visible = true; }
+      this.hiddenWarmed = hidden.length;
+      await p;
     } catch { /* compile is an optimisation only */ }
     this.caveWarm = true;
   }
