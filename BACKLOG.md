@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-09. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-11. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -166,6 +166,8 @@ Oct 23 (overnight run)
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
 
 ## Session log
+
+- 2026-11-11 (CT), Nov 11, 2026 session: polish only. (1) Finished the interrupted Nov 10 work: everything hidden at load (cave interior, rainbow, lighthouse night beams, streamed-out islet tiles; 59 objects) now precompiles in the background after first play, so the first rainbow / first cave frame no longer stalls on compile (tests/cave-warm.mjs 5/5: first rainbow frame 3.3 ms vs 2.3 ms warm; first cave frame 1.3 ms) (6013219, also refreshed test screenshots). (2) First-load hitch: that warm-up used to run as one batch 1.5 s after reveal and showed up as one long early frame; it now compiles one hidden object per frame. tests/first-load.mjs early frames (first 5 after reveal, software GPU): 2698 ms (batch) / 1424 ms (Nov 10 cave-only) -> 118 ms, test now passes 5/5 (was 3/5 on both older builds) (2a9fb8c). Load path untouched: index 415.46 kB / 140.73 kB gzip (140.68 before). Tests: cave-warm 5/5, first-load 5/5, iPad touch 24/24 on the shipped build. Backlog still empty (no new Orders). Vite 5180 left running.
 
 - 2026-11-09: Walker approved the player refinement. Merged to main. Index `index-B98f0FP6.js`, 414.84 kB / 140.54 kB gzip (main 139.03 kB gzip). Production-build tests: iPad touch 24/24, mount iPad 40/40, swim 17/17.
 
