@@ -4,7 +4,7 @@
 import { chromium, devices } from 'playwright';
 const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const kill = setTimeout(() => { console.error('TIMEOUT 240s'); browser.close().finally(() => process.exit(1)); }, 240_000);
+const kill = setTimeout(() => { console.error('TIMEOUT 400s'); browser.close().finally(() => process.exit(1)); }, 400_000);
 let fails = 0;
 const ok = (n, c, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'} ${n}${x ? ' ' + x : ''}`); if (!c) fails++; };
 try {
@@ -13,7 +13,7 @@ try {
   const errs = []; page.on('pageerror', (e) => errs.push(String(e)));
   await page.goto(base + '?webgl');
   await page.waitForFunction(() => window.game?.ready, null, { timeout: 200_000 });
-  const warm = await page.waitForFunction(() => window.game.caveWarm === true, null, { timeout: 60_000 }).then(() => true, () => false);
+  const warm = await page.waitForFunction(() => window.game.caveWarm === true, null, { timeout: 150_000 }).then(() => true, () => false);
   ok('cave interior precompiled in the background', warm);
   const rb = await page.evaluate(() => {
     const g = window.game, m = g.scene.getObjectByName('rainbow'); if (!m) return null;

@@ -386,20 +386,25 @@ export class Game {
   private async warmCave() {
     await new Promise((r) => setTimeout(r, 1500));
     const r = this.renderer.renderer, hidden: THREE.Object3D[] = [];
+    const frame = () => new Promise<void>((res) => requestAnimationFrame(() => res()));
+    const noGeo = (o: THREE.Object3D) => { const g = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined; return !!g && !g.getAttribute('position'); };
     try {
-      // placeholders with no geometry yet (filled in later) are kept out: compiling them only warns
-      const empty: THREE.Object3D[] = [];
-      this.scene.traverse((o) => {
-        const geo = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
-        if (geo && !geo.getAttribute('position')) { if (o.visible) empty.push(o); }
-        else if (!o.visible && !(o as THREE.Light).isLight) hidden.push(o);
-      });
-      for (const o of hidden) o.visible = true;
-      for (const o of empty) o.visible = false;
-      let p: Promise<unknown>;
-      try { p = r.compileAsync(this.scene, this.camera); } finally { for (const o of hidden) o.visible = false; for (const o of empty) o.visible = true; }
-      this.hiddenWarmed = hidden.length;
-      await p;
+      this.scene.traverse((o) => { if (!o.visible && !(o as THREE.Light).isLight && !noGeo(o)) hidden.push(o); });
+      // Polish (Nov 11): one hidden object per frame instead of the whole batch at once, so the warm-up
+      // never lands as one long frame in the first seconds of play (tests/first-load.mjs early frames).
+      for (const o of hidden) {
+        if (o.visible) continue; // shown meanwhile: the normal render already compiled it
+        // placeholders with no geometry yet (filled in later) are kept out: compiling them only warns
+        const empty: THREE.Object3D[] = [];
+        o.traverse((c) => { if (c !== o && c.visible && noGeo(c)) empty.push(c); });
+        for (const c of empty) c.visible = false;
+        o.visible = true;
+        let p: Promise<unknown>;
+        try { p = r.compileAsync(o, this.camera, this.scene); } finally { o.visible = false; for (const c of empty) c.visible = true; }
+        this.hiddenWarmed++;
+        await p;
+        await frame();
+      }
     } catch { /* compile is an optimisation only */ }
     this.caveWarm = true;
   }
