@@ -60,7 +60,7 @@ export class Docks {
       const st = end.clone().addScaledVector(dir, -1.1).addScaledVector(side, HALF_W * 0.35);
       this.list.push({ i, islet: s.islet, name: s.name, start, end, dir, len, moor: { x: mp.x, z: mp.y, h: yaw }, step: { x: st.x, z: st.y }, mesh });
     });
-    this.boat = BUILDERS.rowboat();
+    this.boat = BUILDERS.rowboat!();
     this.boatObj.add(this.boat.body); this.boatObj.name = 'moored-rowboat';
     this.group.add(this.boatObj);
     this.place();

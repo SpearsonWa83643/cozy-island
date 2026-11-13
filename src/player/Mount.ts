@@ -9,7 +9,7 @@ import { FLY_LEASH, ISLETS } from '../world/config';
 const LAND = { off: 0, cx: 0, cz: 0, islet: -1 };
 import { mountById, type MountDef, type MountId } from './MountDefs';
 import { BIOME_CENTERS } from '../world/Biomes';
-import { BUILDERS, type MountRig } from './MountArt';
+import { BUILDERS, loadMountArt, type MountRig } from './MountArt';
 
 /**
  * Mounts: the free bald eagle plus treasure-unlocked pterodactyl, cloud puppy, unicorn and dragonfly (MountDefs.ts / MountArt.ts),
@@ -104,6 +104,9 @@ export class Mount implements System {
   strokes = 0;
   def: MountDef = mountById('eagle');
   private rigs = new Map<MountId, MountRig>();
+  /** a selected mount whose rig chunk is still downloading, and that download */
+  private wantId: MountId | null = null;
+  pending: Promise<void> = Promise.resolve();
   private current!: MountRig;
   private body!: THREE.Group;
   private head!: THREE.Group;
@@ -132,7 +135,13 @@ export class Mount implements System {
     if (this.phase !== 'off' && this.current) return false;
     const def = mountById(id);
     let r = this.rigs.get(def.id);
-    if (!r) { r = BUILDERS[def.id](); this.rigs.set(def.id, r); }
+    if (!r) {
+      const build = BUILDERS[def.id];
+      // treasure-mount rigs live in a lazy chunk (prefetched after first play): switch once it lands
+      if (!build) { this.wantId = def.id; this.pending = loadMountArt().then(() => { if (this.wantId === def.id) this.select(def.id); }); return false; }
+      r = build(); this.rigs.set(def.id, r);
+    }
+    this.wantId = null;
     if (this.current) this.object.remove(this.current.body);
     this.current = r; this.id = def.id; this.def = def;
     ({ body: this.body, head: this.head, wingL: this.wingL, wingR: this.wingR, tipL: this.tipL, tipR: this.tipR, tail: this.tail, legs: this.legs } = r);
@@ -196,7 +205,11 @@ export class Mount implements System {
       if (this.player.inCave) this.hooks.toast(`${this.def.icon} Your ${this.def.short} can't fly down here — head outside first`, 1800);
       return false;
     }
-    if (id && id !== this.id) this.select(id);
+    if (id && id !== this.id && !this.select(id)) {
+      // rig chunk still downloading (only in the first seconds after load): call it as soon as it arrives
+      if (this.wantId === id) { void this.pending.then(() => { if (this.id === id && this.phase === 'off') this.call(); }); return true; }
+      return false;
+    }
     if (this.swims) return this.callSwim();
     if (this.floats) return this.callBalloon();
     this.calls++;

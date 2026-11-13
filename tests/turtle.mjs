@@ -63,6 +63,8 @@ try {
   const shadowVis = await page.evaluate(() => window.game.mount.shadow.visible);
   ok('no ground shadow on a swimmer', !shadowVis);
 
+  // the Sea Pearl completes the Treasures journal page (Order 52c): close its reward card before riding
+  if (await page.locator('.reward.show .btn-ok').count()) { await page.locator('.reward.show .btn-ok').first().tap(); await page.waitForTimeout(400); }
   // ---- ride: surface glide, slower than flying
   await page.tap('.mount-btn');
   s = await waitPhase('ride');
