@@ -1,6 +1,6 @@
 # Cozy Island backlog (single source of truth)
 
-Updated: 2026-11-11. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
+Updated: 2026-11-14. Live: https://cozy-island-be6.pages.dev (Cloudflare Pages, auto-built from `main`).
 Owner: 3D Master (dev bot, daily session 9:57 AM CT, a floor not a cap).
 Rules (fleet Bot Rules v3.0, D1-D3): every open task has Status, ETA live date and Estimate (dev days). Update this file every session, commit and push. Notion is discontinued; do not read or write it. Old content: `/workspace/fleet/archive/notion/` (read-only).
 Empty backlog: tell The Boss with priority, then polish on the daily schedule. Walker's real-device iPad tests never block work.
@@ -166,6 +166,8 @@ Oct 23 (overnight run)
 Earlier (Oct 10 to 22): per-theme soundscapes (28), scenic tour idle delay 6 s to 2 s, mount autopilot scenic tour (27), themes limited to 4 seasons plus Halloween, Cloudflare Pages hosting, mounts wave 1 (20), Phase 0 load-time work (17-19), seasons and holidays, tap reactions, friend screen, Order 23/24 puzzles and tree chopping. Full detail: `git log`.
 
 ## Session log
+
+- 2026-11-14 (CT): polish — tap reactions (`TapReact`) are now a lazy chunk (13.30 kB / 5.17 kB gzip) fetched while the world builds and awaited with BuildMode before first play, so nothing changes in play. Index 394.84 → 358.41 kB raw, 133.63 → 120.98 kB gzip; Flora and theme became shared chunks (still modulepreloaded), so the honest critical-path app JS total is 507.4 → 495.4 kB raw, 173.6 → 170.6 kB gzip. Tests on the production build: iPad touch 24/24, react 24/26 — the 2 rock-tap checks (desktop + iPad) fail identically on the Nov 13 build, so that is an older bug, not this change.
 
 - 2026-11-13 (CT), 10:55 AM: daily session wrap-up. Polish only (open backlog still empty; The Boss pinged). Finished the interrupted Nov 12 work: treasure-mount rigs (pterodactyl, cloud puppy, unicorn, dragonfly, turtle, balloon) moved to a lazy `MountArtExtra` chunk (14.14 kB / 5.25 kB gzip), prefetched right after first play; a saved non-eagle pick waits for the chunk before warm-up so it still compiles up front, and calling an unloaded mount rides as soon as it lands. Index 140.73 → 133.63 kB gzip. Tests (production build): new tests/mount-lazy.mjs 5/5, mount iPad 40/40, turtle 21/21 (now closes the Sea Pearl journal reward card first), dragonfly 17/17, balloon 14/14, boat 9/9, iPad touch 24/24.
 

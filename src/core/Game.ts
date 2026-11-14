@@ -365,6 +365,7 @@ export class Game {
     await this.warmUp(loader);
     await lap('compile');
     await buildReady;
+    await this.play.reactReady;
     if (!params.has('nosettle')) await this.settle();
     await lap('settle');
     loader.set(1, undefined, 'Ready!');

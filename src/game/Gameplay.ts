@@ -21,7 +21,7 @@ import type { Journal } from '../ui/Journal';
 import { JOURNAL_REWARDS, nextJournalReward, type JournalPage } from '../ui/journalRewards';
 import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
-import { TapReact } from '../world/TapReact';
+import type { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
 import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
 import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
@@ -53,7 +53,9 @@ export class Gameplay implements System {
   private journalP: Promise<Journal> | null = null;
   juice: Juice;
   panels: Panels;
-  react: TapReact;
+  /** tap reactions: a lazy chunk (Polish Nov 14) fetched while the world builds; Game awaits reactReady before first play */
+  react: TapReact | null = null;
+  reactReady: Promise<void>;
   target: Target | null = null;
   private crumbs: THREE.Vector3[] = [];
   private warmT = 0; private remindT = 10; private targetT = 0;
@@ -114,9 +116,12 @@ export class Gameplay implements System {
     // MapOverlay lazy — ensureMap() on first open / prefetchLazy()
     this.juice = new Juice(root, g.camera);
     this.juice.onEquipFromReward = () => { const last = this.lastReward; if (last) { this.equip(WEAR_BY_ID.get(last)!.slot, last); } };
-    this.react = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
-    this.react.bind({ fauna: g.fauna, build: g.build ?? undefined, reef: g.reef, camera: g.camera });
-    g.scene.add(this.react.group);
+    this.reactReady = import('../world/TapReact').then(({ TapReact }) => {
+      const r = new TapReact(g.flora, g.audio, (pos, icon) => this.juice.pop(pos, icon, 'emote', 1.0, 45));
+      r.bind({ fauna: g.fauna, build: g.build ?? undefined, reef: g.reef, camera: g.camera });
+      g.scene.add(r.group);
+      this.react = r;
+    }).catch(() => { /* chunk failed: taps still walk, just without reactions */ });
     this.harvest = new Harvest(
       g.flora, g.audio,
       (id, pos, icon) => {
@@ -196,14 +201,15 @@ export class Gameplay implements System {
       if (g.dress?.tapAt(e.clientX, e.clientY, (v) => this.juice.project(v), g.isTouch ? 70 : 56)) { this.walk.cancel(false); return; }
       const lim = g.isTouch ? 70 : 56;
       const proj = (v: THREE.Vector3) => this.juice.project(v);
+      const react = this.react;
       // animal hop/startle (skips followers — FriendScreen already handled above); plays alongside feed walks
-      const animalHit = this.react.tapAnimal(e.clientX, e.clientY, proj, lim, g.player.position);
+      const animalHit = react ? react.tapAnimal(e.clientX, e.clientY, proj, lim, g.player.position) : false;
       // flora sway / petal burst + rock wobble; does not steal chest/animal taps
-      const floraHit = this.react.tapAt(e.clientX, e.clientY, proj, lim, g.player.position);
+      const floraHit = react ? react.tapAt(e.clientX, e.clientY, proj, lim, g.player.position) : false;
       // wood chop / fruit pick on tree taps (within range)
-      if (floraHit && this.react.lastSpot) this.harvest.onTreeTap(this.react.lastSpot, g.player.position);
+      if (floraHit && react?.lastSpot) this.harvest.onTreeTap(react.lastSpot, g.player.position);
       // placed build props squash-bounce
-      const propHit = this.react.tapProp(e.clientX, e.clientY, proj, lim, g.player.position);
+      const propHit = react ? react.tapProp(e.clientX, e.clientY, proj, lim, g.player.position) : false;
       // tapping the thing you're already next to uses it right away
       if (this.target) {
         const s = this.juice.project(this.target.pos);
@@ -213,7 +219,7 @@ export class Gameplay implements System {
       // water ripples only when the tap didn't land on a solid reactable / interactable walk goal
       // water ripples when the tap isn't squarely on flora/rock/prop (animals may splash themselves)
       if (floraHit !== 'core' && propHit !== 'core') {
-        this.react.tapWater(e.clientX, e.clientY, proj, lim, g.player.position, g.renderer.renderer.domElement);
+        react?.tapWater(e.clientX, e.clientY, proj, lim, g.player.position, g.renderer.renderer.domElement);
       }
       // tap squarely on a reactable (and nothing to pick there): react in place instead of walking into it
       if ((animalHit === 'core' || floraHit === 'core' || propHit === 'core') && (!this.walk.goal || !this.walk.goal.key)) { this.lastTap = `react:${animalHit}/${floraHit}/${propHit}`; this.walk.cancel(false); }
@@ -238,7 +244,7 @@ export class Gameplay implements System {
       const prevChange = b.onChange;
       b.onChange = () => { prevChange(); d.builds = b.serialize(); this.save.touch(); };
       b.onFarRemove = (pos, done) => { this.walk.go({ pos: () => pos, reach: 3.2, key: '', arrive: done }); return true; };
-      this.react.bind({ build: b });
+      this.react?.bind({ build: b });
     });
     this.treasure.onDug = () => { this.g.audio.chest(0); this.juice.pop(this.treasure.spot.clone().add(new THREE.Vector3(0, 1.2, 0)), '✨', 'emote', 1.2, 50); this.save.touch(); };
     this.applyOutfit();
@@ -1091,7 +1097,7 @@ export class Gameplay implements System {
     }
     if (pl.swimming && !this.swimTip) { this.swimTip = true; if (!d.swum) { d.swum = true; this.save.touch(); this.juice.toast('🏊 Splash! Swim out over the reef: look for 🐚 shells, 💎 sea glass, ⭐ starfish, 🦪 pearls and drifting 🍾 bottles', 4200); } }
     this.updatePreview(dt);
-    this.react.update(dt);
+    this.react?.update(dt);
     this.juice.update(dt);
   }
 }
