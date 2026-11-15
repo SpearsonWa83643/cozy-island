@@ -287,13 +287,14 @@ export class Dress {
 
   /** tap reactions: a ghost giggles + twirls (or trick-or-treats if you're beside it); a jack-o'-lantern flares */
   reactions = 0;
-  tapAt(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number }, lim: number): boolean {
+  tapAt(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number; vis?: boolean }, lim: number): boolean {
     if (!this.group.children.length) return false;
+    // Polish (Nov 15): a ghost or lantern behind the camera projects to a mirrored screen point, so skip off-screen ones.
     const p = this.g.player.position, v = new THREE.Vector3();
     let best: Ghost | null = null, bd = lim;
     for (const gh of this.ghosts) {
       if (gh.obj.position.distanceTo(p) > 16) continue;
-      const s = project(v.copy(gh.obj.position).add(new THREE.Vector3(0, 0.55, 0))); const d = Math.hypot(s.x - cx, s.y - cy);
+      const s = project(v.copy(gh.obj.position).add(new THREE.Vector3(0, 0.55, 0))); if (s.vis === false) continue; const d = Math.hypot(s.x - cx, s.y - cy);
       if (d < bd) { bd = d; best = gh; }
     }
     if (best) {
@@ -305,7 +306,7 @@ export class Dress {
       return true;
     }
     let li = -1; bd = lim * 0.8;
-    this.lanterns.forEach((l, i) => { if (l.distanceTo(p) > 14) return; const s = project(v.copy(l)); const d = Math.hypot(s.x - cx, s.y - cy); if (d < bd) { bd = d; li = i; } });
+    this.lanterns.forEach((l, i) => { if (l.distanceTo(p) > 14) return; const s = project(v.copy(l)); if (s.vis === false) return; const d = Math.hypot(s.x - cx, s.y - cy); if (d < bd) { bd = d; li = i; } });
     if (li >= 0) {
       this.reactions++;
       const l = this.lanterns[li];
