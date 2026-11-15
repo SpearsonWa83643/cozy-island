@@ -157,10 +157,14 @@ export class Lighthouse {
   get tourSpot() { return { x: this.pos.x + this.sea.x * 3, z: this.pos.z + this.sea.z * 3 }; }
 
   /** tap reaction: foghorn + bright flash. Returns true if the tap hit the tower. */
-  tapAt(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number }, lim: number, player: THREE.Vector3): boolean {
+  tapAt(cx: number, cy: number, project: (v: THREE.Vector3) => { x: number; y: number; vis?: boolean }, lim: number, player: THREE.Vector3): boolean {
     if (Math.hypot(player.x - this.pos.x, player.z - this.pos.z) > 45) return false;
-    const a = project(new THREE.Vector3(this.pos.x, this.pos.y + 0.5, this.pos.z));
-    const b = project(this.lamp.clone().add(new THREE.Vector3(0, 1.3, 0)));
+    const base = new THREE.Vector3(this.pos.x, this.pos.y + 0.5, this.pos.z), top = this.lamp.clone().add(new THREE.Vector3(0, 1.3, 0));
+    const a = project(base), b = project(top);
+    // Polish (Nov 14): a tower beside or behind the camera projects to a huge off-screen line that can
+    // cross the tap point, so taps on nearby rocks used to sound the foghorn from ~45 m away instead.
+    // Only react when some part of the tower is actually on screen.
+    if (a.vis === false && b.vis === false && project(base.lerp(top, 0.5)).vis === false) return false;
     const ex = b.x - a.x, ey = b.y - a.y, len2 = ex * ex + ey * ey || 1;
     const u = Math.max(0, Math.min(1, ((cx - a.x) * ex + (cy - a.y) * ey) / len2));
     const d = Math.hypot(a.x + ex * u - cx, a.y + ey * u - cy);
