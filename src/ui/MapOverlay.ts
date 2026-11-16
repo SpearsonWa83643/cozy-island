@@ -1,3 +1,4 @@
+import './mapOverlay.css';
 import { heightAt, biomeWeights } from '../world/Terrain';
 import { BIOME_CENTERS, BIOME_COUNT, POND } from '../world/Biomes';
 import { mulberry32 } from '../world/noise';

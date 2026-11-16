@@ -1,0 +1,26 @@
+/* Parchment map overlay: loaded with the lazy MapOverlay chunk (split from hud.css 2026-11-16). */
+.map-overlay { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(40, 30, 20, 0);
+  pointer-events: none; transition: background .35s; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); touch-action: none; }
+.map-overlay.open { background: rgba(40, 30, 20, .45); pointer-events: auto; }
+.map-stage { width: min(88vmin, 760px); height: min(88vmin, 760px); max-height: calc(100vh - 120px); max-width: calc(100vh - 120px); overflow: hidden; border-radius: 10px; touch-action: none;
+  transform: translateY(40px) rotate(-3deg) scale(.85); opacity: 0; transition: transform .5s var(--spring), opacity .3s; }
+.map-overlay.open .map-stage { transform: none; opacity: 1; }
+.map-paper { position: relative; width: 100%; height: 100%; transform-origin: center; transition: transform .08s linear;
+  clip-path: polygon(0% 2%, 4% 0%, 12% 1.5%, 22% 0%, 34% 1%, 46% 0%, 58% 1.6%, 70% 0%, 82% 1.2%, 92% 0%, 100% 2%, 99% 14%, 100% 28%, 98.6% 42%, 100% 56%, 99% 70%, 100% 84%, 98.8% 96%, 100% 100%, 88% 98.6%, 76% 100%, 64% 98.8%, 52% 100%, 40% 98.6%, 28% 100%, 16% 98.8%, 4% 100%, 0% 98%, 1.2% 86%, 0% 72%, 1% 58%, 0% 44%, 1.4% 30%, 0% 16%); }
+.map-paper canvas { width: 100%; height: 100%; display: block; }
+.map-x { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; border: 3px dashed rgba(192, 57, 43, .7); animation: spin 8s linear infinite; pointer-events: none; }
+.map-x.hot { border-color: #ff4a3a; animation: spin 3s linear infinite, xpulse .9s ease-in-out infinite; }
+@keyframes xpulse { 50% { box-shadow: 0 0 0 10px rgba(255, 90, 60, .25); } }
+.map-me { position: absolute; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 24px solid #3a7bd5; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); pointer-events: none; }
+.map-me::after { content: ''; position: absolute; left: -5px; top: 10px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.map-caption { max-width: min(88vmin, 760px); padding: 10px 18px; border-radius: 16px; background: var(--paper); color: #5a3a22; font-weight: 800; font-size: 16px; text-align: center;
+  font-family: 'Segoe Print', 'Bradley Hand', 'Chalkboard SE', 'Comic Sans MS', cursive; opacity: 0; transform: translateY(20px); transition: all .4s var(--spring) .1s; }
+.map-overlay.open .map-caption { opacity: 1; transform: none; }
+.map-close { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: 52px; height: 52px; border-radius: 50%; border: 0; font-size: 20px; cursor: pointer; background: var(--paper); color: #4a3b2f; box-shadow: 0 3px 0 #e3d3bd; }
+
+.map-overlay:not(.open) .map-close { opacity: 0; pointer-events: none; }
+.map-close { transition: opacity .25s; }
+.map-guide { min-height: 48px; padding: 0 18px; border: 0; border-radius: 16px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; background: var(--paper); color: #8a6a3a; box-shadow: 0 3px 0 #e3d3bd; opacity: 0; transition: opacity .3s; }
+.map-guide.on { background: #ffe7a3; color: #6a4a1a; box-shadow: 0 3px 0 #e0b84a; }
+.map-overlay.open .map-guide { opacity: 1; }
+.map-overlay:not(.open) .map-guide { pointer-events: none; }
