@@ -1,3 +1,4 @@
+import './friendScreen.css';
 import * as THREE from 'three/webgpu';
 import type { Game } from '../core/Game';
 import type { FriendRef } from '../world/Fauna';

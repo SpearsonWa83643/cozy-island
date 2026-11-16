@@ -2,6 +2,7 @@
  * Collection journal (Order 52b/52c): pages for fish, creatures and treasures.
  * Silhouettes until unlocked; page completion grants cosmetics (52c).
  */
+import './journal.css';
 import { FISH, WATER_NAME, TIME_HINT, type FishDef } from '../game/FishDefs';
 import { TASTES, type Species } from '../game/Items';
 import type { SaveData, PetData } from '../game/Save';

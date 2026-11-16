@@ -4,7 +4,7 @@
 // Timeout + browser closed in finally. Usage: node tests/journal.mjs [baseUrl]
 import { chromium, devices } from 'playwright';
 const base = process.argv.find((a) => a.startsWith('http')) ?? 'http://localhost:4181/cozy-island/';
-const kill = setTimeout(() => { console.log('TIMEOUT'); process.exit(2); }, 180000);
+const kill = setTimeout(() => { console.log('TIMEOUT'); process.exit(2); }, Number(process.env.TEST_TIMEOUT_MS ?? 180000));
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const results = []; const ok = (n, c, x = '') => { results.push(c); console.log(c ? 'PASS' : 'FAIL', n, x); };
 const errFilter = (m) => (m.type() === 'error' || (m.type() === 'warning' && !/GL Driver|GPU stall|swiftshader|Automatic fallback/i.test(m.text())));
