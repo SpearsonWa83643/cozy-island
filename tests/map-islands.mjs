@@ -20,7 +20,8 @@ try {
   const openMap = async () => { await page.evaluate(() => window.game.play.toggleMap()); await page.waitForTimeout(900); await step(2); };
   const closeMap = async () => { await page.evaluate(() => window.game.play.toggleMap()); await page.waitForTimeout(300); };
   const marker = () => page.evaluate(() => { const me = document.querySelector('.map-me'); return { open: document.querySelector('.map-overlay')?.classList.contains('open'), left: parseFloat(me.style.left), top: parseFloat(me.style.top) }; });
-  const pinkIn = (x0, y0, x1, y1) => page.evaluate(([x0, y0, x1, y1]) => { const c = document.querySelector('.map-overlay canvas'); const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 232) < 14 && Math.abs(d[i + 1] - 96) < 16 && Math.abs(d[i + 2] - 142) < 16) n++; return n; }, [x0, y0, x1, y1]);
+  // pin pink #e8608e, also in the darker shade it takes on the parchment (~216,88,128); excludes the paler cherry stamps (~240,150,180)
+  const pinkIn = (x0, y0, x1, y1) => page.evaluate(([x0, y0, x1, y1]) => { const c = document.querySelector('.map-overlay canvas'); const d = c.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 190 && d[i + 1] >= 75 && d[i + 1] <= 115 && d[i + 2] >= 115 && d[i + 2] <= 160 && d[i] - d[i + 1] > 100) n++; return n; }, [x0, y0, x1, y1]);
   // 1) open the map at home first (islet not streamed yet) so the overlay is built without a pin
   await step(30);
   await openMap();
