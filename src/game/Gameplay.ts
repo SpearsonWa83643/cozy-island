@@ -23,7 +23,7 @@ import { Juice } from '../ui/Juice';
 import { Panels } from '../ui/Panels';
 import type { TapReact } from '../world/TapReact';
 import type { Mount } from '../player/Mount';
-import { showEntry, afterEntry, openEntryEditor, player as entryPlayer } from '../ui/Entry';
+import { loadPlayer } from '../ui/entryPlayer';
 import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset' | 'board';
@@ -262,21 +262,24 @@ export class Gameplay implements System {
     window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
     // Entry (name + DOB) first; What's new waits until it closes. Mounts wire in via bindMount.
-    showEntry({
+    // Polish 2026-11-17: the entry card (markup, CSS, drift art) is a lazy chunk fetched right here, while the
+    // world is still building, so it is up long before first play; the name in the HUD comes from the tiny
+    // entryPlayer helper in the main bundle.
+    const entryOpts = {
       audio: this.g.audio,
-      toast: (h, ms) => this.juice.toast(h, ms),
-      onChange: (p) => this.g.hud.setPlayerName(p.name),
-    });
-    this.g.hud.setPlayerName(entryPlayer.name);
-    this.g.hud.bindPlayer(() => openEntryEditor({
-      audio: this.g.audio,
-      toast: (h, ms) => this.juice.toast(h, ms),
-      onChange: (p) => this.g.hud.setPlayerName(p.name),
-    }));
+      toast: (h: string, ms?: number) => this.juice.toast(h, ms),
+      onChange: (p: { name: string }) => this.g.hud.setPlayerName(p.name),
+    };
+    const entry = import('../ui/Entry');
+    this.g.hud.setPlayerName(loadPlayer().name);
+    this.g.hud.bindPlayer(() => { void entry.then((E) => E.openEntryEditor(entryOpts)); });
     // What's New card is a lazy chunk (polish 2026-11-09): fetched only after the entry screen, off the index
-    afterEntry(() => setTimeout(() => {
-      void import('../ui/whatsnewNote').then(({ showWhatsNew }) => showWhatsNew(this.g.audio)).catch(() => { /* offline: skip the card */ });
-    }, 400));
+    void entry.then((E) => {
+      E.showEntry(entryOpts);
+      E.afterEntry(() => setTimeout(() => {
+        void import('../ui/whatsnewNote').then(({ showWhatsNew }) => showWhatsNew(this.g.audio)).catch(() => { /* offline: skip the card */ });
+      }, 400));
+    }).catch(() => { /* offline: no entry card */ });
   }
 
   /** Order 51b: step into the rowboat tied up at a dock (the first time it becomes yours) */
