@@ -34,6 +34,7 @@ import { Player } from '../player/Player';
 import { CameraRig } from '../player/CameraRig';
 import { Mount } from '../player/Mount';
 import { loadMountArt } from '../player/MountArt';
+import { loadWearables } from '../player/Wearables';
 import type { Fishing } from '../game/Fishing';
 import type { BuildMode } from '../build/BuildMode';
 import { MountPicker } from '../ui/MountPicker';
@@ -362,6 +363,9 @@ export class Game {
     // treasure-mount rigs: a saved non-eagle pick waits for its chunk so warm-up compiles it; otherwise prefetch
     await this.mount.pending;
     void loadMountArt();
+    // non-default wearables (lazy chunk): a saved outfit that needs them waits so warm-up compiles it; otherwise prefetch
+    await this.player.outfit.pending;
+    void loadWearables();
     await this.warmUp(loader);
     await lap('compile');
     await buildReady;
