@@ -26,6 +26,10 @@ import type { Mount } from '../player/Mount';
 import { loadPlayer } from '../ui/entryPlayer';
 import { addTreasure, hasTreasure, mountForTreasure, nextMountTreasure } from '../player/MountDefs';
 
+/** entry card chunk: requested at module evaluation (start of load) so it is ready when Gameplay is built */
+const entryChunk = import('../ui/Entry');
+entryChunk.catch(() => { /* offline: no entry card */ });
+
 type Kind = 'open' | 'dig' | 'take' | 'feed' | 'pick' | 'reset' | 'board';
 interface Target { kind: Kind; icon: string; label: string; key: string; pos: THREE.Vector3; run: () => void; }
 
@@ -262,15 +266,15 @@ export class Gameplay implements System {
     window.addEventListener('beforeunload', () => { this.syncFollowers(); this.save.flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.syncFollowers(); this.save.flush(); } });
     // Entry (name + DOB) first; What's new waits until it closes. Mounts wire in via bindMount.
-    // Polish 2026-11-17: the entry card (markup, CSS, drift art) is a lazy chunk fetched right here, while the
-    // world is still building, so it is up long before first play; the name in the HUD comes from the tiny
-    // entryPlayer helper in the main bundle.
+    // Polish 2026-11-17: the entry card (markup, CSS, drift art) is a lazy chunk requested as soon as this module
+    // runs (entryChunk), so it has landed by now and the card still opens while the world builds, before the
+    // shader warm-up; the name in the HUD comes from the tiny entryPlayer helper in the main bundle.
     const entryOpts = {
       audio: this.g.audio,
       toast: (h: string, ms?: number) => this.juice.toast(h, ms),
       onChange: (p: { name: string }) => this.g.hud.setPlayerName(p.name),
     };
-    const entry = import('../ui/Entry');
+    const entry = entryChunk;
     this.g.hud.setPlayerName(loadPlayer().name);
     this.g.hud.bindPlayer(() => { void entry.then((E) => E.openEntryEditor(entryOpts)); });
     // What's New card is a lazy chunk (polish 2026-11-09): fetched only after the entry screen, off the index
