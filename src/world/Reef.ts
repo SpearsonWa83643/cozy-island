@@ -72,6 +72,23 @@ function concat(parts: { g: THREE.BufferGeometry; m: THREE.Matrix4 }[]) {
   for (const { g, m } of parts) {
     const P = g.attributes.position, C = g.attributes.color, S = g.attributes.sway, N = g.attributes.normal;
     nm.getNormalMatrix(m);
+    const plain = (A?: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, size = 3) => !A || (!(A as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute && !A.normalized && A.itemSize === size);
+    if (plain(P) && plain(N) && plain(C) && plain(S, 1)) {
+      // polish 2026-11-20: same maths as Vector3.applyMatrix4 / applyMatrix3 + normalize, inlined on the raw arrays
+      const e = m.elements, ne = nm.elements, pa = P.array, na = N.array, ca = C.array, sa = S ? S.array : null;
+      for (let i = 0; i < P.count; i++) {
+        const j = (o + i) * 3, k = i * 3;
+        let x = pa[k], y = pa[k + 1], z = pa[k + 2];
+        const w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+        pos[j] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w; pos[j + 1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w; pos[j + 2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
+        x = na[k]; y = na[k + 1]; z = na[k + 2];
+        const nx = ne[0] * x + ne[3] * y + ne[6] * z, ny = ne[1] * x + ne[4] * y + ne[7] * z, nz = ne[2] * x + ne[5] * y + ne[8] * z;
+        const inv = 1 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1);
+        nor[j] = nx * inv; nor[j + 1] = ny * inv; nor[j + 2] = nz * inv;
+        col[j] = ca[k]; col[j + 1] = ca[k + 1]; col[j + 2] = ca[k + 2]; sw[o + i] = sa ? sa[i] : 0;
+      }
+      o += P.count; continue;
+    }
     // polish 2026-11-19: write components straight into the arrays (was 3 temp arrays per vertex, ~650k vertices)
     for (let i = 0; i < P.count; i++) {
       const j = (o + i) * 3;
