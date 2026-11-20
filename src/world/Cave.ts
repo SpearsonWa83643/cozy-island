@@ -175,17 +175,22 @@ export class Cave {
     const mk = (ceil: boolean) => {
       const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), glow = new Float32Array(nx * nz * 3);
       const c = new THREE.Color(), g = new THREE.Color();
+      // polish 2026-11-20: colours parsed once and each light's floor height hoisted (were a hex parse + new Color per
+      // vertex and a floorL() per light per ceiling vertex); output is identical
+      const base = new THREE.Color(ceil ? '#2a2634' : '#3a3542'), hi = new THREE.Color(ceil ? '#3a3446' : '#4a4452'), wetC = new THREE.Color('#2f3a44');
+      const lightFloorY = this.lights.map((L) => (ceil ? this.floorL(L.x, L.z) : 0));
       for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
         const lx = X0 + i * STEP, lz = Z0 + j * STEP, k = (j * nx + i) * 3;
         const y = ceil ? this.ceilL(lx, lz) : this.floorL(lx, lz);
         pos[k] = lx + O.x; pos[k + 1] = y + O.y; pos[k + 2] = lz + O.z;
         const v = n2.noise(lx * 0.4, lz * 0.4 + (ceil ? 50 : 0)) * 0.5 + 0.5;
-        c.set(ceil ? '#2a2634' : '#3a3542').lerp(new THREE.Color(ceil ? '#3a3446' : '#4a4452'), v);
-        if (!ceil) { const wet = smooth(POOL.r + 1.5, POOL.r, Math.hypot(lx - POOL.x, lz - POOL.z)); c.lerp(new THREE.Color('#2f3a44'), wet * 0.7); }
+        c.copy(base).lerp(hi, v);
+        if (!ceil) { const wet = smooth(POOL.r + 1.5, POOL.r, Math.hypot(lx - POOL.x, lz - POOL.z)); c.lerp(wetC, wet * 0.7); }
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
         g.setRGB(0, 0, 0);
         // soft inverse-square with a finite radius (cheap, readable pools) + a faint ceiling bounce off the floor
-        for (const L of this.lights) {
+        for (let li = 0; li < this.lights.length; li++) {
+          const L = this.lights[li];
           const d2 = (L.x - lx) ** 2 + (L.y - y) ** 2 + (L.z - lz) ** 2;
           const d = Math.sqrt(d2);
           const soft = L.soft;
@@ -193,7 +198,7 @@ export class Cave {
           const f = L.i * fall * fall / (1 + d2 * 0.55);
           g.r += L.c.r * f; g.g += L.c.g * f; g.b += L.c.b * f;
           if (ceil) {
-            const fy = this.floorL(L.x, L.z);
+            const fy = lightFloorY[li];
             const bd2 = (L.x - lx) ** 2 + (fy - y) ** 2 + (L.z - lz) ** 2;
             const bd = Math.sqrt(bd2);
             const bf = Math.max(0, 1 - bd / (soft * 1.35));

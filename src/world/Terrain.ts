@@ -89,6 +89,8 @@ const PAL: Record<number, THREE.Color[]> = {
 const MESA_BANDS = [C('#c9734a'), C('#e8b07a'), C('#b85f3c'), C('#dd9a64')];
 const MUD = C('#7a6c4c');
 const tmp = new THREE.Color(), acc = new THREE.Color();
+// polish 2026-11-20: terrainColor scratch (was a new Float32Array + Color per call; it runs per terrain vertex and per grass blade)
+const wTC = new Float32Array(BIOME_COUNT), sandAcc = new THREE.Color();
 
 function biomeGround(b: number, x: number, z: number, h: number, slope: number, out: THREE.Color) {
   const p = PAL[b];
@@ -113,9 +115,9 @@ function biomeSand(b: number): THREE.Color {
 
 export function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   const slope = slopeAt(x, z);
-  const w = biomes.sample(x, z, new Float32Array(BIOME_COUNT));
+  const w = biomes.sample(x, z, wTC);
   acc.setRGB(0, 0, 0);
-  let sandAcc = new THREE.Color(0, 0, 0);
+  sandAcc.setRGB(0, 0, 0);
   for (let b = 0; b < BIOME_COUNT; b++) {
     if (w[b] < 0.004) continue;
     biomeGround(b, x, z, h, slope, tmp);
