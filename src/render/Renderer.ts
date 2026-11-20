@@ -24,6 +24,9 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(this.renderer.domElement);
+    // polish 2026-11-19: start the GPU backend (WebGPU adapter/device or the WebGL context) now so it overlaps the
+    // Rapier WASM compile and the world-gen workers; init() below awaits the same (memoised) promise.
+    this.renderer.init().catch(() => { /* surfaced by init() */ });
   }
 
   async init(scene: THREE.Scene, camera: THREE.Camera) {

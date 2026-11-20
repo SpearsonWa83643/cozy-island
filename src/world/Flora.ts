@@ -142,18 +142,22 @@ export class Flora {
     const rnd = mulberry32(42);
     const mat = floraMaterial();
     const matDouble = floraMaterial({ side: THREE.DoubleSide });
-    const occupied: { x: number; z: number; r: number }[] = [];
-    const cell = 3, hash = new Map<string, { x: number; z: number; r: number }[]>();
-    const key = (x: number, z: number) => `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
+    // polish 2026-11-19: numeric cell keys + flat x,z,r arrays (was string keys and `?? []` per probe: ~100 ms of load on the box)
+    const cell = 3, hash = new Map<number, number[]>();
+    const ck = (cx: number, cz: number) => (cx + 32768) * 65536 + (cz + 32768);
     const free = (x: number, z: number, r: number) => {
       if (Math.hypot(x - spawn.x, z - spawn.y) < 5) return false;
       const cx = Math.floor(x / cell), cz = Math.floor(z / cell);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-        for (const o of hash.get(`${cx + i},${cz + j}`) ?? []) if (Math.hypot(o.x - x, o.z - z) < o.r + r) return false;
+        const b = hash.get(ck(cx + i, cz + j)); if (!b) continue;
+        for (let k = 0; k < b.length; k += 3) { const dx = b[k] - x, dz = b[k + 1] - z, rr = b[k + 2] + r; if (dx * dx + dz * dz < rr * rr) return false; }
       }
       return true;
     };
-    const occupy = (x: number, z: number, r: number) => { const o = { x, z, r }; occupied.push(o); const k = key(x, z); (hash.get(k) ?? hash.set(k, []).get(k)!).push(o); };
+    const occupy = (x: number, z: number, r: number) => {
+      const k = ck(Math.floor(x / cell), Math.floor(z / cell)); const b = hash.get(k);
+      if (b) b.push(x, z, r); else hash.set(k, [x, z, r]);
+    };
     const w = new Float32Array(BIOME_COUNT);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3();
     const tint = new THREE.Color();

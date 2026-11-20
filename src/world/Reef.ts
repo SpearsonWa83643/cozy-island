@@ -72,10 +72,12 @@ function concat(parts: { g: THREE.BufferGeometry; m: THREE.Matrix4 }[]) {
   for (const { g, m } of parts) {
     const P = g.attributes.position, C = g.attributes.color, S = g.attributes.sway, N = g.attributes.normal;
     nm.getNormalMatrix(m);
+    // polish 2026-11-19: write components straight into the arrays (was 3 temp arrays per vertex, ~650k vertices)
     for (let i = 0; i < P.count; i++) {
-      v.fromBufferAttribute(P, i).applyMatrix4(m); pos.set([v.x, v.y, v.z], (o + i) * 3);
-      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (o + i) * 3);
-      col.set([C.getX(i), C.getY(i), C.getZ(i)], (o + i) * 3); sw[o + i] = S ? S.getX(i) : 0;
+      const j = (o + i) * 3;
+      v.fromBufferAttribute(P, i).applyMatrix4(m); pos[j] = v.x; pos[j + 1] = v.y; pos[j + 2] = v.z;
+      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor[j] = v.x; nor[j + 1] = v.y; nor[j + 2] = v.z;
+      col[j] = C.getX(i); col[j + 1] = C.getY(i); col[j + 2] = C.getZ(i); sw[o + i] = S ? S.getX(i) : 0;
     }
     o += P.count;
   }
