@@ -33,6 +33,18 @@ export class Renderer {
     await this.renderer.init();
     const backend = (this.renderer as unknown as { backend: { isWebGPUBackend?: boolean } }).backend;
     this.backendName = backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2 (fallback)';
+    // polish 2026-11-21: one shader per instanced material instead of one per instanced mesh.
+    // three puts the instance matrices of any InstancedMesh that fits the uniform-buffer limit into a
+    // per-mesh uniform array (`mat4 bufferN[count]`), and that array's name and size end up in the vertex
+    // shader text, so every flora chunk, rock set, critter swarm etc. compiled its own program
+    // (297 vertex shaders for 42 fragment shaders at load). Reporting a 0-byte limit sends them all down
+    // three's existing instanced-attribute path, whose shader text is the same for every mesh, so the
+    // program/pipeline caches hit. Only fallback decisions read this limit (instancing, skinning, range
+    // nodes; the game uses no skinning or range nodes); regular uniform blocks are unaffected. ?ubo restores.
+    if (!new URLSearchParams(location.search).has('ubo')) {
+      const caps = (backend as unknown as { capabilities?: { getUniformBufferLimit?: () => number } }).capabilities;
+      if (caps?.getUniformBufferLimit) caps.getUniformBufferLimit = () => 0;
+    }
 
     this.pipeline = new THREE.RenderPipeline(this.renderer);
     const scenePass = pass(scene, camera);

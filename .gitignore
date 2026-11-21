@@ -5,3 +5,5 @@ playwright-report/
 *.log
 .DS_Store
 .bake/
+tmp-prof/
+tmp-shots/
