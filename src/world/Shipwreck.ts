@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { heightAt } from './Terrain';
 import { atOffshore } from './Shore';
 import { mulberry32 } from './noise';
@@ -101,11 +102,17 @@ export class Shipwreck {
 
     // --- sun shafts slanting down through the water ---
     this.shaftMat = new THREE.MeshBasicNodeMaterial({ color: '#dff7ff', transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+    // the 5 shafts are baked into one geometry (additive, no depth write: same pixels in any order), so 2 draws
+    // (double-sided transparent = back + front pass) instead of 10, and culled with the wreck when it is off screen
+    const shaftParts: THREE.BufferGeometry[] = [], sh = new THREE.Object3D();
     for (let i = 0; i < 5; i++) {
-      const len = this.depth + 1.2, sh = new THREE.Mesh(new THREE.ConeGeometry(0.55 + rnd() * 0.4, len, 6, 1, true).translate(0, -len / 2, 0), this.shaftMat);
-      sh.position.set((i - 2) * 2.4 + rnd(), 0.1, (rnd() - 0.5) * 3); sh.rotation.set(0.25, 0, 0.3 + rnd() * 0.1); sh.renderOrder = 4; sh.frustumCulled = false;
-      this.shafts.add(sh);
+      const len = this.depth + 1.2, cone = new THREE.ConeGeometry(0.55 + rnd() * 0.4, len, 6, 1, true).translate(0, -len / 2, 0);
+      sh.position.set((i - 2) * 2.4 + rnd(), 0.1, (rnd() - 0.5) * 3); sh.rotation.set(0.25, 0, 0.3 + rnd() * 0.1); sh.updateMatrix();
+      shaftParts.push(cone.applyMatrix4(sh.matrix));
     }
+    const shaftMesh = new THREE.Mesh(mergeGeometries(shaftParts) ?? shaftParts[0], this.shaftMat); shaftMesh.renderOrder = 4;
+    for (const g of shaftParts) if (g !== shaftMesh.geometry) g.dispose();
+    this.shafts.add(shaftMesh);
 
     // --- a school of striped reef fish circling the wreck ---
     const fb = new Baker(); fb.ao = false;
