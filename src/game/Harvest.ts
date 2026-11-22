@@ -34,7 +34,8 @@ type StumpRec = {
   state: 'falling' | 'stump' | 'grass'; age: number; fallT: number;
   mesh: THREE.Mesh; grass: THREE.Mesh[];
 };
-type FruitDot = { mesh: THREE.Mesh; on: boolean; slot: number; targetSc: number };
+/** One hanging fruit: a transform holder (not in the scene) drawn as instance `idx` of a shared InstancedMesh. */
+type FruitDot = { mesh: THREE.Object3D; im: THREE.InstancedMesh; idx: number; on: boolean; slot: number; targetSc: number };
 type FruitRec = {
   key: string; spot: Spot; food: FoodId; stock: number; nextAt: number; cool: number; dots: FruitDot[];
 };
@@ -105,8 +106,11 @@ export class Harvest {
   private appleMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.45, flatShading: true });
   private cherryMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.45, flatShading: true });
   private ghosts: { mesh: THREE.Mesh; t: number; sign: number }[] = [];
-  private grows: { mesh: THREE.Mesh; t: number; target: number }[] = [];
-  private pops: { mesh: THREE.Mesh; t: number; y0: number }[] = [];
+  private grows: { dot: FruitDot; t: number; target: number }[] = [];
+  private pops: { dot: FruitDot; t: number; y0: number }[] = [];
+  /** fruit is drawn instanced: one InstancedMesh per food (plus overflow batches), not one mesh per fruit (168 meshes → 2 draws per pass) */
+  private fruitIM: Record<string, THREE.InstancedMesh[]> = {};
+  private static readonly ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(
     private flora: Flora,
@@ -120,6 +124,35 @@ export class Harvest {
       const food = FRUIT[sp.name];
       if (food) this.ensureFruit(sp, food);
     }
+  }
+
+  /** next free instance for this food; the first batch is sized for every main-island fruit tree, later (islet) trees get small overflow batches */
+  private fruitSlot(food: FoodId): { im: THREE.InstancedMesh; idx: number } {
+    const list = (this.fruitIM[food] ??= []);
+    let im = list[list.length - 1];
+    if (!im || im.count >= (im.instanceMatrix.count)) {
+      const cap = list.length ? 32 : Math.max(32, this.flora.spots.filter((s) => FRUIT[s.name] === food).length * FRUIT_STOCK);
+      im = new THREE.InstancedMesh(food === 'cherry' ? this.cherryG : this.appleG, food === 'cherry' ? this.cherryMat : this.appleMat, cap);
+      im.name = `fruit-${food}`;
+      im.count = 0;
+      im.castShadow = true;
+      list.push(im);
+      this.group.add(im);
+    }
+    return { im, idx: im.count++ };
+  }
+
+  /** write one fruit's transform (hidden fruit collapse to a zero-scale instance) */
+  private writeDot(d: FruitDot) {
+    const o = d.mesh;
+    if (o.visible) { o.updateMatrix(); d.im.setMatrixAt(d.idx, o.matrix); } else d.im.setMatrixAt(d.idx, Harvest.ZERO);
+    d.im.instanceMatrix.needsUpdate = true;
+  }
+
+  /** bounds for culling (main + shadow pass); padded for pop/grow motion */
+  private fitBounds(im: THREE.InstancedMesh) {
+    im.computeBoundingSphere();
+    if (im.boundingSphere) im.boundingSphere.radius += 1;
   }
 
   isGone(sp: Spot) { return this.flora.gone.has(Flora.key(sp.name, sp.x, sp.z)); }
@@ -145,22 +178,22 @@ export class Harvest {
     const key = Flora.key(sp.name, sp.x, sp.z);
     let rec = this.fruit.get(key);
     if (rec) return rec;
-    const geo = food === 'cherry' ? this.cherryG : this.appleG;
-    const mat = food === 'cherry' ? this.cherryMat : this.appleMat;
     const start = Math.floor(Math.abs(Math.sin(sp.x * 12.9898 + sp.z * 78.233)) * FRUIT_SLOTS.length) % FRUIT_SLOTS.length;
     const canopy = 1.8 + sp.sc * 1.6;
     const rad = 0.55 * sp.sc;
     const dots: FruitDot[] = [];
     for (let i = 0; i < FRUIT_STOCK; i++) {
       const [sx, sy, sz] = FRUIT_SLOTS[(start + i) % FRUIT_SLOTS.length];
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.castShadow = true;
+      const mesh = new THREE.Object3D();
       mesh.position.set(sp.x + sx * rad * 1.6, sp.h + sy * canopy, sp.z + sz * rad * 1.6);
       const targetSc = 0.85 + (i % 3) * 0.08;
       mesh.scale.setScalar(targetSc);
-      this.group.add(mesh);
-      dots.push({ mesh, on: true, slot: (start + i) % FRUIT_SLOTS.length, targetSc });
+      const { im, idx } = this.fruitSlot(food);
+      const dot: FruitDot = { mesh, im, idx, on: true, slot: (start + i) % FRUIT_SLOTS.length, targetSc };
+      this.writeDot(dot);
+      dots.push(dot);
     }
+    for (const im of new Set(dots.map((d) => d.im))) this.fitBounds(im);
     rec = { key, spot: sp, food, stock: FRUIT_STOCK, nextAt: 0, cool: 0, dots };
     this.fruit.set(key, rec);
     return rec;
@@ -233,7 +266,7 @@ export class Harvest {
     for (const d of rec.dots) if (d.on) dot = d;
     if (dot) {
       dot.on = false;
-      this.pops.push({ mesh: dot.mesh, t: 0, y0: dot.mesh.position.y });
+      this.pops.push({ dot, t: 0, y0: dot.mesh.position.y });
     }
     if (rec.stock >= FRUIT_STOCK) rec.nextAt = this.fruitRegrowS;
     rec.stock--;
@@ -256,7 +289,8 @@ export class Harvest {
     off.mesh.position.set(rec.spot.x + sx * rad * 1.6, rec.spot.h + sy * canopy, rec.spot.z + sz * rad * 1.6);
     off.mesh.visible = true;
     off.mesh.scale.setScalar(0.01);
-    this.grows.push({ mesh: off.mesh, t: 0, target: off.targetSc });
+    this.writeDot(off);
+    this.grows.push({ dot: off, t: 0, target: off.targetSc });
     rec.stock = Math.min(FRUIT_STOCK, rec.stock + 1);
     rec.nextAt = rec.stock < FRUIT_STOCK ? this.fruitRegrowS : 0;
     this.audio.pop(1.8);
@@ -309,16 +343,19 @@ export class Harvest {
       const p = this.pops[i];
       p.t += dt;
       const u = Math.min(1, p.t / 0.35);
-      p.mesh.position.y = p.y0 - u * 0.55;
-      p.mesh.scale.setScalar(Math.max(0.01, 0.9 * (1 - u)));
-      if (u >= 1) { p.mesh.visible = false; this.pops.splice(i, 1); }
+      const m = p.dot.mesh;
+      m.position.y = p.y0 - u * 0.55;
+      m.scale.setScalar(Math.max(0.01, 0.9 * (1 - u)));
+      if (u >= 1) { m.visible = false; this.pops.splice(i, 1); }
+      this.writeDot(p.dot);
     }
 
     for (let i = this.grows.length - 1; i >= 0; i--) {
       const g = this.grows[i];
       g.t += dt;
       const u = Math.min(1, g.t / 0.45);
-      g.mesh.scale.setScalar(0.01 + (g.target - 0.01) * easeOutBack(u));
+      g.dot.mesh.scale.setScalar(0.01 + (g.target - 0.01) * easeOutBack(u));
+      this.writeDot(g.dot);
       if (u >= 1) this.grows.splice(i, 1);
     }
 
