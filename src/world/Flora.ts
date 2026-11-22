@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   attribute, bool, clamp, cos, dot, float, floor, fract, length, mix, positionLocal, positionWorld,
   screenCoordinate, sin, smoothstep, time, uniform, uv, vec2, vec3,
@@ -428,13 +429,18 @@ export class Flora {
     for (let k = 0; k < 11; k++) {
       const g = new THREE.Group();
       const n = 4 + Math.floor(rnd() * 4);
+      // the cloud's 4-7 blobs are baked into one geometry (one draw per cloud instead of per blob; same shapes, same material)
+      const parts: THREE.BufferGeometry[] = [], b = new THREE.Object3D();
       for (let i = 0; i < n; i++) {
-        const b = new THREE.Mesh(geo, cm);
         const s = 2 + rnd() * 2.5;
         b.scale.set(s * 1.3, s * 0.8, s);
         b.position.set((i - n / 2) * 2.6 + rnd(), rnd() * 1.5, (rnd() - 0.5) * 3);
-        g.add(b);
+        b.updateMatrix();
+        parts.push(geo.clone().applyMatrix4(b.matrix));
       }
+      const merged = mergeGeometries(parts);
+      for (const pg of parts) pg.dispose();
+      g.add(new THREE.Mesh(merged ?? geo, cm));
       const a = rnd() * 6.28, d = 70 + rnd() * 80;
       g.position.set(Math.cos(a) * d, 32 + rnd() * 14, Math.sin(a) * d);
       g.userData.speed = 0.4 + rnd() * 0.5;
