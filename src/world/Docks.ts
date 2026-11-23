@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { heightAt } from './Terrain';
 import { WATER_LEVEL, ISLETS } from './config';
 import { shoreRadius } from './Shore';
@@ -61,9 +62,35 @@ export class Docks {
       this.list.push({ i, islet: s.islet, name: s.name, start, end, dir, len, moor: { x: mp.x, z: mp.y, h: yaw }, step: { x: st.x, z: st.y }, mesh });
     });
     this.boat = BUILDERS.rowboat!();
+    Docks.mergeStatic(this.boat);
     this.boatObj.add(this.boat.body); this.boatObj.name = 'moored-rowboat';
     this.group.add(this.boatObj);
     this.place();
+  }
+
+  /**
+   * polish 2026-11-23: the moored copy only ever bobs as a whole and sways its oars (its animate() resets the
+   * head, tail and oar-hinge rotations to zero every frame), so every part except the two oars is baked into
+   * one mesh per material in body space: 15 -> 9 meshes, 30 -> 18 draws (main + sun shadow) while it is in view.
+   * Same geometry, materials and transforms; the ridden rowboat (Mount's own rig) is untouched.
+   */
+  private static mergeStatic(rig: MountRig) {
+    const body = rig.body, moving = new Set<THREE.Object3D>();
+    for (const w of [rig.wingL, rig.wingR]) for (const c of w.children) if (!(c as THREE.Mesh).isMesh) c.traverse((o) => moving.add(o)); // oar groups
+    body.updateWorldMatrix(true, true);
+    const inv = body.matrixWorld.clone().invert(), byMat = new Map<THREE.Material, { geos: THREE.BufferGeometry[]; meshes: THREE.Mesh[] }>();
+    body.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || moving.has(m) || Array.isArray(m.material) || m.material.transparent) return; // oars, wake foam
+      const e = byMat.get(m.material) ?? { geos: [], meshes: [] }; byMat.set(m.material, e);
+      e.geos.push(m.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld))); e.meshes.push(m);
+    });
+    for (const [mat, { geos, meshes }] of byMat) {
+      if (meshes.length < 2) continue;
+      const g = mergeGeometries(geos); if (!g) continue;
+      for (const m of meshes) m.removeFromParent();
+      const merged = new THREE.Mesh(g, mat); merged.castShadow = merged.receiveShadow = true; body.add(merged);
+    }
   }
 
   /**
