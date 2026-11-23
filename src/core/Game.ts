@@ -133,7 +133,9 @@ export class Game {
     const lap = async (n: string, paint = false) => { this.loadTiming.mark(n); loader.set(P[n] ?? 0, n); if (paint) await nextPaint(); };
     // world grids generate in Web Workers while the renderer + physics start up (Order 39a)
     const gen = pregenerateWorld();
-    this.renderer = new Renderer(container, params.has('webgl'));
+    const q0 = params.get('q');
+    const startQuality: Quality = q0 === 'low' || q0 === 'high' ? q0 : this.isTouch ? 'low' : 'high';
+    this.renderer = new Renderer(container, params.has('webgl'), startQuality);
     this.input = new Input(this.renderer.renderer.domElement);
     await this.physics.init();
     this.genStats = await gen;
@@ -325,8 +327,7 @@ export class Game {
     this.scene.add(this.dress.group);
     themeEvents.on(() => this.dress.rebuild());
     await lap('dress', true);
-    const q = params.get('q');
-    this.setQuality(q === 'low' || q === 'high' ? q : this.isTouch ? 'low' : 'high');
+    this.setQuality(startQuality);
 
     // Order 52a: fishing lazy-loaded (ensureFishing) so the initial index chunk stays smaller
     this.systems.push(this.player, this.rig, this.mount, { update: (dt, t) => this.build?.update(dt) }, {
@@ -449,9 +450,9 @@ export class Game {
     const p0 = 0.64, p1 = 0.98;
     // Shader/pipeline compile doesn't depend on resolution, so warm up on a tiny target:
     // keeps the cost to compile time instead of filling full-res pixels six times.
+    // (one drawing-buffer resize each way: setPixelRatio + setSize would reallocate it twice per switch)
     const pr = r.getPixelRatio();
-    r.setPixelRatio(1);
-    r.setSize(96, 72, false);
+    r.setDrawingBufferSize(96, 72, 1);
     try {
       for (let i = 0; i < steps.length; i++) {
         const [group, text] = steps[i];
@@ -467,7 +468,7 @@ export class Game {
       }
     } finally {
       for (const [o, v] of vis) o.visible = v;
-      r.setPixelRatio(pr);
+      r.setDrawingBufferSize(window.innerWidth, window.innerHeight, pr);
       this.renderer.resize();
     }
     loader.set(p1, undefined, 'Almost there…');

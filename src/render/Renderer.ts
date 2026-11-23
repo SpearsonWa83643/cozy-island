@@ -16,8 +16,14 @@ export class Renderer {
   backendName = 'unknown';
   private usePost = true;
 
-  constructor(container: HTMLElement, forceWebGL: boolean) {
+  /** device pixel ratio used for a quality preset */
+  static pixelRatio(q: Quality) { const dpr = window.devicePixelRatio || 1; return q === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1) * 0.8; }
+
+  constructor(container: HTMLElement, forceWebGL: boolean, quality: Quality = 'high') {
     this.renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL, powerPreference: 'high-performance' });
+    // polish 2026-11-23: size the canvas for the quality the game starts in while there is no GPU context yet
+    // (free), so setQuality() at load finds nothing to change instead of reallocating the drawing buffer.
+    this.renderer.setPixelRatio(Renderer.pixelRatio(quality));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -62,13 +68,21 @@ export class Renderer {
 
   setQuality(q: Quality) {
     this.quality = q;
-    const dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 2) : Math.min(dpr, 1) * 0.8);
     this.usePost = q === 'high';
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    const pr = Renderer.pixelRatio(q), r = this.renderer;
+    if (r.getPixelRatio() !== pr) r.setPixelRatio(pr); // resizes the drawing buffer itself
+    this.resize();
   }
 
-  resize() { this.renderer.setSize(window.innerWidth, window.innerHeight); }
+  /**
+   * Match the window. Every canvas width/height assignment reallocates (and clears) the drawing buffer,
+   * even with an unchanged value, so skip it when nothing changed.
+   */
+  resize() {
+    const r = this.renderer, c = r.domElement, w = window.innerWidth, h = window.innerHeight, pr = r.getPixelRatio();
+    if (c.width === Math.floor(w * pr) && c.height === Math.floor(h * pr) && c.style.width === `${w}px` && c.style.height === `${h}px`) return;
+    r.setSize(w, h);
+  }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {
     if (this.usePost) this.pipeline.render();
