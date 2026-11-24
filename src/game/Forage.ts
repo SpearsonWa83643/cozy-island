@@ -161,6 +161,30 @@ export class Forage {
     this.cullT = 0;
   }
 
+  /**
+   * Polish (Nov 24): only food within 32 m of the player is drawn (the rest sits at zero scale), but every
+   * food type used to be drawn island-wide each frame with culling off (~22 draws in the main pass and
+   * again in the sun's shadow pass on High, even with nothing near). Each type now gets a bounding sphere
+   * around its near items, so the renderer culls it like any other mesh, and a type with no near items
+   * is hidden outright. Run with the 0.5 s near/far pass; items never move, only scale.
+   */
+  private bounds = new THREE.Box3(); private pt = new THREE.Vector3();
+  private fitBounds() {
+    const by = new Map<FoodId, FoodItem[]>();
+    for (const it of this.items) if (it.near) { const a = by.get(it.id); if (a) a.push(it); else by.set(it.id, [it]); }
+    for (const [id, im] of this.meshes) {
+      const near = by.get(id);
+      im.visible = !!near;
+      if (!near) continue;
+      const b = this.bounds.makeEmpty();
+      for (const it of near) b.expandByPoint(this.pt.set(it.x, it.y, it.z));
+      const sph = im.boundingSphere ?? (im.boundingSphere = new THREE.Sphere());
+      b.getBoundingSphere(sph);
+      sph.radius += 0.8; // item size x pop overshoot (scale up to ~2.2)
+      im.frustumCulled = true;
+    }
+  }
+
   pick(it: FoodItem) { it.active = false; it.t = 0; it.respawn = 120 + Math.random() * 120; }
 
   setQuality(high: boolean) { for (const m of this.meshes.values()) m.castShadow = high; }
@@ -175,6 +199,7 @@ export class Forage {
         const near = Math.hypot(it.x - player.x, it.z - player.z) < 32 && Math.abs(it.y - player.y) < 18;
         if (near !== it.near) { it.near = near; this.write(it, near && it.active ? 1 : 0); }
       }
+      this.fitBounds();
     }
     for (const it of this.items) {
       if (!it.active) {
