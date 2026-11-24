@@ -147,7 +147,7 @@ class Herd {
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private s = new THREE.Vector3(1, 1, 1); private v = new THREE.Vector3();
   constructor(public k: Kind, mat: THREE.Material, private rnd: Rnd) {
     this.mesh = new THREE.InstancedMesh(k.geo, mat, k.count);
-    this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
+    this.mesh.castShadow = true; this.mesh.receiveShadow = true;
     const w = new Float32Array(BIOME_COUNT);
     let tries = 0;
     while (this.agents.length < k.count && tries++ < 20000) {
@@ -160,6 +160,24 @@ class Herd {
       if (k.colors) this.mesh.setColorAt(this.agents.length - 1, new THREE.Color(k.colors[Math.floor(rnd() * k.colors.length)]));
     }
     this.active = this.agents.length; this.mesh.count = this.active;
+    if (!k.geo.boundingSphere) k.geo.computeBoundingSphere();
+    const gs = k.geo.boundingSphere!; this.pad = gs.radius + gs.center.length() + 0.35;
+    for (const a of this.agents) a.y = heightAt(a.x, a.z);
+    this.mesh.boundingSphere = new THREE.Sphere(); this.fitBounds();
+  }
+  /**
+   * Polish (Nov 24): herds used to be drawn with culling off (each herd spans its biome), so every
+   * species cost a draw in the main pass and in the sun's shadow pass wherever you stood. The herd's
+   * bounding sphere now follows its drawn animals each frame (the animals plus a pad for hops and
+   * pounces), so the renderer culls a herd that is off screen or outside the shadow area. Taps
+   * (raycasts) use the same, now up-to-date, sphere.
+   */
+  private pad = 1; private box = new THREE.Box3(); private bp = new THREE.Vector3();
+  private fitBounds() {
+    const b = this.box.makeEmpty(), sph = this.mesh.boundingSphere!;
+    for (let i = 0; i < this.agents.length; i++) { const a = this.agents[i]; if (i < this.active || a.friend) b.expandByPoint(this.bp.set(a.x, a.y, a.z)); }
+    if (b.isEmpty()) { sph.center.set(0, -1e4, 0); sph.radius = 0; return; }
+    b.getBoundingSphere(sph); sph.radius += this.pad;
   }
   /** index of the lily pad under (x, z), or -1 */
   padAt(x: number, z: number) {
@@ -257,6 +275,7 @@ class Herd {
     }
     this.mesh.count = Math.max(this.active, this.highestFriend() + 1);
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.fitBounds();
   }
 
   /** frog: sits, croaks, and moves only in springy hops between lily pads and the muddy shore */
