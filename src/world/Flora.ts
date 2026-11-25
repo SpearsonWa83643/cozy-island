@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   attribute, bool, clamp, cos, dot, float, floor, fract, length, mix, positionLocal, positionWorld,
   screenCoordinate, sin, smoothstep, time, uniform, uv, vec2, vec3,
-  mx_noise_float, normalize, cameraPosition, pow, normalView, positionViewDirection, vertexColor,
+  mx_noise_float, normalize, cameraPosition, pow, normalView, positionViewDirection, vertexColor, instanceColor,
 } from 'three/tsl';
 import { mulberry32 } from './noise';
 import { Biome, BIOME_COUNT, POND, AREA } from './Biomes';
@@ -288,10 +288,21 @@ export class Flora {
 
   private buildFlowers(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
     const N = Math.round(1600 * AREA);
-    const stemGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.28, 4); stemGeo.translate(0, 0.14, 0);
+    const stemGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.28, 4).toNonIndexed(); stemGeo.translate(0, 0.14, 0);
     const headGeo = new THREE.IcosahedronGeometry(0.075, 0); headGeo.translate(0, 0.3, 0);
-    const stems = new THREE.InstancedMesh(stemGeo, new THREE.MeshStandardNodeMaterial({ color: '#4f9a43', flatShading: true }), N);
-    const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshStandardNodeMaterial({ roughness: 0.6, flatShading: true }), N);
+    // Polish (Nov 24): stem + head are one instanced mesh (one draw per chunk instead of two). A per-vertex
+    // `head` flag picks the look: stems keep their green (roughness 1), heads take the patch colour (instance
+    // colour, roughness 0.6). three multiplies the instance colour in afterwards, so the stem colour is
+    // pre-divided by it (every flower colour is well above zero in each channel).
+    stemGeo.setAttribute('head', new THREE.Float32BufferAttribute(new Float32Array(stemGeo.attributes.position.count), 1));
+    headGeo.setAttribute('head', new THREE.Float32BufferAttribute(new Float32Array(headGeo.attributes.position.count).fill(1), 1));
+    const flowerGeo = mergeGeometries([stemGeo, headGeo])!;
+    const fMat = new THREE.MeshStandardNodeMaterial({ flatShading: true });
+    const hk = attribute('head', 'float');
+    const sg = new THREE.Color('#4f9a43');
+    fMat.colorNode = mix(vec3(sg.r, sg.g, sg.b).div(instanceColor), vec3(1), hk);
+    fMat.roughnessNode = mix(float(1), float(0.6), hk);
+    const flowers = new THREE.InstancedMesh(flowerGeo, fMat, N);
     const sets: Record<number, string[]> = {
       [Biome.Meadow]: ['#ff7eb6', '#ffd84d', '#ffffff', '#b98cff', '#ff9a5c', '#7fc8ff'],
       [Biome.Alpine]: ['#7fa8ff', '#ffffff', '#c9b0ff'],
@@ -320,17 +331,17 @@ export class Flora {
       const sc = 0.8 + rnd() * 0.6;
       p.set(x, h - 0.02, z); s.setScalar(sc); q.setFromEuler(new THREE.Euler((rnd() - 0.5) * 0.3, rnd() * 6, (rnd() - 0.5) * 0.3));
       m.compose(p, q, s);
-      stems.setMatrixAt(i, m); heads.setMatrixAt(i, m);
-      heads.setColorAt(i, pt.c);
+      flowers.setMatrixAt(i, m);
+      flowers.setColorAt(i, pt.c);
       if (i % 9 === 0) this.flowerSpots.push(new THREE.Vector3(x, h, z));
       i++;
     }
-    stems.count = heads.count = i;
-    heads.castShadow = false;
-    stems.receiveShadow = heads.receiveShadow = true;
-    stems.frustumCulled = heads.frustumCulled = false;
-    this.group.add(stems, heads);
-    this.scalable.push({ mesh: stems, max: i, low: 0.35 }, { mesh: heads, max: i, low: 0.35 });
+    flowers.count = i;
+    flowers.castShadow = false;
+    flowers.receiveShadow = true;
+    flowers.frustumCulled = false;
+    this.group.add(flowers);
+    this.scalable.push({ mesh: flowers, max: i, low: 0.35 });
   }
 
   private buildGrass(rnd: () => number, free: (x: number, z: number, r: number) => boolean) {
