@@ -121,7 +121,7 @@ function spotKey(x: number, z: number) { return `${x.toFixed(2)},${z.toFixed(2)}
 
 export class Flora {
   group = new THREE.Group();
-  private scalable: { mesh: THREE.InstancedMesh; max: number; low: number }[] = [];
+  private scalable: { mesh: THREE.InstancedMesh; max: number; low: number; cast?: boolean }[] = [];
   grass!: THREE.InstancedMesh;
   leafLitter!: THREE.InstancedMesh;
   clouds: THREE.Group[] = [];
@@ -211,7 +211,7 @@ export class Flora {
         im.frustumCulled = false; // instances span the island
         im.name = spec.name;
         this.group.add(im);
-        if (spec.low !== undefined) this.scalable.push({ mesh: im, max: placed, low: spec.low });
+        if (spec.low !== undefined) this.scalable.push({ mesh: im, max: placed, low: spec.low, cast: im.castShadow });
       }
     }
     this.buildPondPads(matDouble);
@@ -228,10 +228,10 @@ export class Flora {
    */
   private chunkAll() {
     const N = 3, size = 124, cell = size / N;
-    const lowOf = new Map<THREE.InstancedMesh, number>();
-    for (const s of this.scalable) lowOf.set(s.mesh, s.low);
+    const lowOf = new Map<THREE.InstancedMesh, number>(), castOf = new Map<THREE.InstancedMesh, boolean>();
+    for (const s of this.scalable) { lowOf.set(s.mesh, s.low); if (s.cast) castOf.set(s.mesh, true); }
     lowOf.set(this.grass, 0.3);
-    const next: { mesh: THREE.InstancedMesh; max: number; low: number }[] = [];
+    const next: { mesh: THREE.InstancedMesh; max: number; low: number; cast?: boolean }[] = [];
     const m = new THREE.Matrix4(), c = new THREE.Color(), p = new THREE.Vector3();
     for (const im of [...this.group.children] as THREE.InstancedMesh[]) {
       if (!im.isInstancedMesh) continue;
@@ -255,7 +255,7 @@ export class Flora {
         ch.frustumCulled = true;
         this.group.add(ch);
         const low = lowOf.get(im);
-        if (low !== undefined) next.push({ mesh: ch, max: b.length, low });
+        if (low !== undefined) next.push({ mesh: ch, max: b.length, low, cast: castOf.get(im) });
       }
     }
     this.scalable = next;
@@ -534,7 +534,13 @@ export class Flora {
   }
 
   setQuality(high: boolean) {
-    for (const s of this.scalable) s.mesh.count = Math.floor(s.max * (high ? 1 : s.low));
+    // Polish (Nov 25): on Low, the small thinned-out shrubs (bushes, berry bushes, sunflowers, tropical plants,
+    // cacti; every shadow-casting spec with a `low` share) skip the sun's shadow pass, like forage food does.
+    // Their baked ground AO still grounds them; trees and rocks keep real shadows on both tiers.
+    for (const s of this.scalable) {
+      s.mesh.count = Math.floor(s.max * (high ? 1 : s.low));
+      if (s.cast) s.mesh.castShadow = high;
+    }
   }
 
   update(dt: number) {
