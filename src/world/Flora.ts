@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   attribute, bool, clamp, cos, dot, float, floor, fract, length, mix, positionLocal, positionWorld,
-  screenCoordinate, sin, smoothstep, time, uniform, uv, vec2, vec3,
+  screenCoordinate, sin, smoothstep, time, uniform, uv, vec2, vec3, select, abs,
   mx_noise_float, normalize, cameraPosition, pow, normalView, positionViewDirection, vertexColor, instanceColor,
 } from 'three/tsl';
 import { mulberry32 } from './noise';
@@ -21,8 +21,7 @@ export const windStrength = uniform(1);
 export const sunDirU = uniform(new THREE.Vector3(-0.5, 0.78, -0.6).normalize());
 
 /** Vertex-coloured, flat-shaded, wind-swaying material that dithers out when it blocks the camera. */
-export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) {
-  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: opts.rough ?? 0.82, side: opts.side ?? THREE.FrontSide });
+function swayed() {
   const sway = attribute('sway', 'float');
   const pl = positionLocal;
   const t = time;
@@ -31,7 +30,26 @@ export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) 
     float(0),
     cos(t.mul(1.1).add(pl.z.mul(0.3))).mul(0.7),
   ).mul(0.055).mul(sway).mul(windStrength);
-  m.positionNode = pl.add(wv);
+  return pl.add(wv);
+}
+
+/**
+ * Shadow-only stand-in (polish Nov 26): one instanced mesh per species per chunk whose geometry holds every
+ * variant; a per-vertex `vid` and per-instance `vsel` keep only the instance's own variant (the others collapse
+ * to a point and rasterise nothing). Lives on layer 1, which only the sun's shadow camera sees.
+ */
+function floraShadowMaterial() {
+  const m = new THREE.MeshBasicNodeMaterial({ side: THREE.FrontSide });
+  const keep = abs(attribute('vid', 'float').sub(attribute('vsel', 'float'))).lessThan(0.5);
+  m.positionNode = select(keep, swayed(), vec3(0));
+  m.maskShadowNode = bool(true);
+  return m;
+}
+
+export function floraMaterial(opts: { rough?: number; side?: THREE.Side } = {}) {
+  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: opts.rough ?? 0.82, side: opts.side ?? THREE.FrontSide });
+  const sway = attribute('sway', 'float');
+  m.positionNode = swayed();
   // subtle world-space grain (bark / leaf / rock variation) instead of textures
   const pw = positionWorld;
   const grain = mx_noise_float(pw.mul(3.2)).mul(0.08).add(mx_noise_float(pw.mul(0.7)).mul(0.07)).add(1);
@@ -210,6 +228,9 @@ export class Flora {
         im.receiveShadow = true;
         im.frustumCulled = false; // instances span the island
         im.name = spec.name;
+        if (im.castShadow && spec.low === undefined && spec.variants > 1 && im.material === mat) {
+          const vg = this.variantGeos.get(spec.name) ?? []; vg.push(geo); this.variantGeos.set(spec.name, vg);
+        }
         this.group.add(im);
         if (spec.low !== undefined) this.scalable.push({ mesh: im, max: placed, low: spec.low, cast: im.castShadow });
       }
@@ -226,8 +247,14 @@ export class Flora {
    * Split every island-wide InstancedMesh into 3x3 regional chunks so the
    * renderer can frustum-cull them (main camera and the sun's shadow camera).
    */
+  /** species -> its variant geometries (shadow-casting, non-thinned, multi-variant: trees and rocks) */
+  private variantGeos = new Map<string, THREE.BufferGeometry[]>();
+  /** shadow-only stand-ins (layer 1), one per species per chunk */
+  shadowProxies: THREE.InstancedMesh[] = [];
+
   private chunkAll() {
     const N = 3, size = 124, cell = size / N;
+    const proxyMembers = new Map<string, THREE.InstancedMesh[]>();
     const lowOf = new Map<THREE.InstancedMesh, number>(), castOf = new Map<THREE.InstancedMesh, boolean>();
     for (const s of this.scalable) { lowOf.set(s.mesh, s.low); if (s.cast) castOf.set(s.mesh, true); }
     lowOf.set(this.grass, 0.3);
@@ -256,9 +283,55 @@ export class Flora {
         this.group.add(ch);
         const low = lowOf.get(im);
         if (low !== undefined) next.push({ mesh: ch, max: b.length, low, cast: castOf.get(im) });
+        if (this.variantGeos.get(im.name)?.includes(im.geometry)) {
+          const k = `${im.name}|${buckets.indexOf(b)}`; const l = proxyMembers.get(k) ?? []; l.push(ch); proxyMembers.set(k, l);
+        }
       }
     }
     this.scalable = next;
+    this.buildShadowProxies(proxyMembers);
+  }
+
+  private buildShadowProxies(members: Map<string, THREE.InstancedMesh[]>) {
+    const merged = new Map<string, THREE.BufferGeometry>();
+    for (const [name, geos] of this.variantGeos) {
+      const parts = geos.map((g, v) => {
+        const c = new THREE.BufferGeometry();
+        for (const a in g.attributes) if (a === 'position' || a === 'sway') c.setAttribute(a, g.attributes[a]);
+        if (g.index) c.setIndex(g.index);
+        c.setAttribute('vid', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1));
+        return c;
+      });
+      const mg = mergeGeometries(parts);
+      if (mg) { mg.computeBoundingSphere(); merged.set(name, mg); }
+    }
+    const pmat = floraShadowMaterial();
+    const m = new THREE.Matrix4();
+    for (const [k, list] of members) {
+      const name = k.split('|')[0], mg = merged.get(name), geos = this.variantGeos.get(name)!;
+      if (!mg || list.length < 2) continue;
+      const total = list.reduce((a, l) => a + l.count, 0);
+      const g = new THREE.BufferGeometry();
+      for (const a in mg.attributes) g.setAttribute(a, mg.attributes[a]);
+      g.setIndex(mg.index); g.boundingSphere = mg.boundingSphere;
+      const vsel = new Float32Array(total);
+      g.setAttribute('vsel', new THREE.InstancedBufferAttribute(vsel, 1));
+      const px = new THREE.InstancedMesh(g, pmat, total);
+      let off = 0;
+      for (const ch of list) {
+        const v = geos.indexOf(ch.geometry);
+        for (let i = 0; i < ch.count; i++) { ch.getMatrixAt(i, m); px.setMatrixAt(off + i, m); vsel[off + i] = v; }
+        // keep the stand-in in step with felled / cleared / wobbling instances
+        const base = off, own = ch.setMatrixAt.bind(ch);
+        ch.setMatrixAt = (i: number, mx: THREE.Matrix4) => { own(i, mx); px.setMatrixAt(base + i, mx); px.instanceMatrix.needsUpdate = true; return ch; };
+        ch.castShadow = false;
+        off += ch.count;
+      }
+      px.name = `${name}~shadow`; px.castShadow = true; px.receiveShadow = false;
+      px.layers.set(1);
+      px.computeBoundingSphere(); px.frustumCulled = true;
+      this.group.add(px); this.shadowProxies.push(px);
+    }
   }
 
   /** extra lily pads across the marsh pond (own seed, so the rest of the island layout is unchanged) — frogs hop between them */

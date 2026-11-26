@@ -157,6 +157,8 @@ export class Game {
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
     sc.left = -SHADOW_HALF; sc.right = SHADOW_HALF; sc.top = SHADOW_HALF; sc.bottom = -SHADOW_HALF; sc.near = 1; sc.far = 180;
+    // layer 1 = shadow-only stand-ins (Flora.shadowProxies): the sun's shadow camera sees layers 0 + 1, the main camera only 0
+    sc.layers.enable(1);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
     this.sun.shadow.radius = 3;
