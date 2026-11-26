@@ -228,7 +228,7 @@ export class Flora {
         im.receiveShadow = true;
         im.frustumCulled = false; // instances span the island
         im.name = spec.name;
-        if (im.castShadow && spec.low === undefined && spec.variants > 1 && im.material === mat) {
+        if (im.castShadow && spec.variants > 1 && im.material === mat) {
           const vg = this.variantGeos.get(spec.name) ?? []; vg.push(geo); this.variantGeos.set(spec.name, vg);
         }
         this.group.add(im);
@@ -247,7 +247,7 @@ export class Flora {
    * Split every island-wide InstancedMesh into 3x3 regional chunks so the
    * renderer can frustum-cull them (main camera and the sun's shadow camera).
    */
-  /** species -> its variant geometries (shadow-casting, non-thinned, multi-variant: trees and rocks) */
+  /** species -> its variant geometries (shadow-casting, multi-variant, single-sided: trees, rocks, shrubs) */
   private variantGeos = new Map<string, THREE.BufferGeometry[]>();
   /** shadow-only stand-ins (layer 1), one per species per chunk */
   shadowProxies: THREE.InstancedMesh[] = [];
@@ -324,7 +324,7 @@ export class Flora {
         // keep the stand-in in step with felled / cleared / wobbling instances
         const base = off, own = ch.setMatrixAt.bind(ch);
         ch.setMatrixAt = (i: number, mx: THREE.Matrix4) => { own(i, mx); px.setMatrixAt(base + i, mx); px.instanceMatrix.needsUpdate = true; return ch; };
-        ch.castShadow = false;
+        ch.castShadow = false; ch.userData.shadowProxy = px;
         off += ch.count;
       }
       px.name = `${name}~shadow`; px.castShadow = true; px.receiveShadow = false;
@@ -612,7 +612,10 @@ export class Flora {
     // Their baked ground AO still grounds them; trees and rocks keep real shadows on both tiers.
     for (const s of this.scalable) {
       s.mesh.count = Math.floor(s.max * (high ? 1 : s.low));
-      if (s.cast) s.mesh.castShadow = high;
+      if (!s.cast) continue;
+      const px = s.mesh.userData.shadowProxy as THREE.InstancedMesh | undefined;
+      if (px) px.visible = high; // Nov 26: the shrub's shadow stand-in (full count, High only)
+      else s.mesh.castShadow = high;
     }
   }
 
