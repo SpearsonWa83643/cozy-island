@@ -93,20 +93,32 @@ export class Dig {
     return { kind: 'nothing' };
   }
 
+  /**
+   * Polish (Nov 27): with no holes and no flying dirt (most of the time) the three meshes were still drawn every
+   * frame (culling is off; the mound also in the sun's shadow pass) and their instance buffers re-uploaded.
+   * Now they hide and skip the upload while idle: 4 fewer draws and 3 fewer buffer uploads per frame.
+   */
+  // start shown so the load-time compile still builds their pipelines (no hitch on the first dig); the first
+  // update() hides them
+  private holesShown = true; private chunksShown = 60;
   update(dt: number) {
     const m = this.m, q = this.q, s = this.s, v = this.v;
+    let live = false, healed = false;
     for (let i = 0; i < CAP; i++) {
       const h = this.holes[i];
       if (!h.live) continue;
+      live = true;
       h.t = Math.min(1, h.t + dt / 0.35); h.age += dt;
       const heal = Math.min(1, Math.max(0, (h.age - (HOLE_LIFE - 20)) / 20)); // last 20 s: grass grows back over
-      if (heal >= 1) { h.live = false; this.holeMesh.setMatrixAt(i, m.makeScale(0, 0, 0)); this.moundMesh.setMatrixAt(i, m.makeScale(0, 0, 0)); continue; }
+      if (heal >= 1) { h.live = false; healed = true; this.holeMesh.setMatrixAt(i, m.makeScale(0, 0, 0)); this.moundMesh.setMatrixAt(i, m.makeScale(0, 0, 0)); continue; }
       const k = easeOutBack(h.t) * (1 - heal);
       this.holeMesh.setMatrixAt(i, m.compose(v.set(h.x, h.y + 0.035, h.z), q.setFromEuler(this.e.set(0, h.rot, 0)), s.set(k, 1, k * 0.85)));
       const mx = h.x + Math.cos(h.rot) * 0.55, mz = h.z + Math.sin(h.rot) * 0.55;
       this.moundMesh.setMatrixAt(i, m.compose(v.set(mx, heightAt(mx, mz) - 0.02, mz), q.setFromEuler(this.e.set(0, -h.rot, 0)), s.set(k, k * (1 - heal * 0.5), k)));
     }
-    this.holeMesh.instanceMatrix.needsUpdate = true; this.moundMesh.instanceMatrix.needsUpdate = true;
+    if (live || healed) { this.holeMesh.instanceMatrix.needsUpdate = true; this.moundMesh.instanceMatrix.needsUpdate = true; }
+    const anyHole = this.holes.some((h) => h.live);
+    if (anyHole !== this.holesShown) { this.holesShown = anyHole; this.holeMesh.visible = this.moundMesh.visible = anyHole; }
     let n = 0;
     for (const b of this.bits) {
       b.life -= dt; if (b.life <= 0) continue;
@@ -114,9 +126,12 @@ export class Dig {
       const g = heightAt(b.p.x, b.p.z); if (b.p.y < g + 0.03) { b.p.y = g + 0.03; b.v.multiplyScalar(0.3); }
       this.chunks.setMatrixAt(n++, m.compose(b.p, q.identity(), s.setScalar(b.s * Math.min(1, b.life * 3))));
     }
-    this.bits = this.bits.filter((b) => b.life > 0);
-    for (let i = n; i < 60; i++) this.chunks.setMatrixAt(i, m.makeScale(0, 0, 0));
-    this.chunks.instanceMatrix.needsUpdate = true;
+    if (n || this.chunksShown) {
+      this.bits = this.bits.filter((b) => b.life > 0);
+      for (let i = n; i < this.chunksShown; i++) this.chunks.setMatrixAt(i, m.makeScale(0, 0, 0));
+      this.chunks.instanceMatrix.needsUpdate = true;
+      this.chunks.visible = n > 0; this.chunksShown = n;
+    }
   }
   get liveHoles() { return this.holes.filter((h) => h.live).length; }
 }

@@ -315,7 +315,9 @@ export class Treasure {
       this.s.setScalar(Math.min(1, c.life * 2));
       this.confetti.setMatrixAt(n++, this.m.compose(c.p, this.q.setFromEuler(c.r), this.s));
     }
-    this.confetti.count = n; this.confetti.instanceMatrix.needsUpdate = true;
+    // polish (Nov 27): idle (no confetti / dirt in flight) = hidden and no per-frame instance upload
+    if (n || this.confetti.count) { this.confetti.count = n; this.confetti.instanceMatrix.needsUpdate = true; }
+    this.confetti.visible = n > 0;
     n = 0;
     for (const p of this.dirtP) {
       if (p.life <= 0) continue;
@@ -323,6 +325,7 @@ export class Treasure {
       this.s.setScalar(Math.min(1, p.life * 3));
       this.dirt.setMatrixAt(n++, this.m.compose(p.p, this.q.identity(), this.s));
     }
-    this.dirt.count = n; this.dirt.instanceMatrix.needsUpdate = true;
+    if (n || this.dirt.count) { this.dirt.count = n; this.dirt.instanceMatrix.needsUpdate = true; }
+    this.dirt.visible = n > 0;
   }
 }
