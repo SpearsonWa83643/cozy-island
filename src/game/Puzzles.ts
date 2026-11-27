@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { heightAt, type Surface } from '../world/Terrain';
 import { Baker } from '../world/Baker';
 import type { Flora } from '../world/Flora';
@@ -133,6 +134,7 @@ export class Puzzles {
     this.resetRock.scale.set(0.7, 0.55, 0.7);
     this.resetRock.castShadow = true;
     this.group.add(this.resetRock);
+    this.stoneShadow(stoneGeo);
 
     // reward chest (hidden until solved)
     this.chest = makeChest();
@@ -140,6 +142,26 @@ export class Puzzles {
     this.chest.visible = false;
     this.chest.scale.set(1, 0.01, 1);
     this.group.add(this.chest);
+  }
+
+  /**
+   * Polish (Nov 27): the four stepping stones and the reset rock never move, so their sun shadows come from one
+   * shadow-only stand-in (all five stones baked in place, layer 1 = only the sun's shadow camera sees it, like
+   * Flora's tree stand-ins): 5 shadow draws -> 1 near the meadow clearing. The stones themselves stay separate
+   * meshes (each swaps to the lit material when stepped on) and no longer cast.
+   */
+  private stoneShadow(stoneGeo: THREE.BufferGeometry) {
+    const parts: THREE.BufferGeometry[] = [];
+    for (const m of [...this.stones.map((s) => s.mesh), this.resetRock]) {
+      m.updateMatrix();
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', stoneGeo.attributes.position.clone()); // own copy: applyMatrix4 below bakes in place
+      if (stoneGeo.index) g.setIndex(stoneGeo.index.clone());
+      parts.push(g.applyMatrix4(m.matrix)); m.castShadow = false;
+    }
+    const geo = mergeGeometries(parts); if (!geo) { for (const m of [...this.stones.map((s) => s.mesh), this.resetRock]) m.castShadow = true; return; }
+    const px = new THREE.Mesh(geo, new THREE.MeshBasicNodeMaterial());
+    px.name = 'puzzle-stones~shadow'; px.castShadow = true; px.receiveShadow = false; px.layers.set(1);
+    this.group.add(px);
   }
 
   /** Called from player onStep when walking on soft ground. */

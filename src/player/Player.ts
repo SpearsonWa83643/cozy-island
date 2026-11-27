@@ -131,6 +131,7 @@ function makeCharacter() {
   body.add(torso, skin, eyes, hair, trim, hatS, faceS, sproutS, neckS, backS);
   root.add(footL, footR);
   root.traverse((c) => { if ((c as THREE.Mesh).isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+  eyes.castShadow = false; // polish (Nov 27): the eyes sit inside the head's own shadow silhouette; one fewer shadow draw
   const sockets: Sockets = { hat: hatS, face: faceS, neck: neckS, back: backS, sprout: sproutS, torso, hair };
   return { root, body, footL, footR, sockets };
 }
