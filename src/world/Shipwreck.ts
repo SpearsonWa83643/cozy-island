@@ -118,7 +118,9 @@ export class Shipwreck {
     const fb = new Baker(); fb.ao = false;
     fb.add(new THREE.SphereGeometry(0.12, 6, 4), '#ffb238', [0, 0, 0], [0, 0, 0], [1.6, 1, 0.55]).add(new THREE.ConeGeometry(0.09, 0.14, 4), '#ff7a1a', [-0.24, 0, 0], [0, 0, Math.PI / 2], [1, 1, 0.4]).add(new THREE.BoxGeometry(0.03, 0.18, 0.13), '#ffffff', [0.03, 0, 0]);
     this.fish = new THREE.InstancedMesh(fb.build(), new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.6 }), FISH);
-    this.fish.frustumCulled = false;
+    // polish (Nov 28): the school circles the wreck in a fixed ellipse (local rx <= ~7.2, rz <= ~3.9), so one static
+    // sphere lets it be culled when the wreck is off screen; culling starts after the first frames (load-time compile)
+    this.fish.frustumCulled = false; this.fish.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, -0.8, 0), 8.2);
 
     const local = new THREE.Group();
     local.add(hullMesh, chestG, this.glow, this.shafts, this.fish);
@@ -180,6 +182,7 @@ export class Shipwreck {
     this.group.visible = near;
     if (!near) return;
     this.fishT += dt; this.updateFish(this.fishT);
+    if (!this.fish.frustumCulled && this.fishT > 0.1) this.fish.frustumCulled = true;
     this.shaftMat.opacity = 0.1 + Math.sin(t * 0.7) * 0.03;
     if (!this.opened) { this.glowMat.opacity = 0.28 + Math.sin(t * 2.4) * 0.1; this.glow.scale.setScalar(1 + Math.sin(t * 2.4) * 0.08); }
   }

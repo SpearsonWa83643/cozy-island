@@ -393,6 +393,12 @@ export class Reef {
     }
     this.bottleMesh.instanceMatrix.needsUpdate = true;
 
+    // polish (Nov 28): the creature meshes were drawn with culling off wherever you stood (5 draws at spawn on Low,
+    // even with the reef behind you); each now gets a bounding sphere around its live instances and is culled /
+    // hidden like the herds. Culling starts after the first frames so the load-time compile still covers them.
+    if (this.frames < 2) this.frames++;
+    else { this.fit(this.fishMesh, 0.6); this.fit(this.turtleMesh, 1.2); this.fit(this.rayMesh, 1.6); this.fit(this.jellyMesh, 1); this.fit(this.dolMesh, 2); this.fit(this.bottleMesh, 0.6); }
+
     // ---- wake rings ----
     if (swimming && moving > 0.15 && this.rnd() < dt * (2 + moving * 4)) this.ring(px - Math.sin(t) * 0.05, pz, 0.45 + moving * 0.25, 1.1);
     const col = new THREE.Color();
@@ -416,4 +422,20 @@ export class Reef {
     if (!!nRing !== this.ringShown) { this.ringShown = nRing > 0; this.ringMesh.visible = this.ringShown; }
   }
   private ringShown = true;
+  private frames = 0;
+  private fitBox = new THREE.Box3(); private fitP = new THREE.Vector3();
+  /** bounding sphere around the instances not parked at zero scale; none live = hidden */
+  private fit(im: THREE.InstancedMesh, pad: number) {
+    const a = im.instanceMatrix.array, b = this.fitBox.makeEmpty();
+    for (let i = 0, o = 0; i < im.count; i++, o += 16) {
+      if (a[o] === 0 && a[o + 1] === 0 && a[o + 2] === 0) continue; // zero scale = parked
+      b.expandByPoint(this.fitP.set(a[o + 12], a[o + 13], a[o + 14]));
+    }
+    const live = !b.isEmpty();
+    im.visible = live;
+    if (!live) return;
+    im.frustumCulled = true;
+    const sp = (im.boundingSphere ??= new THREE.Sphere());
+    b.getBoundingSphere(sp); sp.radius += pad;
+  }
 }
