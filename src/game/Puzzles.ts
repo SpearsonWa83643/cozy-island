@@ -277,6 +277,7 @@ export class Puzzles {
     return null;
   }
 
+  private footShown = true;
   update(dt: number) {
     // footprints fade
     let nLive = 0;
@@ -293,7 +294,10 @@ export class Puzzles {
       this.footMesh.setMatrixAt(i, this.m.compose(this.v.set(f.x, f.y, f.z), this.q, this.s));
       nLive++;
     }
-    this.footMesh.instanceMatrix.needsUpdate = true;
+    // polish (Nov 27): no prints left (standing still, rock, sea) = hidden and no per-frame instance upload;
+    // starts shown so the load-time compile covers it
+    if (nLive || this.footShown) this.footMesh.instanceMatrix.needsUpdate = true;
+    if (!!nLive !== this.footShown) { this.footShown = nLive > 0; this.footMesh.visible = this.footShown; }
     (this.footMesh.material as THREE.MeshBasicNodeMaterial).opacity = 0.32;
 
     // chest pop-in

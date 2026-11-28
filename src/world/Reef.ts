@@ -396,16 +396,24 @@ export class Reef {
     // ---- wake rings ----
     if (swimming && moving > 0.15 && this.rnd() < dt * (2 + moving * 4)) this.ring(px - Math.sin(t) * 0.05, pz, 0.45 + moving * 0.25, 1.1);
     const col = new THREE.Color();
+    let nRing = 0;
     for (let i = 0; i < this.rings.length; i++) {
       const r = this.rings[i];
       if (r.t >= 1) continue;
+      nRing++;
       r.t = Math.min(1, r.t + dt / r.life);
       const k = 1 - Math.pow(1 - r.t, 2.2);
       this.ringMesh.setMatrixAt(i, m.compose(v.set(r.x, 0.1, r.z), q.identity(), sc.set(r.size * (0.3 + k * 1.4), 1, r.size * (0.3 + k * 1.4))));
       this.ringMesh.setColorAt(i, col.setScalar(0.55 * (1 - r.t) * (r.t < 0.1 ? r.t * 10 : 1)));
       if (r.t >= 1) this.ringMesh.setMatrixAt(i, m.makeScale(0, 0, 0));
     }
-    this.ringMesh.instanceMatrix.needsUpdate = true;
-    if (this.ringMesh.instanceColor) this.ringMesh.instanceColor.needsUpdate = true;
+    // polish (Nov 27): no wake rings (on land, mostly) = hidden and no per-frame instance uploads (matrix + colour);
+    // starts shown so the load-time compile covers it
+    if (nRing || this.ringShown) {
+      this.ringMesh.instanceMatrix.needsUpdate = true;
+      if (this.ringMesh.instanceColor) this.ringMesh.instanceColor.needsUpdate = true;
+    }
+    if (!!nRing !== this.ringShown) { this.ringShown = nRing > 0; this.ringMesh.visible = this.ringShown; }
   }
+  private ringShown = true;
 }
